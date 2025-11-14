@@ -11,8 +11,8 @@ export const DotFlashing = () => (
         width: 5px;
         height: 5px;
         border-radius: 5px;
-        background-color: #ccc;
-        color: #ccc;
+        background-color: var(--color-muted-foreground);
+        color: var(--color-muted-foreground);
         animation: dot-flashing 1s infinite linear alternate;
         animation-delay: 0.5s;
       }
@@ -27,8 +27,8 @@ export const DotFlashing = () => (
         width: 5px;
         height: 5px;
         border-radius: 5px;
-        background-color: #787777;
-        color: #787777;
+        background-color: var(--color-muted-foreground);
+        color: var(--color-muted-foreground);
         animation: dot-flashing 1s infinite alternate;
         animation-delay: 0s;
       }
@@ -37,14 +37,14 @@ export const DotFlashing = () => (
         width: 5px;
         height: 5px;
         border-radius: 5px;
-        background-color: #787777;
-        color: #787777;
+        background-color: var(--color-muted-foreground);
+        color: var(--color-muted-foreground);
         animation: dot-flashing 1s infinite alternate;
         animation-delay: 1s;
       }
       @keyframes dot-flashing {
-        0% { background-color: #787777; }
-        50%, 100% { background-color: rgba(152, 128, 255, 0.2); }
+        0% { background-color: var(--color-muted-foreground); }
+        50%, 100% { background-color: var(--color-accent); }
       }
     `}</style>
   </>

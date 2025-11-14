@@ -16,7 +16,7 @@ export const LoadingDots = () => {
           style={{
             width: 4,
             height: 6 + 6 * (tick % 3 === i ? 1 : 0),
-            background: '#fff',
+            background: 'var(--color-primary-foreground)',
             borderRadius: 3,
             opacity: 0.9,
             transition: 'height 0.2s',

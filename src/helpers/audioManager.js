@@ -220,7 +220,7 @@ class AudioManager {
   }
 
   async processWithReasoningModel(text) {
-    const model = StorageManager.getLocalStorageValue("reasoningModel", "llama-3.1-8b-instant");
+    const model = StorageManager.getLocalStorageValue("reasoningModel", "qwen/qwen3-32b");
     const agentName = StorageManager.getLocalStorageValue("agentName", null);
     
     void debugLogger.log("CALLING_REASONING_SERVICE", {
@@ -301,7 +301,7 @@ class AudioManager {
 
     const useReasoning = await this.isReasoningAvailable();
 
-    const reasoningModel = StorageManager.getLocalStorageValue("reasoningModel", "llama-3.1-8b-instant");
+    const reasoningModel = StorageManager.getLocalStorageValue("reasoningModel", "qwen/qwen3-32b");
     const reasoningProvider = "groq";
     const agentName = StorageManager.getLocalStorageValue("agentName", null);
 

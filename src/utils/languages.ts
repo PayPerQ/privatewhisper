@@ -84,6 +84,11 @@ export const REASONING_PROVIDERS = {
         label: "Mixtral 8x7B",
         description: "Great for structured summaries and lists",
       },
+      {
+        value: "qwen/qwen3-32b",
+        label: "Qwen3 32B",
+        description: "High capacity reasoning with 128K context",
+      },
     ],
   },
 };

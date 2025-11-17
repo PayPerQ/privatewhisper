@@ -41,7 +41,7 @@ export function useSettings() {
 
   const [reasoningModel, setReasoningModel] = useLocalStorage(
     "reasoningModel",
-    "llama-3.1-8b-instant",
+    "qwen/qwen3-32b",
     {
       serialize: String,
       deserialize: String,

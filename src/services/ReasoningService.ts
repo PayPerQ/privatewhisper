@@ -45,7 +45,7 @@ class ReasoningService extends BaseReasoningService {
       );
 
     return {
-      model: model || "llama-3.1-8b-instant",
+      model: model || "qwen/qwen3-32b",
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },

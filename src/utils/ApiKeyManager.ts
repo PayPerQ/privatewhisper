@@ -27,54 +27,18 @@ class ApiKeyManager {
     return apiKey;
   }
 
-  async getGroqApiKey(forceRefresh: boolean = false): Promise<string> {
-    if (!forceRefresh) {
-      const cached = this.cache.get("groq");
-      if (cached) {
-        return cached;
+  private async fetchFromSources(keyType: "ppq"): Promise<string | null> {
+    if (typeof window !== "undefined" && window.electronAPI?.getPPQKey) {
+      const key = await window.electronAPI.getPPQKey();
+      if (this.isValidApiKey(key)) {
+        return key;
       }
     }
 
-    const apiKey = await this.fetchFromSources("groq");
-
-    if (!this.isValidApiKey(apiKey)) {
-      throw new Error(
-        "Groq API key not found. Please add your key in the Control Panel."
-      );
-    }
-
-    this.cache.set("groq", apiKey);
-    return apiKey;
-  }
-
-  private async fetchFromSources(keyType: "ppq" | "groq"): Promise<string | null> {
-    if (keyType === "ppq") {
-      if (typeof window !== "undefined" && window.electronAPI?.getPPQKey) {
-        const key = await window.electronAPI.getPPQKey();
-        if (this.isValidApiKey(key)) {
-          return key;
-        }
-      }
-
-      if (typeof window !== "undefined" && window.localStorage) {
-        const key = window.localStorage.getItem("ppqApiKey");
-        if (this.isValidApiKey(key)) {
-          return key;
-        }
-      }
-    } else if (keyType === "groq") {
-      if (typeof window !== "undefined" && window.electronAPI?.getGroqKey) {
-        const key = await window.electronAPI.getGroqKey();
-        if (this.isValidApiKey(key)) {
-          return key;
-        }
-      }
-
-      if (typeof window !== "undefined" && window.localStorage) {
-        const key = window.localStorage.getItem("groqApiKey");
-        if (this.isValidApiKey(key)) {
-          return key;
-        }
+    if (typeof window !== "undefined" && window.localStorage) {
+      const key = window.localStorage.getItem("ppqApiKey");
+      if (this.isValidApiKey(key)) {
+        return key;
       }
     }
 
@@ -92,7 +56,6 @@ class ApiKeyManager {
 
   clearCache(): void {
     this.cache.delete("ppq");
-    this.cache.delete("groq");
   }
 }
 

@@ -17,7 +17,6 @@ export interface HotkeySettings {
 
 export interface ApiKeySettings {
   ppqApiKey: string;
-  groqApiKey: string;
 }
 
 export function useSettings() {
@@ -42,7 +41,7 @@ export function useSettings() {
 
   const [reasoningModel, setReasoningModel] = useLocalStorage(
     "reasoningModel",
-    "qwen/qwen3-32b",
+    "qwen/qwen-3-32b-chat",
     {
       serialize: String,
       deserialize: String,
@@ -51,11 +50,6 @@ export function useSettings() {
 
   // API keys
   const [ppqApiKey, setPpqApiKey] = useLocalStorage("ppqApiKey", "", {
-    serialize: String,
-    deserialize: String,
-  });
-
-  const [groqApiKey, setGroqApiKey] = useLocalStorage("groqApiKey", "", {
     serialize: String,
     deserialize: String,
   });
@@ -92,9 +86,8 @@ export function useSettings() {
   const updateApiKeys = useCallback(
     (keys: Partial<ApiKeySettings>) => {
       if (keys.ppqApiKey !== undefined) setPpqApiKey(keys.ppqApiKey);
-      if (keys.groqApiKey !== undefined) setGroqApiKey(keys.groqApiKey);
     },
-    [setPpqApiKey, setGroqApiKey]
+    [setPpqApiKey]
   );
 
   return {
@@ -103,13 +96,11 @@ export function useSettings() {
     reasoningModel,
     reasoningProvider,
     ppqApiKey,
-    groqApiKey,
     dictationKey,
     setPreferredLanguage,
     setUseReasoningModel,
     setReasoningModel,
     setPpqApiKey,
-    setGroqApiKey,
     setDictationKey,
     updateTranscriptionSettings,
     updateReasoningSettings,

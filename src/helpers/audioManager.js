@@ -101,7 +101,7 @@ class AudioManager {
 
   async processAudio(audioBlob) {
     try {
-      const result = await this.processWithGroqAPI(audioBlob);
+      const result = await this.processWithPPQAPI(audioBlob);
       this.onTranscriptionComplete?.(result);
     } catch (error) {
       this.onError?.({
@@ -301,8 +301,8 @@ class AudioManager {
 
     const useReasoning = await this.isReasoningAvailable();
 
-    const reasoningModel = StorageManager.getLocalStorageValue("reasoningModel", "qwen/qwen3-32b");
-    const reasoningProvider = "groq";
+    const reasoningModel = StorageManager.getLocalStorageValue("reasoningModel", "qwen/qwen-3-32b-chat");
+    const reasoningProvider = "ppq";
     const agentName = StorageManager.getLocalStorageValue("agentName", null);
 
     void debugLogger.log("REASONING_CHECK", {
@@ -348,7 +348,7 @@ class AudioManager {
     return AudioManager.cleanTranscription(text);
   }
 
-  async processWithGroqAPI(audioBlob) {
+  async processWithPPQAPI(audioBlob) {
     try {
       const [apiKey, optimizedAudio] = await Promise.all([
         this.getAPIKey(),
@@ -365,7 +365,7 @@ class AudioManager {
 
       const result = await withRetry(
         async () => {
-          const response = await fetch(API_ENDPOINTS.GROQ_TRANSCRIPTION, {
+          const response = await fetch(API_ENDPOINTS.PPQ_TRANSCRIPTION, {
             method: "POST",
             headers: {
               Authorization: `Bearer ${apiKey}`,
@@ -384,10 +384,10 @@ class AudioManager {
         },
         createApiRetryStrategy()
       );
-      
+
       if (result.text) {
-        const text = await this.processTranscription(result.text, "groq");
-        const source = await this.isReasoningAvailable() ? "groq-reasoned" : "groq";
+        const text = await this.processTranscription(result.text, "ppq");
+        const source = await this.isReasoningAvailable() ? "ppq-reasoned" : "ppq";
         return { success: true, text, source };
       } else {
         throw new Error("No text transcribed");

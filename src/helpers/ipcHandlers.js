@@ -55,14 +55,6 @@ class IPCHandlers {
       return this.environmentManager.savePPQApiKey(key);
     });
 
-    ipcMain.handle("get-groq-key", async (event) => {
-      return this.environmentManager.getGroqApiKey();
-    });
-
-    ipcMain.handle("save-groq-key", async (event, key) => {
-      return this.environmentManager.saveGroqApiKey(key);
-    });
-
     ipcMain.handle("create-production-env-file", async (event, apiKey) => {
       return this.environmentManager.createProductionEnvFile(apiKey);
     });

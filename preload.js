@@ -24,8 +24,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
   // Environment variables
   getPPQKey: () => ipcRenderer.invoke("get-ppq-key"),
   savePPQKey: (key) => ipcRenderer.invoke("save-ppq-key", key),
-  getGroqKey: () => ipcRenderer.invoke("get-groq-key"),
-  saveGroqKey: (key) => ipcRenderer.invoke("save-groq-key", key),
   createProductionEnvFile: (key) =>
     ipcRenderer.invoke("create-production-env-file", key),
 

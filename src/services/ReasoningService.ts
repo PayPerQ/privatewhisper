@@ -18,7 +18,7 @@ class ReasoningService extends BaseReasoningService {
 
   async isAvailable(): Promise<boolean> {
     try {
-      const key = await apiKeyManager.getGroqApiKey();
+      const key = await apiKeyManager.getApiKey();
       return Boolean(key);
     } catch {
       return false;
@@ -45,13 +45,16 @@ class ReasoningService extends BaseReasoningService {
       );
 
     return {
-      model: model || "qwen/qwen3-32b",
+      model: model || "qwen/qwen-3-32b-chat",
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
       ],
       temperature: config.temperature ?? 0.3,
       max_tokens: maxTokens,
+      provider: {
+        order: ["Groq"],
+      },
     };
   }
 
@@ -111,12 +114,13 @@ class ReasoningService extends BaseReasoningService {
     this.isProcessing = true;
 
     try {
-      const apiKey = await apiKeyManager.getGroqApiKey();
+      const apiKey = await apiKeyManager.getApiKey();
 
       const requestBody = this.buildRequestBody(text, modelId, agentName, config);
 
-      void debugLogger.log("GROQ_REQUEST", {
+      void debugLogger.log("PPQ_REQUEST", {
         model: requestBody.model,
+        provider: requestBody.provider,
         maxTokens: requestBody.max_tokens,
         temperature: requestBody.temperature,
         textLength: text.length,
@@ -124,7 +128,7 @@ class ReasoningService extends BaseReasoningService {
 
       const response = await withRetry(
         async () => {
-          const res = await fetch(API_ENDPOINTS.GROQ_CHAT, {
+          const res = await fetch(API_ENDPOINTS.PPQ_CHAT, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
@@ -136,7 +140,7 @@ class ReasoningService extends BaseReasoningService {
           if (!res.ok) {
             const errorText = await res.text().catch(() => "");
             const message =
-              errorText || res.statusText || "Groq API request failed";
+              errorText || res.statusText || "PPQ API request failed";
             const error: any = new Error(message);
             error.response = res;
             throw error;
@@ -147,7 +151,7 @@ class ReasoningService extends BaseReasoningService {
         createApiRetryStrategy()
       );
 
-      void debugLogger.log("GROQ_RESPONSE_RECEIVED", {
+      void debugLogger.log("PPQ_RESPONSE_RECEIVED", {
         model: requestBody.model,
         hasChoices: Array.isArray(response?.choices),
         hasOutput: Array.isArray(response?.output),
@@ -156,15 +160,15 @@ class ReasoningService extends BaseReasoningService {
       const cleaned = this.extractResponseText(response);
 
       if (!cleaned) {
-        void debugLogger.log("GROQ_EMPTY_RESPONSE", {
+        void debugLogger.log("PPQ_EMPTY_RESPONSE", {
           model: requestBody.model,
         });
-        throw new Error("Groq API returned an empty response");
+        throw new Error("PPQ API returned an empty response");
       }
 
       return cleaned;
     } catch (error) {
-      void debugLogger.log("GROQ_ERROR", {
+      void debugLogger.log("PPQ_ERROR", {
         error: (error as Error).message,
       });
       throw error;

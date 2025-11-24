@@ -18,7 +18,7 @@ class ReasoningService extends BaseReasoningService {
 
   async isAvailable(): Promise<boolean> {
     try {
-      const key = await apiKeyManager.getApiKey();
+      const key = await apiKeyManager.getGroqApiKey();
       return Boolean(key);
     } catch {
       return false;
@@ -111,7 +111,7 @@ class ReasoningService extends BaseReasoningService {
     this.isProcessing = true;
 
     try {
-      const apiKey = await apiKeyManager.getApiKey();
+      const apiKey = await apiKeyManager.getGroqApiKey();
 
       const requestBody = this.buildRequestBody(text, modelId, agentName, config);
 

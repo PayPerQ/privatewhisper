@@ -17,6 +17,7 @@ export interface HotkeySettings {
 
 export interface ApiKeySettings {
   ppqApiKey: string;
+  groqApiKey: string;
 }
 
 export function useSettings() {
@@ -54,6 +55,11 @@ export function useSettings() {
     deserialize: String,
   });
 
+  const [groqApiKey, setGroqApiKey] = useLocalStorage("groqApiKey", "", {
+    serialize: String,
+    deserialize: String,
+  });
+
   // Hotkey
   const [dictationKey, setDictationKey] = useLocalStorage("dictationKey", "", {
     serialize: String,
@@ -86,8 +92,9 @@ export function useSettings() {
   const updateApiKeys = useCallback(
     (keys: Partial<ApiKeySettings>) => {
       if (keys.ppqApiKey !== undefined) setPpqApiKey(keys.ppqApiKey);
+      if (keys.groqApiKey !== undefined) setGroqApiKey(keys.groqApiKey);
     },
-    [setPpqApiKey]
+    [setPpqApiKey, setGroqApiKey]
   );
 
   return {
@@ -96,11 +103,13 @@ export function useSettings() {
     reasoningModel,
     reasoningProvider,
     ppqApiKey,
+    groqApiKey,
     dictationKey,
     setPreferredLanguage,
     setUseReasoningModel,
     setReasoningModel,
     setPpqApiKey,
+    setGroqApiKey,
     setDictationKey,
     updateTranscriptionSettings,
     updateReasoningSettings,

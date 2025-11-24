@@ -29,7 +29,7 @@ export const normalizeBaseUrl = (value?: string | null): string => {
 };
 
 export const buildApiUrl = (base: string, path: string): string => {
-  const normalizedBase = normalizeBaseUrl(base) || "https://api.groq.com/openai/v1";
+  const normalizedBase = normalizeBaseUrl(base) || "https://dev.ppq.ai/api/v1";
   if (!path) {
     return normalizedBase;
   }
@@ -49,20 +49,30 @@ const computeBaseUrl = (candidates: Array<string | undefined>, fallback: string)
   return fallback;
 };
 
-const DEFAULT_GROQ_BASE = computeBaseUrl(
+// STT endpoint - uses PPQ by default
+const DEFAULT_STT_BASE = computeBaseUrl(
   [
-    env.PPQVOICE_GROQ_BASE_URL as string | undefined,
+    env.PPQVOICE_STT_BASE_URL as string | undefined,
     env.PPQVOICE_OPENAI_BASE_URL as string | undefined, // legacy override
     env.OPENAI_BASE_URL as string | undefined, // legacy fallback
+  ],
+  'https://dev.ppq.ai/api/v1'
+);
+
+// Reasoning endpoint - uses Groq by default
+const DEFAULT_REASONING_BASE = computeBaseUrl(
+  [
+    env.PPQVOICE_REASONING_BASE_URL as string | undefined,
+    env.PPQVOICE_GROQ_BASE_URL as string | undefined,
   ],
   'https://api.groq.com/openai/v1'
 );
 
 export const API_ENDPOINTS = {
-  GROQ_BASE: DEFAULT_GROQ_BASE,
-  GROQ_CHAT: buildApiUrl(DEFAULT_GROQ_BASE, '/chat/completions'),
-  GROQ_MODELS: buildApiUrl(DEFAULT_GROQ_BASE, '/models'),
-  GROQ_TRANSCRIPTION: buildApiUrl(DEFAULT_GROQ_BASE, '/audio/transcriptions'),
+  GROQ_BASE: DEFAULT_STT_BASE, // Legacy name, now points to STT
+  GROQ_CHAT: buildApiUrl(DEFAULT_REASONING_BASE, '/chat/completions'),
+  GROQ_MODELS: buildApiUrl(DEFAULT_REASONING_BASE, '/models'),
+  GROQ_TRANSCRIPTION: buildApiUrl(DEFAULT_STT_BASE, '/audio/transcriptions'),
 } as const;
 
 // Model Configuration

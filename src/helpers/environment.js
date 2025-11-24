@@ -50,9 +50,22 @@ class EnvironmentManager {
     return apiKey || "";
   }
 
+  getGroqApiKey() {
+    const apiKey = process.env.GROQ_API_KEY;
+    return apiKey || "";
+  }
+
   savePPQApiKey(key) {
     // Update the environment variable in memory for immediate use
     process.env.PPQ_API_KEY = key;
+    // Persist all keys to file
+    this.saveAllKeysToEnvFile();
+    return { success: true };
+  }
+
+  saveGroqApiKey(key) {
+    // Update the environment variable in memory for immediate use
+    process.env.GROQ_API_KEY = key;
     // Persist all keys to file
     this.saveAllKeysToEnvFile();
     return { success: true };
@@ -86,6 +99,10 @@ PPQ_API_KEY=${apiKey}
     } else if (process.env.OPENAI_API_KEY) {
       // Legacy fallback so existing environments continue to work
       envContent += `PPQ_API_KEY=${process.env.OPENAI_API_KEY}\n`;
+    }
+
+    if (process.env.GROQ_API_KEY) {
+      envContent += `GROQ_API_KEY=${process.env.GROQ_API_KEY}\n`;
     }
 
     fs.writeFileSync(envPath, envContent, "utf8");

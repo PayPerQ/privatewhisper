@@ -2,6 +2,6 @@ export const AUDIO_CONFIG = {
   SAMPLE_RATE: 16000,
   MONO_CHANNELS: 1,
   WAV_HEADER_SIZE: 44,
-  TRANSCRIPTION_MODEL: "whisper-large-v3-turbo",
+  TRANSCRIPTION_MODEL: "nova-3",
   BYTES_PER_SAMPLE: 2,
 };

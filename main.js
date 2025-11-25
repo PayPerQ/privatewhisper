@@ -42,6 +42,11 @@ let globeKeyManager;
 let ipcHandlers;
 let globeKeyAlertShown = false;
 
+// Bypass certificate verification in development
+if (process.env.NODE_ENV === "development") {
+  app.commandLine.appendSwitch('ignore-certificate-errors');
+}
+
 // Main application startup
 async function startApp() {
   // Initialize all managers after app is ready

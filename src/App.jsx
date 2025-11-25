@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import "./index.css";
 import { useToast } from "./components/ui/Toast";
 import { LoadingDots } from "./components/ui/LoadingDots";
 import { useHotkey } from "./hooks/useHotkey";
 import { useWindowDrag } from "./hooks/useWindowDrag";
+import { useSettings } from "./hooks/useSettings";
 import AudioManager from "./helpers/audioManager";
 
 // Sound Wave Icon Component (for idle/hover states)
@@ -89,6 +90,13 @@ export default function App() {
     useWindowDrag();
   const [dragStartPos, setDragStartPos] = useState(null);
   const [hasDragged, setHasDragged] = useState(false);
+  const { useReasoningModel, reasoningModel, preferredLanguage } = useSettings();
+
+  const audioSettings = useMemo(() => ({
+    useReasoningModel,
+    reasoningModel,
+    preferredLanguage,
+  }), [useReasoningModel, reasoningModel, preferredLanguage]);
 
   const setWindowInteractivity = React.useCallback((shouldCapture) => {
     window.electronAPI?.setMainWindowInteractivity?.(shouldCapture);
@@ -164,7 +172,7 @@ export default function App() {
 
   const processAudio = async (audioBlob) => {
     try {
-      const audioManager = new AudioManager();
+      const audioManager = new AudioManager(audioSettings);
       audioManager.setCallbacks({
         onStateChange: ({ isRecording, isProcessing }) => {
           setIsRecording(isRecording);

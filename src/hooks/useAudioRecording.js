@@ -1,15 +1,15 @@
 import { useState, useEffect, useRef } from "react";
 import AudioManager from "../helpers/audioManager";
 
-export const useAudioRecording = (toast) => {
+export const useAudioRecording = (toast, settings = {}) => {
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [transcript, setTranscript] = useState("");
   const audioManagerRef = useRef(null);
 
   useEffect(() => {
-    // Initialize AudioManager
-    audioManagerRef.current = new AudioManager();
+    // Initialize AudioManager with settings
+    audioManagerRef.current = new AudioManager(settings);
 
     // Set up callbacks
     audioManagerRef.current.setCallbacks({
@@ -64,7 +64,14 @@ export const useAudioRecording = (toast) => {
         audioManagerRef.current.cleanup();
       }
     };
-  }, [toast]);
+  }, [toast, settings.useReasoningModel, settings.reasoningModel, settings.preferredLanguage]);
+
+  // Update settings when they change without recreating the AudioManager
+  useEffect(() => {
+    if (audioManagerRef.current) {
+      audioManagerRef.current.updateSettings(settings);
+    }
+  }, [settings.useReasoningModel, settings.reasoningModel, settings.preferredLanguage]);
 
   const startRecording = async () => {
     if (audioManagerRef.current) {

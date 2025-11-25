@@ -7,7 +7,6 @@ import apiKeyManager from "../utils/ApiKeyManager";
 const debugLogger = createDebugLogger("reasoning");
 
 export const DEFAULT_PROMPTS = {
-  agent: `You are {{agentName}}, a helpful AI assistant. Process and improve the following text, removing any reference to your name from the output:\n\n{{text}}\n\nImproved text:`,
   regular: `Process and improve the following text:\n\n{{text}}\n\nImproved text:`,
 };
 
@@ -28,12 +27,10 @@ class ReasoningService extends BaseReasoningService {
   private buildRequestBody(
     text: string,
     model: string,
-    agentName: string | null,
     config: ReasoningConfig = {}
   ) {
-    const systemPrompt =
-      "You are a dictation assistant. Clean up text by fixing grammar and punctuation. Output ONLY the cleaned text without any explanations, options, or commentary.";
-    const userPrompt = this.getReasoningPrompt(text, agentName, config);
+    const systemPrompt = "Fix grammar and punctuation in the user's dictated text. Output only the corrected text, nothing else.";
+    const userPrompt = text;
 
     const maxTokens =
       config.maxTokens ??
@@ -45,16 +42,13 @@ class ReasoningService extends BaseReasoningService {
       );
 
     return {
-      model: model || "qwen/qwen-3-32b-chat",
+      model: model || "qwen/qwen3-32b",
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
       ],
       temperature: config.temperature ?? 0.3,
       max_tokens: maxTokens,
-      provider: {
-        order: ["Groq"],
-      },
     };
   }
 
@@ -64,6 +58,7 @@ class ReasoningService extends BaseReasoningService {
         const message = choice?.message ?? choice?.delta;
         const content = message?.content;
 
+        // Primary: check content field
         if (typeof content === "string" && content.trim()) {
           return content.trim();
         }
@@ -75,6 +70,10 @@ class ReasoningService extends BaseReasoningService {
             }
           }
         }
+
+        // Fallback for reasoning models: if content is empty but reasoning exists,
+        // the model ran out of tokens before producing output. Log this case.
+        // We don't use reasoning text as output since it's internal thinking.
       }
     }
 
@@ -100,7 +99,6 @@ class ReasoningService extends BaseReasoningService {
   async processText(
     text: string,
     modelId: string,
-    agentName: string | null = null,
     config: ReasoningConfig = {}
   ): Promise<string> {
     if (this.isProcessing) {
@@ -116,14 +114,16 @@ class ReasoningService extends BaseReasoningService {
     try {
       const apiKey = await apiKeyManager.getApiKey();
 
-      const requestBody = this.buildRequestBody(text, modelId, agentName, config);
+      const requestBody = this.buildRequestBody(text, modelId, config);
 
-      void debugLogger.log("PPQ_REQUEST", {
+      void debugLogger.log("PPQ_REASONING_REQUEST", {
+        endpoint: API_ENDPOINTS.PPQ_CHAT,
         model: requestBody.model,
-        provider: requestBody.provider,
         maxTokens: requestBody.max_tokens,
         temperature: requestBody.temperature,
         textLength: text.length,
+        hasApiKey: !!apiKey,
+        apiKeyPrefix: apiKey ? `${apiKey.substring(0, 8)}...` : 'none'
       });
 
       const response = await withRetry(
@@ -137,8 +137,19 @@ class ReasoningService extends BaseReasoningService {
             body: JSON.stringify(requestBody),
           });
 
+          void debugLogger.log("PPQ_REASONING_RESPONSE", {
+            status: res.status,
+            statusText: res.statusText,
+            ok: res.ok,
+            headers: Object.fromEntries(res.headers.entries())
+          });
+
           if (!res.ok) {
             const errorText = await res.text().catch(() => "");
+            void debugLogger.log("PPQ_REASONING_ERROR_RESPONSE", {
+              status: res.status,
+              errorText: errorText.substring(0, 500)
+            });
             const message =
               errorText || res.statusText || "PPQ API request failed";
             const error: any = new Error(message);
@@ -154,7 +165,8 @@ class ReasoningService extends BaseReasoningService {
       void debugLogger.log("PPQ_RESPONSE_RECEIVED", {
         model: requestBody.model,
         hasChoices: Array.isArray(response?.choices),
-        hasOutput: Array.isArray(response?.output),
+        choicesCount: response?.choices?.length ?? 0,
+        firstChoice: JSON.stringify(response?.choices?.[0])?.substring(0, 500),
       });
 
       const cleaned = this.extractResponseText(response);
@@ -162,6 +174,7 @@ class ReasoningService extends BaseReasoningService {
       if (!cleaned) {
         void debugLogger.log("PPQ_EMPTY_RESPONSE", {
           model: requestBody.model,
+          rawResponse: JSON.stringify(response).substring(0, 1000),
         });
         throw new Error("PPQ API returned an empty response");
       }

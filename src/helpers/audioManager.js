@@ -2,16 +2,21 @@ import ReasoningService from "../services/ReasoningService";
 import { API_ENDPOINTS } from "../config/constants";
 import createDebugLogger from "../utils/debugLoggerRenderer";
 import apiKeyManager from "../utils/ApiKeyManager";
-import StorageManager from "../utils/StorageManager";
 import { AppError, ErrorCodes } from "../utils/ErrorHandler";
 import { AUDIO_CONFIG } from "../config/audio";
 import { withRetry, createApiRetryStrategy } from "../utils/retry";
 
 const debugLogger = createDebugLogger("audio");
 
+const DEFAULT_SETTINGS = {
+  useReasoningModel: true,
+  reasoningModel: "qwen/qwen3-32b",
+  preferredLanguage: "en",
+};
 
 class AudioManager {
-  constructor() {
+  constructor(settings = {}) {
+    this.settings = { ...DEFAULT_SETTINGS, ...settings };
     this.mediaRecorder = null;
     this.audioChunks = [];
     this.isRecording = false;
@@ -19,6 +24,10 @@ class AudioManager {
     this.onStateChange = null;
     this.onError = null;
     this.onTranscriptionComplete = null;
+  }
+
+  updateSettings(settings) {
+    this.settings = { ...this.settings, ...settings };
   }
 
   setCallbacks({ onStateChange, onError, onTranscriptionComplete }) {
@@ -220,57 +229,49 @@ class AudioManager {
   }
 
   async processWithReasoningModel(text) {
-    const model = StorageManager.getLocalStorageValue("reasoningModel", "qwen/qwen3-32b");
-    const agentName = StorageManager.getLocalStorageValue("agentName", null);
-    
+    const model = this.settings.reasoningModel;
+
     void debugLogger.log("CALLING_REASONING_SERVICE", {
       model,
-      agentName,
       textLength: text.length
     });
-    
+
     const startTime = Date.now();
-    
+
     try {
-      const result = await ReasoningService.processText(text, model, agentName);
-      
+      const result = await ReasoningService.processText(text, model);
+
       const processingTime = Date.now() - startTime;
-      
+
       void debugLogger.log("REASONING_SERVICE_COMPLETE", {
         model,
         processingTimeMs: processingTime,
         resultLength: result.length,
         success: true
       });
-      
+
       return result;
     } catch (error) {
       const processingTime = Date.now() - startTime;
-      
+
       void debugLogger.log("REASONING_SERVICE_ERROR", {
         model,
         processingTimeMs: processingTime,
         error: error.message,
         stack: error.stack
       });
-      
+
       throw error;
     }
   }
 
   async isReasoningAvailable() {
-    const storedValue = StorageManager.getLocalStorageValue("useReasoningModel", null);
+    const useReasoning = this.settings.useReasoningModel;
 
-    void debugLogger.log("REASONING_STORAGE_CHECK", {
-      storedValue,
-      typeOfStoredValue: typeof storedValue,
-      isTrue: storedValue === "true",
-      isTruthy: !!storedValue && storedValue !== "false"
-    });
-
-    const useReasoning = storedValue === "true" || (!!storedValue && storedValue !== "false");
-
-    if (!useReasoning) return false;
+    if (!useReasoning) {
+      void debugLogger.log("REASONING_DISABLED", { useReasoning });
+      return false;
+    }
 
     try {
       const isAvailable = await ReasoningService.isAvailable();
@@ -300,26 +301,21 @@ class AudioManager {
     });
 
     const useReasoning = await this.isReasoningAvailable();
-
-    const reasoningModel = StorageManager.getLocalStorageValue("reasoningModel", "qwen/qwen-3-32b-chat");
-    const reasoningProvider = "ppq";
-    const agentName = StorageManager.getLocalStorageValue("agentName", null);
+    const { reasoningModel } = this.settings;
 
     void debugLogger.log("REASONING_CHECK", {
       useReasoning,
       reasoningModel,
-      reasoningProvider,
-      agentName
+      reasoningProvider: "ppq"
     });
 
     if (useReasoning) {
       try {
         const preparedText = AudioManager.cleanTranscriptionForAPI(text);
-        
+
         void debugLogger.log("SENDING_TO_REASONING", {
           preparedTextLength: preparedText.length,
-          model: reasoningModel,
-          provider: reasoningProvider
+          model: reasoningModel
         });
         
         const result = await this.processWithReasoningModel(preparedText);
@@ -358,23 +354,73 @@ class AudioManager {
       const formData = new FormData();
       formData.append("file", optimizedAudio, "audio.wav");
       formData.append("model", AUDIO_CONFIG.TRANSCRIPTION_MODEL);
-      const language = StorageManager.getLocalStorageValue("preferredLanguage", "auto");
-      if (language && language !== "auto") {
-        formData.append("language", language);
+      formData.append("response_format", "json");
+      const { preferredLanguage } = this.settings;
+      if (preferredLanguage && preferredLanguage !== "auto") {
+        formData.append("language", preferredLanguage);
       }
+
+      // Log all FormData entries for debugging
+      const formDataEntries = {};
+      for (const [key, value] of formData.entries()) {
+        formDataEntries[key] = value instanceof Blob
+          ? `[Blob: ${value.size} bytes, type: ${value.type}]`
+          : value;
+      }
+
+      void debugLogger.log("PPQ_TRANSCRIPTION_REQUEST", {
+        endpoint: API_ENDPOINTS.PPQ_TRANSCRIPTION,
+        model: AUDIO_CONFIG.TRANSCRIPTION_MODEL,
+        language: preferredLanguage,
+        audioBlobSize: audioBlob.size,
+        optimizedAudioSize: optimizedAudio.size,
+        hasApiKey: !!apiKey,
+        apiKeyPrefix: apiKey ? `${apiKey.substring(0, 8)}...` : 'none',
+        formDataEntries: formDataEntries
+      });
 
       const result = await withRetry(
         async () => {
-          const response = await fetch(API_ENDPOINTS.PPQ_TRANSCRIPTION, {
-            method: "POST",
-            headers: {
+          let response;
+          try {
+            const requestHeaders = {
               Authorization: `Bearer ${apiKey}`,
-            },
-            body: formData,
+            };
+
+            void debugLogger.log("PPQ_TRANSCRIPTION_FETCH_START", {
+              endpoint: API_ENDPOINTS.PPQ_TRANSCRIPTION,
+              method: "POST",
+              headers: { Authorization: `Bearer ${apiKey.substring(0, 8)}...` }
+            });
+
+            response = await fetch(API_ENDPOINTS.PPQ_TRANSCRIPTION, {
+              method: "POST",
+              headers: requestHeaders,
+              body: formData,
+            });
+          } catch (fetchError) {
+            void debugLogger.log("PPQ_TRANSCRIPTION_FETCH_ERROR", {
+              error: fetchError.message,
+              errorType: fetchError.name,
+              errorStack: fetchError.stack,
+              endpoint: API_ENDPOINTS.PPQ_TRANSCRIPTION
+            });
+            throw fetchError;
+          }
+
+          void debugLogger.log("PPQ_TRANSCRIPTION_RESPONSE", {
+            status: response.status,
+            statusText: response.statusText,
+            ok: response.ok,
+            headers: Object.fromEntries(response.headers.entries())
           });
 
           if (!response.ok) {
             const errorText = await response.text();
+            void debugLogger.log("PPQ_TRANSCRIPTION_ERROR_RESPONSE", {
+              status: response.status,
+              errorText: errorText.substring(0, 500)
+            });
             const error = new Error(`API Error: ${response.status} ${errorText}`);
             error.response = response;
             throw error;
@@ -384,6 +430,12 @@ class AudioManager {
         },
         createApiRetryStrategy()
       );
+
+      void debugLogger.log("PPQ_TRANSCRIPTION_SUCCESS", {
+        hasText: !!result.text,
+        textLength: result.text?.length || 0,
+        textPreview: result.text ? result.text.substring(0, 100) : 'no text'
+      });
 
       if (result.text) {
         const text = await this.processTranscription(result.text, "ppq");

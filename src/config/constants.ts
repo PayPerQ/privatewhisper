@@ -49,19 +49,28 @@ const computeBaseUrl = (candidates: Array<string | undefined>, fallback: string)
   return fallback;
 };
 
-// PPQ API base URL - used for both STT and reasoning
-const DEFAULT_PPQ_BASE = computeBaseUrl(
+// PPQ API base URLs - different endpoints for transcription vs reasoning
+const DEFAULT_PPQ_TRANSCRIPTION_BASE = computeBaseUrl(
   [
+    env.PPQVOICE_PPQ_TRANSCRIPTION_BASE_URL as string | undefined,
     env.PPQVOICE_PPQ_BASE_URL as string | undefined,
   ],
-  'https://api.ppq.ai/api/v1'
+  'https://ppq.ai/api/v1'
+);
+
+const DEFAULT_PPQ_CHAT_BASE = computeBaseUrl(
+  [
+    env.PPQVOICE_PPQ_CHAT_BASE_URL as string | undefined,
+    env.PPQVOICE_PPQ_BASE_URL as string | undefined,
+  ],
+  'https://api.ppq.ai'
 );
 
 export const API_ENDPOINTS = {
-  PPQ_BASE: DEFAULT_PPQ_BASE,
-  PPQ_CHAT: buildApiUrl(DEFAULT_PPQ_BASE, '/chat/completions'),
-  PPQ_MODELS: buildApiUrl(DEFAULT_PPQ_BASE, '/models'),
-  PPQ_TRANSCRIPTION: buildApiUrl(DEFAULT_PPQ_BASE, '/audio/transcriptions'),
+  PPQ_BASE: DEFAULT_PPQ_CHAT_BASE,
+  PPQ_CHAT: buildApiUrl(DEFAULT_PPQ_CHAT_BASE, '/chat/completions'),
+  PPQ_MODELS: buildApiUrl(DEFAULT_PPQ_CHAT_BASE, '/models'),
+  PPQ_TRANSCRIPTION: buildApiUrl(DEFAULT_PPQ_TRANSCRIPTION_BASE, '/audio/transcriptions'),
 } as const;
 
 // Model Configuration
@@ -73,9 +82,9 @@ export const MODEL_CONSTRAINTS = {
 
 // Token Limits
 export const TOKEN_LIMITS = {
-  MIN_TOKENS: 100,
-  MAX_TOKENS: 2048,
-  TOKEN_MULTIPLIER: 2, // text.length * multiplier
+  MIN_TOKENS: 512, // Reasoning models need more tokens for thinking + output
+  MAX_TOKENS: 4096,
+  TOKEN_MULTIPLIER: 4, // text.length * multiplier (higher for reasoning overhead)
   REASONING_CONTEXT_SIZE: 4096,
 } as const;
 

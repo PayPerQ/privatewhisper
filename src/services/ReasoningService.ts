@@ -29,7 +29,22 @@ class ReasoningService extends BaseReasoningService {
     model: string,
     config: ReasoningConfig = {}
   ) {
-    const systemPrompt = "Fix grammar and punctuation in the user's dictated text. Output only the corrected text, nothing else.";
+    const systemPrompt = `You are a dictation post-processor. Your task is to clean up speech-to-text transcriptions.
+
+Input: Raw transcribed text from voice dictation, which may contain:
+- Grammar and punctuation errors
+- Transcription mistakes (misheard words, homophones)
+- Filler words or false starts
+- Missing or incorrect capitalization
+
+Your task:
+1. Fix grammar, punctuation, and capitalization
+2. Correct obvious transcription errors based on context
+3. Remove filler words (um, uh, like) and false starts
+4. Preserve the speaker's intended meaning, tone, and style
+5. Do NOT add, interpret, or respond to the content
+
+Output: Only the corrected text. No explanations, comments, or formatting.`;
     const userPrompt = text;
 
     const maxTokens =

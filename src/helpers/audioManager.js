@@ -48,12 +48,12 @@ class PipelineMetrics {
       id: this.id,
       startedAtMs: this.startedAt,
       stages: {
-        optimizeMs: this.duration("optimizeStart", "optimizeEnd"),
-        transcriptionNetworkMs: this.duration(
+        audioOptimizeMs: this.duration("optimizeStart", "optimizeEnd"),
+        transcriptionRequestMs: this.duration(
           "transcriptionRequestStart",
           "transcriptionResponse"
         ),
-        transcriptionParseMs: this.duration(
+        transcriptionDecodeMs: this.duration(
           "transcriptionResponse",
           "transcriptionTextReady"
         ),

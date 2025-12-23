@@ -64,6 +64,10 @@ Output: Only the corrected text. No explanations, comments, or formatting.`;
       ],
       temperature: config.temperature ?? 0.3,
       max_tokens: maxTokens,
+      provider: {
+        order: ['groq'],
+        allowFallbacks: true,
+      },
     };
   }
 

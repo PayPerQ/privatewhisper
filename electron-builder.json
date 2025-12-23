@@ -1,5 +1,5 @@
 {
-  "appId": "com.herotools.ppqvoice",
+  "appId": "ai.ppq.voice",
   "productName": "PPQ Voice",
   "directories": {
     "output": "dist"

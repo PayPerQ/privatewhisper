@@ -7,6 +7,80 @@ import { AUDIO_CONFIG } from "../config/audio";
 import { withRetry, createApiRetryStrategy } from "../utils/retry";
 
 const debugLogger = createDebugLogger("audio");
+const pipelineLogger = createDebugLogger("pipeline");
+
+const nowMs = () =>
+  typeof performance !== "undefined" && performance.now
+    ? performance.now()
+    : Date.now();
+
+class PipelineMetrics {
+  constructor() {
+    this.id = `dictation-${Date.now().toString(36)}-${Math.random()
+      .toString(16)
+      .slice(2)}`;
+    this.startedAt = nowMs();
+    this.marks = { start: this.startedAt };
+    this.flags = {};
+  }
+
+  mark(stage, details = {}) {
+    this.marks[stage] = nowMs();
+    if (details && Object.keys(details).length > 0) {
+      this.flags[stage] = {
+        ...(this.flags[stage] || {}),
+        ...details,
+      };
+    }
+  }
+
+  setFlag(key, value) {
+    this.flags[key] = value;
+  }
+
+  duration(from, to) {
+    if (this.marks[from] == null || this.marks[to] == null) return null;
+    return Math.max(0, Math.round(this.marks[to] - this.marks[from]));
+  }
+
+  buildSummary(finalStage = "pasteEnd") {
+    const summary = {
+      id: this.id,
+      startedAtMs: this.startedAt,
+      stages: {
+        optimizeMs: this.duration("optimizeStart", "optimizeEnd"),
+        transcriptionNetworkMs: this.duration(
+          "transcriptionRequestStart",
+          "transcriptionResponse"
+        ),
+        transcriptionParseMs: this.duration(
+          "transcriptionResponse",
+          "transcriptionTextReady"
+        ),
+        transcriptionTotalMs: this.duration("start", "transcriptionTextReady"),
+        reasoningMs: this.flags.reasoningUsed
+          ? this.duration("reasoningStart", "reasoningEnd")
+          : null,
+        pasteMs: this.duration("pasteStart", "pasteEnd"),
+      },
+      totals: {
+        toTranscriptionMs: this.duration("start", "transcriptionTextReady"),
+        toFinalTextMs:
+          this.duration("start", "finalTextReady") ||
+          this.duration("start", "transcriptionTextReady"),
+        roundTripMs:
+          finalStage && this.marks[finalStage] != null
+            ? this.duration("start", finalStage)
+            : null,
+      },
+      flags: {
+        ...this.flags,
+      },
+    };
+
+    return summary;
+  }
+}
 
 const DEFAULT_SETTINGS = {
   useReasoningModel: true,
@@ -24,6 +98,7 @@ class AudioManager {
     this.onStateChange = null;
     this.onError = null;
     this.onTranscriptionComplete = null;
+    this.metrics = null;
   }
 
   updateSettings(settings) {
@@ -110,6 +185,15 @@ class AudioManager {
 
   async processAudio(audioBlob) {
     try {
+      this.metrics = new PipelineMetrics();
+      const metrics = this.metrics;
+      metrics.setFlag("preferredLanguage", this.settings.preferredLanguage);
+      metrics.setFlag("reasoningModel", this.settings.reasoningModel);
+      metrics.setFlag("useReasoningModel", this.settings.useReasoningModel);
+      metrics.mark("audioReceived", {
+        originalSizeBytes: audioBlob.size,
+      });
+
       const result = await this.processWithPPQAPI(audioBlob);
       this.onTranscriptionComplete?.(result);
     } catch (error) {
@@ -230,11 +314,15 @@ class AudioManager {
 
   async processWithReasoningModel(text) {
     const model = this.settings.reasoningModel;
+    const metrics = this.metrics;
 
     void debugLogger.log("CALLING_REASONING_SERVICE", {
       model,
       textLength: text.length
     });
+
+    metrics?.mark("reasoningStart");
+    metrics?.setFlag("reasoningEndpoint", API_ENDPOINTS.PPQ_CHAT);
 
     const startTime = Date.now();
 
@@ -242,6 +330,9 @@ class AudioManager {
       const result = await ReasoningService.processText(text, model);
 
       const processingTime = Date.now() - startTime;
+      metrics?.mark("reasoningEnd");
+      metrics?.setFlag("reasoningUsed", true);
+      metrics?.setFlag("reasoningSuccess", true);
 
       void debugLogger.log("REASONING_SERVICE_COMPLETE", {
         model,
@@ -253,6 +344,9 @@ class AudioManager {
       return result;
     } catch (error) {
       const processingTime = Date.now() - startTime;
+      metrics?.mark("reasoningEnd");
+      metrics?.setFlag("reasoningUsed", true);
+      metrics?.setFlag("reasoningSuccess", false);
 
       void debugLogger.log("REASONING_SERVICE_ERROR", {
         model,
@@ -293,6 +387,7 @@ class AudioManager {
   }
 
   async processTranscription(text, source) {
+    const metrics = this.metrics;
     void debugLogger.log("TRANSCRIPTION_RECEIVED", {
       source,
       textLength: text.length,
@@ -302,6 +397,8 @@ class AudioManager {
 
     const useReasoning = await this.isReasoningAvailable();
     const { reasoningModel } = this.settings;
+    metrics?.setFlag("reasoningEligible", useReasoning);
+    metrics?.setFlag("reasoningModel", reasoningModel);
 
     void debugLogger.log("REASONING_CHECK", {
       useReasoning,
@@ -319,6 +416,7 @@ class AudioManager {
         });
         
         const result = await this.processWithReasoningModel(preparedText);
+        metrics?.mark("finalTextReady");
         
         void debugLogger.log("REASONING_SUCCESS", {
           resultLength: result.length,
@@ -336,20 +434,41 @@ class AudioManager {
         });
       }
     }
+    if (!useReasoning) {
+      metrics?.setFlag("reasoningUsed", false);
+      metrics?.setFlag("reasoningSuccess", false);
+    }
 
     void debugLogger.log("USING_STANDARD_CLEANUP", {
       reason: useReasoning ? "Reasoning failed" : "Reasoning not enabled"
     });
 
-    return AudioManager.cleanTranscription(text);
+    const cleaned = AudioManager.cleanTranscription(text);
+    metrics?.mark("finalTextReady");
+
+    return cleaned;
   }
 
   async processWithPPQAPI(audioBlob) {
+    const metrics = this.metrics;
+
     try {
+      const optimizedAudioPromise = (async () => {
+        metrics?.mark("optimizeStart");
+        const optimized = await this.optimizeAudio(audioBlob);
+        metrics?.mark("optimizeEnd");
+        return optimized;
+      })();
+
       const [apiKey, optimizedAudio] = await Promise.all([
         this.getAPIKey(),
-        this.optimizeAudio(audioBlob),
+        optimizedAudioPromise,
       ]);
+
+      metrics?.setFlag("audioSizes", {
+        originalBytes: audioBlob.size,
+        optimizedBytes: optimizedAudio.size,
+      });
 
       const formData = new FormData();
       formData.append("file", optimizedAudio, "audio.wav");
@@ -357,8 +476,11 @@ class AudioManager {
       formData.append("response_format", "json");
       const { preferredLanguage } = this.settings;
       if (preferredLanguage && preferredLanguage !== "auto") {
-        formData.append("language", preferredLanguage);
+      formData.append("language", preferredLanguage);
       }
+
+      metrics?.setFlag("transcriptionModel", AUDIO_CONFIG.TRANSCRIPTION_MODEL);
+      metrics?.setFlag("transcriptionEndpoint", API_ENDPOINTS.PPQ_TRANSCRIPTION);
 
       // Log all FormData entries for debugging
       const formDataEntries = {};
@@ -393,11 +515,13 @@ class AudioManager {
               headers: { Authorization: `Bearer ${apiKey.substring(0, 8)}...` }
             });
 
+            metrics?.mark("transcriptionRequestStart");
             response = await fetch(API_ENDPOINTS.PPQ_TRANSCRIPTION, {
               method: "POST",
               headers: requestHeaders,
               body: formData,
             });
+            metrics?.mark("transcriptionResponse");
           } catch (fetchError) {
             void debugLogger.log("PPQ_TRANSCRIPTION_FETCH_ERROR", {
               error: fetchError.message,
@@ -430,6 +554,7 @@ class AudioManager {
         },
         createApiRetryStrategy()
       );
+      metrics?.mark("transcriptionTextReady");
 
       void debugLogger.log("PPQ_TRANSCRIPTION_SUCCESS", {
         hasText: !!result.text,
@@ -440,7 +565,7 @@ class AudioManager {
       if (result.text) {
         const text = await this.processTranscription(result.text, "ppq");
         const source = await this.isReasoningAvailable() ? "ppq-reasoned" : "ppq";
-        return { success: true, text, source };
+        return { success: true, text, source, metrics };
       } else {
         throw new Error("No text transcribed");
       }

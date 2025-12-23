@@ -49,6 +49,16 @@ class GlobeKeyManager extends EventEmitter {
             this.emit("globe-down");
           } else if (line === "FN_UP") {
             this.emit("globe-up");
+          } else if (line.startsWith("KEY_DOWN:")) {
+            const keyCode = parseInt(line.replace("KEY_DOWN:", ""), 10);
+            if (!Number.isNaN(keyCode)) {
+              this.emit("key-down", keyCode);
+            }
+          } else if (line.startsWith("KEY_UP:")) {
+            const keyCode = parseInt(line.replace("KEY_UP:", ""), 10);
+            if (!Number.isNaN(keyCode)) {
+              this.emit("key-up", keyCode);
+            }
           }
         });
     });

@@ -54,7 +54,8 @@ declare global {
       pasteText: (text: string) => Promise<void>;
       hideWindow: () => Promise<void>;
       showDictationPanel: () => Promise<void>;
-      onToggleDictation: (callback: () => void) => void;
+      onToggleDictation: (callback: () => void) => (() => void) | void;
+      onDictationHotkeyUp?: (callback: () => void) => (() => void) | void;
 
       // Database operations
       saveTranscription: (

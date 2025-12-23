@@ -2,7 +2,9 @@ import Cocoa
 import Foundation
 import Darwin
 
-let mask = CGEventMask(1 << CGEventType.flagsChanged.rawValue)
+let mask = CGEventMask(1 << CGEventType.flagsChanged.rawValue) |
+           CGEventMask(1 << CGEventType.keyDown.rawValue) |
+           CGEventMask(1 << CGEventType.keyUp.rawValue)
 var fnIsDown = false
 var eventTap: CFMachPort?
 
@@ -12,6 +14,15 @@ func eventTapCallback(proxy: CGEventTapProxy, type: CGEventType, event: CGEvent,
             CGEvent.tapEnable(tap: tap, enable: true)
         }
         return Unmanaged.passUnretained(event)
+    }
+
+    if type == .keyDown || type == .keyUp {
+        let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
+        let prefix = (type == .keyDown) ? "KEY_DOWN:" : "KEY_UP:"
+        if let data = "\(prefix)\(keyCode)\n".data(using: .utf8) {
+            FileHandle.standardOutput.write(data)
+            fflush(stdout)
+        }
     }
 
     let flags = event.flags

@@ -11,8 +11,11 @@ export interface ReasoningSettings {
   reasoningModel: string;
 }
 
+export type HotkeyMode = "toggle" | "hold";
+
 export interface HotkeySettings {
   dictationKey: string;
+  hotkeyMode: HotkeyMode;
 }
 
 export interface ApiKeySettings {
@@ -59,6 +62,14 @@ export function useSettings() {
     serialize: String,
     deserialize: String,
   });
+  const [hotkeyMode, setHotkeyMode] = useLocalStorage<HotkeyMode>(
+    "hotkeyMode",
+    "toggle",
+    {
+      serialize: String,
+      deserialize: (value) => (value === "hold" ? "hold" : "toggle"),
+    }
+  );
 
   // Computed values
   const reasoningProvider = getModelProvider(reasoningModel);
@@ -90,6 +101,18 @@ export function useSettings() {
     [setPpqApiKey]
   );
 
+  const updateHotkeySettings = useCallback(
+    (settings: Partial<HotkeySettings>) => {
+      if (settings.dictationKey !== undefined) {
+        setDictationKey(settings.dictationKey);
+      }
+      if (settings.hotkeyMode !== undefined) {
+        setHotkeyMode(settings.hotkeyMode);
+      }
+    },
+    [setDictationKey, setHotkeyMode]
+  );
+
   return {
     preferredLanguage,
     useReasoningModel,
@@ -97,13 +120,16 @@ export function useSettings() {
     reasoningProvider,
     ppqApiKey,
     dictationKey,
+    hotkeyMode,
     setPreferredLanguage,
     setUseReasoningModel,
     setReasoningModel,
     setPpqApiKey,
     setDictationKey,
+    setHotkeyMode,
     updateTranscriptionSettings,
     updateReasoningSettings,
     updateApiKeys,
+    updateHotkeySettings,
   };
 }

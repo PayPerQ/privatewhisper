@@ -29,6 +29,7 @@ const TrayManager = require("./src/helpers/tray");
 const IPCHandlers = require("./src/helpers/ipcHandlers");
 const UpdateManager = require("./src/updater");
 const GlobeKeyManager = require("./src/helpers/globeKeyManager");
+const { matchesMacKeyCode } = require("./src/helpers/hotkeyKeycodes");
 
 // Manager instances (will be initialized after app is ready)
 let environmentManager;
@@ -144,6 +145,33 @@ trayManager.setWindowManager(windowManager);
           windowManager.showDictationPanel();
           windowManager.mainWindow.webContents.send("toggle-dictation");
         }
+      }
+    });
+
+    globeKeyManager.on("globe-up", () => {
+      if (
+        hotkeyManager.getCurrentHotkey &&
+        hotkeyManager.getCurrentHotkey() === "GLOBE" &&
+        windowManager.mainWindow &&
+        !windowManager.mainWindow.isDestroyed()
+      ) {
+        windowManager.mainWindow.webContents.send("dictation-hotkey-up");
+      }
+    });
+
+    globeKeyManager.on("key-up", (keyCode) => {
+      const activeHotkey =
+        typeof hotkeyManager.getCurrentHotkey === "function"
+          ? hotkeyManager.getCurrentHotkey()
+          : null;
+
+      if (
+        activeHotkey &&
+        matchesMacKeyCode(activeHotkey, keyCode) &&
+        windowManager.mainWindow &&
+        !windowManager.mainWindow.isDestroyed()
+      ) {
+        windowManager.mainWindow.webContents.send("dictation-hotkey-up");
       }
     });
 

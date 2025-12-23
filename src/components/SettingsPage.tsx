@@ -39,11 +39,13 @@ export default function SettingsPage({
     reasoningModel,
     ppqApiKey,
     dictationKey,
+    hotkeyMode,
     setPreferredLanguage,
     setUseReasoningModel,
     setReasoningModel,
     setPpqApiKey,
     setDictationKey,
+    setHotkeyMode,
     updateTranscriptionSettings,
     updateReasoningSettings,
     updateApiKeys,
@@ -287,7 +289,7 @@ export default function SettingsPage({
 
       showAlertDialog({
         title: "Key Saved",
-        description: `Dictation key saved: ${formatHotkeyLabel(dictationKey)}`,
+        description: `Dictation key saved: ${formatHotkeyLabel(dictationKey)} (${hotkeyMode === "hold" ? "hold to talk" : "press to toggle"})`,
       });
     } catch (error) {
       console.error("Failed to update hotkey:", error);
@@ -523,7 +525,7 @@ export default function SettingsPage({
                   Dictation Hotkey
                 </h3>
                 <p className="text-sm text-gray-600 mb-6">
-                  Configure the key you press to start and stop voice dictation.
+                  Configure the key you press to start and stop voice dictation, and whether you hold or tap it.
                 </p>
               </div>
               <div className="space-y-4">
@@ -538,7 +540,37 @@ export default function SettingsPage({
                     className="text-center text-lg font-mono"
                   />
                   <p className="text-xs text-gray-500 mt-2">
-                    Press this key from anywhere to start/stop dictation
+                    Use this key from anywhere to control dictation.
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Hotkey Style
+                  </label>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    <Button
+                      variant={hotkeyMode === "toggle" ? "secondary" : "outline"}
+                      className="w-full justify-start"
+                      onClick={() => setHotkeyMode("toggle")}
+                    >
+                      <span className="font-medium">Press once</span>
+                      <span className="text-xs text-gray-600 ml-auto">
+                        Tap to start/stop
+                      </span>
+                    </Button>
+                    <Button
+                      variant={hotkeyMode === "hold" ? "secondary" : "outline"}
+                      className="w-full justify-start"
+                      onClick={() => setHotkeyMode("hold")}
+                    >
+                      <span className="font-medium">Hold to talk</span>
+                      <span className="text-xs text-gray-600 ml-auto">
+                        Hold while you speak, release to finish
+                      </span>
+                    </Button>
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    Choose the behavior that feels natural: tap once to toggle, or hold while you speak.
                   </p>
                 </div>
                 <div className="bg-gray-50 p-4 rounded-lg">

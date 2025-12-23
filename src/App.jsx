@@ -7,6 +7,8 @@ import { useWindowDrag } from "./hooks/useWindowDrag";
 import { useSettings } from "./hooks/useSettings";
 import AudioManager from "./helpers/audioManager";
 
+const MIN_HOLD_DURATION_MS = 200;
+
 // Sound Wave Icon Component (for idle/hover states)
 const SoundWaveIcon = ({ size = 16 }) => {
   return (
@@ -90,7 +92,11 @@ export default function App() {
     useWindowDrag();
   const [dragStartPos, setDragStartPos] = useState(null);
   const [hasDragged, setHasDragged] = useState(false);
-  const { useReasoningModel, reasoningModel, preferredLanguage } = useSettings();
+  const [isPushToTalk, setIsPushToTalk] = useState(false);
+  const hotkeyPressStartRef = useRef(null);
+  const cancelRecordingRef = useRef(false);
+  const pendingStartRef = useRef(false);
+  const { useReasoningModel, reasoningModel, preferredLanguage, hotkeyMode } = useSettings();
 
   const audioSettings = useMemo(() => ({
     useReasoningModel,
@@ -118,7 +124,17 @@ export default function App() {
   const startRecording = async () => {
     try {
       setError("");
+      cancelRecordingRef.current = false;
+      pendingStartRef.current = true;
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+      // If user released before the stream was ready, abort quietly
+      if (cancelRecordingRef.current) {
+        stream.getTracks().forEach((track) => track.stop());
+        pendingStartRef.current = false;
+        setIsRecording(false);
+        return false;
+      }
 
       mediaRecorderRef.current = new window.MediaRecorder(stream);
       audioChunksRef.current = [];
@@ -128,6 +144,16 @@ export default function App() {
       };
 
       mediaRecorderRef.current.onstop = async () => {
+        const wasCancelled = cancelRecordingRef.current;
+        cancelRecordingRef.current = false;
+
+        if (wasCancelled) {
+          stream.getTracks().forEach((track) => track.stop());
+          setIsProcessing(false);
+          pendingStartRef.current = false;
+          return;
+        }
+
         setIsProcessing(true);
         const audioBlob = new Blob(audioChunksRef.current, {
           type: "audio/wav",
@@ -139,6 +165,7 @@ export default function App() {
 
       mediaRecorderRef.current.start();
       setIsRecording(true);
+      pendingStartRef.current = false;
     } catch (err) {
       console.error("Recording error:", err);
       toast({
@@ -146,6 +173,7 @@ export default function App() {
         description: "Failed to access microphone: " + err.message,
         variant: "destructive",
       });
+      pendingStartRef.current = false;
     }
   };
 
@@ -248,22 +276,78 @@ export default function App() {
   }, [isCommandMenuOpen]);
 
   useEffect(() => {
-    let recording = false;
     const handleToggle = () => {
       setIsCommandMenuOpen(false);
-      if (!recording && !isRecording && !isProcessing) {
+
+      if (hotkeyMode === "hold") {
+        if (!isRecording && !isProcessing) {
+          hotkeyPressStartRef.current = Date.now();
+          cancelRecordingRef.current = false;
+          startRecording();
+          setIsPushToTalk(true);
+        } else if (isRecording) {
+          setIsPushToTalk(false);
+          hotkeyPressStartRef.current = null;
+          stopRecording();
+        }
+        return;
+      }
+
+      hotkeyPressStartRef.current = null;
+      cancelRecordingRef.current = false;
+      if (!isRecording && !isProcessing) {
         startRecording();
-        recording = true;
       } else if (isRecording) {
         stopRecording();
-        recording = false;
       }
     };
-    window.electronAPI.onToggleDictation(handleToggle);
+
+    const unsubscribe = window.electronAPI.onToggleDictation(handleToggle);
+
     return () => {
-      // No need to remove listener, as it's handled in preload
+      if (typeof unsubscribe === "function") {
+        unsubscribe();
+      }
     };
-  }, [isRecording, isProcessing]);
+  }, [hotkeyMode, isRecording, isProcessing]);
+
+  useEffect(() => {
+    if (!window.electronAPI?.onDictationHotkeyUp) {
+      return;
+    }
+
+    const handleRelease = () => {
+      if (hotkeyMode !== "hold" || !isPushToTalk) return;
+
+      const now = Date.now();
+      const pressedAt = hotkeyPressStartRef.current;
+      const heldDuration = pressedAt ? now - pressedAt : 0;
+      const tooQuick = heldDuration < MIN_HOLD_DURATION_MS;
+
+      cancelRecordingRef.current = tooQuick;
+      hotkeyPressStartRef.current = null;
+      setIsPushToTalk(false);
+
+      if (pendingStartRef.current) {
+        // Stop immediately if we released before recording actually began
+        setIsRecording(false);
+        pendingStartRef.current = false;
+        return;
+      }
+
+      if (isRecording) {
+        stopRecording();
+      }
+    };
+
+    const unsubscribe = window.electronAPI.onDictationHotkeyUp(handleRelease);
+
+    return () => {
+      if (typeof unsubscribe === "function") {
+        unsubscribe();
+      }
+    };
+  }, [hotkeyMode, isRecording, isPushToTalk]);
 
   const toggleListening = () => {
     setIsCommandMenuOpen(false);
@@ -271,6 +355,7 @@ export default function App() {
       startRecording();
     } else if (isRecording) {
       stopRecording();
+      setIsPushToTalk(false);
     }
   };
 
@@ -289,6 +374,12 @@ export default function App() {
     return () => document.removeEventListener("keydown", handleKeyPress);
   }, [isCommandMenuOpen]);
 
+  useEffect(() => {
+    if (!isRecording && !isProcessing) {
+      setIsPushToTalk(false);
+    }
+  }, [isRecording, isProcessing]);
+
   // Determine current mic state
   const getMicState = () => {
     if (isRecording) return "recording";
@@ -299,6 +390,10 @@ export default function App() {
 
   const micState = getMicState();
   const isListening = isRecording || isProcessing;
+  const hotkeyTooltip =
+    hotkeyMode === "hold"
+      ? `Hold [${hotkey}] while you speak`
+      : `Press [${hotkey}] to speak`;
 
   // Get microphone button properties based on state
   const getMicButtonProps = () => {
@@ -309,12 +404,12 @@ export default function App() {
       case "idle":
         return {
           className: `${baseClasses} bg-black/50 cursor-pointer`,
-          tooltip: `Press [${hotkey}] to speak`,
+          tooltip: hotkeyTooltip,
         };
       case "hover":
         return {
           className: `${baseClasses} bg-black/50 cursor-pointer`,
-          tooltip: `Press [${hotkey}] to speak`,
+          tooltip: hotkeyTooltip,
         };
       case "recording":
         return {

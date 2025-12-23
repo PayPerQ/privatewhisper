@@ -5,8 +5,29 @@ const { PlatformDetector } = require("../utils/PlatformDetector");
 const { TIMING_CONFIG } = require("../config/timing");
 
 class ClipboardManager {
+  constructor() {
+    this.accessibilityStatus = { checked: false, granted: false };
+    this.fastPasteAvailable = null; 
+  }
+
   safeLog(event, details = {}) {
     debugLogger.logEvent("clipboard", event, details, "debug");
+  }
+
+  async ensureAccessibilityPermissions() {
+    if (!PlatformDetector.isMacOS()) {
+      return true;
+    }
+
+    if (this.accessibilityStatus.checked) {
+      return this.accessibilityStatus.granted;
+    }
+
+    this.safeLog("accessibility-check");
+    const hasPermissions = await this.checkAccessibilityPermissions();
+    this.accessibilityStatus = { checked: true, granted: hasPermissions };
+    this.safeLog(hasPermissions ? "accessibility-ok" : "accessibility-missing");
+    return hasPermissions;
   }
 
   async pasteText(text) {
@@ -26,18 +47,13 @@ class ClipboardManager {
       });
 
       if (PlatformDetector.isMacOS()) {
-        // Check accessibility permissions first
-        this.safeLog("accessibility-check");
-        const hasPermissions = await this.checkAccessibilityPermissions();
-
+        const hasPermissions = await this.ensureAccessibilityPermissions();
         if (!hasPermissions) {
-          this.safeLog("accessibility-missing");
           const errorMsg =
             "Accessibility permissions required for automatic pasting. Text has been copied to clipboard - please paste manually with Cmd+V.";
           throw new Error(errorMsg);
         }
 
-        this.safeLog("accessibility-ok");
         return await this.pasteMacOS(originalClipboard);
       } else if (PlatformDetector.isWindows()) {
         return await this.pasteWindows(originalClipboard);
@@ -54,59 +70,117 @@ class ClipboardManager {
   }
 
   async pasteMacOS(originalClipboard) {
+    const useCGEvent = this.fastPasteAvailable !== false;
+
+    if (useCGEvent) {
+      try {
+        await this.pasteMacOSWithCGEvent();
+        this.fastPasteAvailable = true;
+        this.safeLog("paste-success", { method: "cgevent" });
+        setTimeout(() => {
+          clipboard.writeText(originalClipboard);
+          this.safeLog("clipboard-restored");
+        }, TIMING_CONFIG.CLIPBOARD_RESTORE_DELAY);
+        return;
+      } catch (error) {
+        this.fastPasteAvailable = false;
+        this.safeLog("paste-cgevent-fallback", { error: error.message });
+      }
+    }
+
     return new Promise((resolve, reject) => {
-      setTimeout(() => {
-        const pasteProcess = spawn("osascript", [
-          "-e",
-          'tell application "System Events" to keystroke "v" using command down',
-        ]);
+      const pasteProcess = spawn("osascript", [
+        "-e",
+        'tell application "System Events" to keystroke "v" using command down',
+      ]);
 
-        let errorOutput = "";
-        let hasTimedOut = false;
+      let errorOutput = "";
+      let hasTimedOut = false;
 
-        pasteProcess.stderr.on("data", (data) => {
-          errorOutput += data.toString();
-        });
+      pasteProcess.stderr.on("data", (data) => {
+        errorOutput += data.toString();
+      });
 
-        pasteProcess.on("close", (code) => {
-          if (hasTimedOut) return;
+      pasteProcess.on("close", (code) => {
+        if (hasTimedOut) return;
 
-          // Clear timeout first
-          clearTimeout(timeoutId);
+        clearTimeout(timeoutId);
+        pasteProcess.removeAllListeners();
 
-          // Clean up the process reference
-          pasteProcess.removeAllListeners();
-
-          if (code === 0) {
-            this.safeLog("paste-success");
-            setTimeout(() => {
-              clipboard.writeText(originalClipboard);
-              this.safeLog("clipboard-restored");
-            }, TIMING_CONFIG.CLIPBOARD_RESTORE_DELAY);
-            resolve();
-          } else {
-            const errorMsg = `Paste failed (code ${code}). Text is copied to clipboard - please paste manually with Cmd+V.`;
-            reject(new Error(errorMsg));
-          }
-        });
-
-        pasteProcess.on("error", (error) => {
-          if (hasTimedOut) return;
-          clearTimeout(timeoutId);
-          pasteProcess.removeAllListeners();
-          const errorMsg = `Paste command failed: ${error.message}. Text is copied to clipboard - please paste manually with Cmd+V.`;
+        if (code === 0) {
+          this.safeLog("paste-success", { method: "system-events" });
+          setTimeout(() => {
+            clipboard.writeText(originalClipboard);
+            this.safeLog("clipboard-restored");
+          }, TIMING_CONFIG.CLIPBOARD_RESTORE_DELAY);
+          resolve();
+        } else {
+          const errorMsg = `Paste failed (code ${code}). Text is copied to clipboard - please paste manually with Cmd+V.`;
           reject(new Error(errorMsg));
-        });
+        }
+      });
 
-        const timeoutId = setTimeout(() => {
-          hasTimedOut = true;
-          pasteProcess.kill("SIGKILL");
-          pasteProcess.removeAllListeners();
-          const errorMsg =
-            "Paste operation timed out. Text is copied to clipboard - please paste manually with Cmd+V.";
-          reject(new Error(errorMsg));
-        }, TIMING_CONFIG.PASTE_TIMEOUT);
-      }, TIMING_CONFIG.CLIPBOARD_PASTE_DELAY);
+      pasteProcess.on("error", (error) => {
+        if (hasTimedOut) return;
+        clearTimeout(timeoutId);
+        pasteProcess.removeAllListeners();
+        const errorMsg = `Paste command failed: ${error.message}. Text is copied to clipboard - please paste manually with Cmd+V.`;
+        reject(new Error(errorMsg));
+      });
+
+      const timeoutId = setTimeout(() => {
+        hasTimedOut = true;
+        pasteProcess.kill("SIGKILL");
+        pasteProcess.removeAllListeners();
+        const errorMsg =
+          "Paste operation timed out. Text is copied to clipboard - please paste manually with Cmd+V.";
+        reject(new Error(errorMsg));
+      }, TIMING_CONFIG.PASTE_TIMEOUT);
+    });
+  }
+
+  pasteMacOSWithCGEvent() {
+    return new Promise((resolve, reject) => {
+      const script = `
+ObjC.import('ApplicationServices');
+function sendCmdV() {
+  var down = $.CGEventCreateKeyboardEvent(null, 9, true); // keycode 9 = v
+  $.CGEventSetFlags(down, $.kCGEventFlagMaskCommand);
+  $.CGEventPost($.kCGHIDEventTap, down);
+  var up = $.CGEventCreateKeyboardEvent(null, 9, false);
+  $.CGEventSetFlags(up, $.kCGEventFlagMaskCommand);
+  $.CGEventPost($.kCGHIDEventTap, up);
+}
+sendCmdV();
+`;
+      const pasteProcess = spawn("osascript", ["-l", "JavaScript", "-e", script]);
+
+      let hasTimedOut = false;
+
+      pasteProcess.on("close", (code) => {
+        if (hasTimedOut) return;
+        clearTimeout(timeoutId);
+        pasteProcess.removeAllListeners();
+        if (code === 0) {
+          resolve();
+        } else {
+          reject(new Error(`CGEvent paste failed with code ${code}`));
+        }
+      });
+
+      pasteProcess.on("error", (error) => {
+        if (hasTimedOut) return;
+        clearTimeout(timeoutId);
+        pasteProcess.removeAllListeners();
+        reject(error);
+      });
+
+      const timeoutId = setTimeout(() => {
+        hasTimedOut = true;
+        pasteProcess.kill("SIGKILL");
+        pasteProcess.removeAllListeners();
+        reject(new Error("CGEvent paste timed out"));
+      }, TIMING_CONFIG.PASTE_TIMEOUT);
     });
   }
 

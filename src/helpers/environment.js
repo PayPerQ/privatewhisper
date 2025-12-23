@@ -1,6 +1,7 @@
 const path = require("path");
 const fs = require("fs");
 const { app } = require("electron");
+const debugLogger = require("./debugLogger");
 
 class EnvironmentManager {
   constructor() {
@@ -43,6 +44,9 @@ class EnvironmentManager {
         // Continue to next path
       }
     }
+
+    // Re-evaluate debug mode after env vars are loaded
+    debugLogger.refreshDebugMode();
   }
 
   getPPQApiKey() {

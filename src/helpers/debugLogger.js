@@ -11,27 +11,22 @@ const LEVELS = {
 
 class DebugLogger {
   constructor() {
-    this.debugMode =
-      process.env.PPQVOICE_DEBUG === "true" ||
-      process.argv.includes("--debug") ||
-      this.checkDebugFile();
+    this.debugMode = this.shouldEnableDebug();
     this.logFile = null;
     this.logStream = null;
     this.initialized = false;
 
-    // Delay initialization if app is not ready yet
     if (this.debugMode) {
-      if (app && app.getPath) {
-        this.initializeLogging();
-      } else {
-        // Wait for app to be ready
-        setImmediate(() => {
-          if (app && app.getPath) {
-            this.initializeLogging();
-          }
-        });
-      }
+      this.initializeWhenReady();
     }
+  }
+
+  shouldEnableDebug() {
+    return (
+      process.env.PPQVOICE_DEBUG === "true" ||
+      process.argv.includes("--debug") ||
+      this.checkDebugFile()
+    );
   }
 
   initializeLogging() {
@@ -63,6 +58,34 @@ class DebugLogger {
       this.debugMode = false;
       console.error("Failed to initialize debug logging:", error.message);
     }
+  }
+
+  initializeWhenReady() {
+    if (this.initialized) {
+      return;
+    }
+    if (app && app.getPath) {
+      this.initializeLogging();
+    } else {
+      setImmediate(() => {
+        if (app && app.getPath) {
+          this.initializeLogging();
+        }
+      });
+    }
+  }
+
+  refreshDebugMode() {
+    if (this.debugMode) {
+      return true;
+    }
+    const shouldEnable = this.shouldEnableDebug();
+    if (!shouldEnable) {
+      return false;
+    }
+    this.debugMode = true;
+    this.initializeWhenReady();
+    return true;
   }
 
   isEnabled() {

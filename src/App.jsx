@@ -6,8 +6,10 @@ import { useHotkey } from "./hooks/useHotkey";
 import { useWindowDrag } from "./hooks/useWindowDrag";
 import { useSettings } from "./hooks/useSettings";
 import AudioManager from "./helpers/audioManager";
+import createDebugLogger from "./utils/debugLoggerRenderer";
 
 const MIN_HOLD_DURATION_MS = 200;
+const pipelineLogger = createDebugLogger("pipeline");
 
 // Sound Wave Icon Component (for idle/hover states)
 const SoundWaveIcon = ({ size = 16 }) => {
@@ -216,8 +218,10 @@ export default function App() {
         onTranscriptionComplete: async (result) => {
           if (result.success && result.text) {
             setTranscript(result.text);
+            const metrics = result.metrics;
 
             // Paste immediately - don't wait for database save
+            metrics?.mark?.("pasteStart");
             const pastePromise = safePaste(result.text);
 
             // Save to database in parallel
@@ -228,7 +232,20 @@ export default function App() {
               });
 
             // Wait for paste to complete, but don't block on database save
-            await pastePromise;
+            try {
+              await pastePromise;
+            } finally {
+              metrics?.mark?.("pasteEnd");
+              const summary = metrics?.buildSummary
+                ? metrics.buildSummary("pasteEnd")
+                : null;
+
+              if (summary) {
+                summary.textLength = result.text.length;
+                summary.source = result.source;
+                void pipelineLogger.log("PIPELINE_TIMING_SUMMARY", summary);
+              }
+            }
           }
         },
       });

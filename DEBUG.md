@@ -43,6 +43,7 @@ Each launch in debug mode creates a new timestamped file.
 | Groq transcription | Endpoint used, payload size, HTTP status, error body if non-200. |
 | ReasoningService | Provider routing, API choices (`/responses` vs `/chat`), retries, timing. |
 | Clipboard / database | Paste attempts, SQLite insert status, error stacks if operations fail. |
+| Pipeline timing summary | Per-dictation timings (all in ms):<br>- `audioOptimizeMs`: browser-side audio conversion (start of resample → optimized blob ready).<br>- `transcriptionRequestMs`: wire time for transcription POST (before fetch → HTTP response arrives).<br>- `transcriptionDecodeMs`: parse/prepare transcription response (response arrival → text extracted).<br>- `transcriptionTotalMs`: start of dictation → transcription text ready (includes optimize + network + decode).<br>- `reasoningMs`: AI cleanup request/response if used (send text → cleaned text returned).<br>- `pasteMs`: issuing the paste keystroke (command sent → paste call completes).<br>- Totals: `toTranscriptionMs` (start → transcription text ready), `toFinalTextMs` (start → final cleaned text ready), `roundTripMs` (start → final measured stage, defaults to end of paste).<br>- `startedAtMs` is the anchor timestamp for the run; useful to correlate events, not for perf. |
 
 All entries are timestamped and marked with emojis (`🎤`, `🤖`, `📡`, etc.) to make scanning easier.
 

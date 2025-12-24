@@ -7,7 +7,6 @@ const { TIMING_CONFIG } = require("../config/timing");
 class ClipboardManager {
   constructor() {
     this.accessibilityStatus = { checked: false, granted: false };
-    this.fastPasteAvailable = null; 
   }
 
   safeLog(event, details = {}) {
@@ -70,24 +69,6 @@ class ClipboardManager {
   }
 
   async pasteMacOS(originalClipboard) {
-    const useCGEvent = this.fastPasteAvailable !== false;
-
-    if (useCGEvent) {
-      try {
-        await this.pasteMacOSWithCGEvent();
-        this.fastPasteAvailable = true;
-        this.safeLog("paste-success", { method: "cgevent" });
-        setTimeout(() => {
-          clipboard.writeText(originalClipboard);
-          this.safeLog("clipboard-restored");
-        }, TIMING_CONFIG.CLIPBOARD_RESTORE_DELAY);
-        return;
-      } catch (error) {
-        this.fastPasteAvailable = false;
-        this.safeLog("paste-cgevent-fallback", { error: error.message });
-      }
-    }
-
     return new Promise((resolve, reject) => {
       const pasteProcess = spawn("osascript", [
         "-e",
@@ -135,51 +116,6 @@ class ClipboardManager {
         const errorMsg =
           "Paste operation timed out. Text is copied to clipboard - please paste manually with Cmd+V.";
         reject(new Error(errorMsg));
-      }, TIMING_CONFIG.PASTE_TIMEOUT);
-    });
-  }
-
-  pasteMacOSWithCGEvent() {
-    return new Promise((resolve, reject) => {
-      const script = `
-ObjC.import('ApplicationServices');
-function sendCmdV() {
-  var down = $.CGEventCreateKeyboardEvent(null, 9, true); // keycode 9 = v
-  $.CGEventSetFlags(down, $.kCGEventFlagMaskCommand);
-  $.CGEventPost($.kCGHIDEventTap, down);
-  var up = $.CGEventCreateKeyboardEvent(null, 9, false);
-  $.CGEventSetFlags(up, $.kCGEventFlagMaskCommand);
-  $.CGEventPost($.kCGHIDEventTap, up);
-}
-sendCmdV();
-`;
-      const pasteProcess = spawn("osascript", ["-l", "JavaScript", "-e", script]);
-
-      let hasTimedOut = false;
-
-      pasteProcess.on("close", (code) => {
-        if (hasTimedOut) return;
-        clearTimeout(timeoutId);
-        pasteProcess.removeAllListeners();
-        if (code === 0) {
-          resolve();
-        } else {
-          reject(new Error(`CGEvent paste failed with code ${code}`));
-        }
-      });
-
-      pasteProcess.on("error", (error) => {
-        if (hasTimedOut) return;
-        clearTimeout(timeoutId);
-        pasteProcess.removeAllListeners();
-        reject(error);
-      });
-
-      const timeoutId = setTimeout(() => {
-        hasTimedOut = true;
-        pasteProcess.kill("SIGKILL");
-        pasteProcess.removeAllListeners();
-        reject(new Error("CGEvent paste timed out"));
       }, TIMING_CONFIG.PASTE_TIMEOUT);
     });
   }

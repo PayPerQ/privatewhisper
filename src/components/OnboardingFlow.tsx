@@ -26,9 +26,9 @@ import { useDialogs } from "../hooks/useDialogs";
 import { usePermissions } from "../hooks/usePermissions";
 import { useSettings } from "../hooks/useSettings";
 import { getLanguageLabel } from "../utils/languages";
+import { formatHotkeyLabel } from "../utils/hotkeys";
 import LanguageSelector from "./ui/LanguageSelector";
 const InteractiveKeyboard = React.lazy(() => import("./ui/Keyboard"));
-import { formatHotkeyLabel } from "../utils/hotkeys";
 
 interface OnboardingFlowProps {
   onComplete: () => void;

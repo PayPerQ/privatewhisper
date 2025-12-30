@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
+import type { MouseEvent as ReactMouseEvent } from "react";
 
 export const useWindowDrag = () => {
   const [isDragging, setIsDragging] = useState(false);
 
-  const handleMouseDown = (e) => {
+  const handleMouseDown = (e: ReactMouseEvent<HTMLElement>) => {
     if (e.button === 0) {
       // Left mouse button
       setIsDragging(true);
@@ -19,7 +20,7 @@ export const useWindowDrag = () => {
     }
   };
 
-  const handleClick = (e) => {
+  const handleClick = (e: ReactMouseEvent<HTMLElement>) => {
     // Prevent any click actions - use hotkey only
     e.preventDefault();
   };

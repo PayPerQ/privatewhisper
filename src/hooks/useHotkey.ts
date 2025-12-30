@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
 import type { Dispatch, SetStateAction } from "react";
+import { useSettings } from "./useSettings";
 
 type UseHotkeyResult = {
   hotkey: string;
@@ -7,17 +7,11 @@ type UseHotkeyResult = {
 };
 
 export const useHotkey = (): UseHotkeyResult => {
-  const [hotkey, setHotkey] = useState<string>("`");
-
-  useEffect(() => {
-    const savedHotkey = localStorage.getItem("dictationKey");
-    if (savedHotkey) {
-      setHotkey(savedHotkey);
-    }
-  }, []);
+  const { dictationKey, setDictationKey } = useSettings();
+  const hotkey = dictationKey || "`";
 
   return {
     hotkey,
-    setHotkey,
+    setHotkey: setDictationKey,
   };
 };

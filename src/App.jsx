@@ -81,7 +81,6 @@ export default function App() {
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [transcript, setTranscript] = useState("");
-  const [error, setError] = useState("");
   const [isHovered, setIsHovered] = useState(false);
   const [isCommandMenuOpen, setIsCommandMenuOpen] = useState(false);
   const mediaRecorderRef = useRef(null);
@@ -128,7 +127,6 @@ export default function App() {
 
   const startRecording = async () => {
     try {
-      setError("");
       cancelRecordingRef.current = false;
       pendingStartRef.current = true;
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -428,7 +426,6 @@ export default function App() {
   };
 
   const micState = getMicState();
-  const isListening = isRecording || isProcessing;
   const hotkeyTooltip =
     hotkeyMode === "hold"
       ? `Hold [${hotkey}] while you speak`

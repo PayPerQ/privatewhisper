@@ -20,11 +20,6 @@ export const useWindowDrag = () => {
     }
   };
 
-  const handleClick = (e: ReactMouseEvent<HTMLElement>) => {
-    // Prevent any click actions - use hotkey only
-    e.preventDefault();
-  };
-
   // Set up global mouse up listener when dragging
   useEffect(() => {
     if (isDragging) {
@@ -45,6 +40,5 @@ export const useWindowDrag = () => {
     isDragging,
     handleMouseDown,
     handleMouseUp,
-    handleClick,
   };
 };

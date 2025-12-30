@@ -260,7 +260,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
           <div className="space-y-8">
             <div className="text-center">
               <h2 className="text-2xl font-bold text-gray-900 mb-2">
-                Connect to PPQ Cloud
+                Add Your API Key
               </h2>
               <p className="text-gray-600">
                 Use your PPQ API key and choose the language you primarily
@@ -536,8 +536,10 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
               </h3>
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
-                  <span>Cloud Provider:</span>
-                  <span className="font-medium">PPQ Cloud</span>
+                  <span>API Key:</span>
+                  <span className="font-medium">
+                    {apiKey.trim() ? "Saved" : "Missing"}
+                  </span>
                 </div>
                 <div className="flex justify-between">
                   <span>Hotkey:</span>

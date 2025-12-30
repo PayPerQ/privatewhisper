@@ -714,61 +714,48 @@ export default function SettingsPage({
               </div>
 
               {/* System Actions */}
-              <div className="space-y-3">
-                <Button
-                  onClick={() => {
-                    showConfirmDialog({
-                      title: "Reset Onboarding",
-                      description:
-                        "Are you sure you want to reset the onboarding process? This will clear your setup and show the welcome flow again.",
-                      onConfirm: () => {
-                        localStorage.removeItem("onboardingCompleted");
-                        window.location.reload();
-                      },
-                      variant: "destructive",
-                    });
-                  }}
-                  variant="outline"
-                  className="w-full text-amber-600 border-amber-300 hover:bg-amber-50 hover:border-amber-400"
-                >
-                  <span className="mr-2">🔄</span>
-                  Reset Onboarding
-                </Button>
-                <Button
-                  onClick={() => {
-                    showConfirmDialog({
-                      title: "⚠️ DANGER: Cleanup App Data",
-                      description:
-                        "This will permanently delete ALL PPQ Voice data including:\n\n• Database and transcriptions\n• Local storage settings\n• Cached logs and preferences\n• Environment files\n\nYou will need to manually remove app permissions in System Settings.\n\nThis action cannot be undone. Are you sure?",
-                      onConfirm: () => {
-                        window.electronAPI
-                          ?.cleanupApp()
-                          .then(() => {
-                            showAlertDialog({
-                              title: "Cleanup Completed",
-                              description:
-                                "✅ Cleanup completed! All app data has been removed.",
+              <div className="space-y-4">
+                <div className="space-y-1">
+                  <Button
+                    onClick={() => {
+                      showConfirmDialog({
+                        title: "⚠️ DANGER: Cleanup App Data",
+                        description:
+                          "This will permanently delete ALL PPQ Voice data including:\n\n• Database and transcriptions\n• Local storage settings\n• Cached logs and preferences\n• Environment files\n\nYou will need to manually remove app permissions in System Settings.\n\nThis action cannot be undone. Are you sure?",
+                        onConfirm: () => {
+                          window.electronAPI
+                            ?.cleanupApp()
+                            .then(() => {
+                              showAlertDialog({
+                                title: "Cleanup Completed",
+                                description:
+                                  "✅ Cleanup completed! All app data has been removed.",
+                              });
+                              setTimeout(() => {
+                                window.location.reload();
+                              }, 1000);
+                            })
+                            .catch((error) => {
+                              showAlertDialog({
+                                title: "Cleanup Failed",
+                                description: `❌ Cleanup failed: ${error.message}`,
+                              });
                             });
-                            setTimeout(() => {
-                              window.location.reload();
-                            }, 1000);
-                          })
-                          .catch((error) => {
-                            showAlertDialog({
-                              title: "Cleanup Failed",
-                              description: `❌ Cleanup failed: ${error.message}`,
-                            });
-                          });
-                      },
-                      variant: "destructive",
-                    });
-                  }}
-                  variant="outline"
-                  className="w-full text-red-600 border-red-300 hover:bg-red-50 hover:border-red-400"
-                >
-                  <span className="mr-2">🗑️</span>
-                  Clean Up All App Data
-                </Button>
+                        },
+                        variant: "destructive",
+                      });
+                    }}
+                    variant="outline"
+                    className="w-full text-red-600 border-red-300 hover:bg-red-50 hover:border-red-400"
+                  >
+                    <span className="mr-2">🗑️</span>
+                    Clean Up All App Data
+                  </Button>
+                  <p className="text-xs text-gray-500">
+                    Full reset: wipes transcriptions, settings, logs, and saved
+                    keys. You’ll need to set up PPQ Voice again.
+                  </p>
+                </div>
               </div>
             </div>
           </div>
@@ -779,10 +766,10 @@ export default function SettingsPage({
           <div className="space-y-6">
             <div>
               <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                PPQ Cloud Configuration
+                API Key
               </h3>
               <p className="text-sm text-gray-600">
-                Update your key and language preferences here.
+                Manage your PPQ API key and language preferences here.
               </p>
             </div>
 

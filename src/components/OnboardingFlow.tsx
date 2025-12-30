@@ -56,10 +56,6 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
 
   const [apiKey, setApiKey] = useState(ppqApiKey);
   const [hotkey, setHotkey] = useState(dictationKey || "`");
-  const [skipAuth, setSkipAuth] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return localStorage.getItem("skipAuth") === "true";
-  });
   const [isRegisteringHotkey, setIsRegisteringHotkey] = useState(false);
   const readableHotkey = formatHotkeyLabel(hotkey);
   const { alertDialog, showAlertDialog, hideAlertDialog } = useDialogs();
@@ -71,14 +67,6 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
       "https://platform.openai.com/account/api-keys",
     );
   }, []);
-  const toggleSkipAuth = useCallback(() => {
-    setSkipAuth((prev) => !prev);
-  }, []);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    localStorage.setItem("skipAuth", skipAuth ? "true" : "false");
-  }, [skipAuth]);
 
   const steps = [
     { title: "Welcome", icon: Sparkles },
@@ -147,7 +135,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     localStorage.setItem("onboardingCompleted", "true");
 
     const trimmedKey = apiKey.trim();
-    if (trimmedKey && !skipAuth) {
+    if (trimmedKey) {
       await window.electronAPI.savePPQKey(trimmedKey);
       updateApiKeys({ ppqApiKey: trimmedKey });
     }
@@ -160,7 +148,6 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     permissionsHook.micPermissionGranted,
     permissionsHook.accessibilityPermissionGranted,
     apiKey,
-    skipAuth,
     updateTranscriptionSettings,
     updateApiKeys,
     setDictationKey,
@@ -236,10 +223,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
                 style={{ fontFamily: "Noto Sans, sans-serif" }}
               >
                 🎤 Turn your voice into text instantly
-                <br />
-                ⚡ Works anywhere on your computer
-                <br />
-                🔒 Your privacy is protected
+                <br />⚡ Works anywhere on your computer
               </p>
             </div>
           </div>
@@ -253,8 +237,8 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
                 Connect to PPQ Cloud
               </h2>
               <p className="text-gray-600">
-                Use your PPQ API key (powered by Groq) and choose the language
-                you primarily speak.
+                Use your PPQ API key and choose the language you primarily
+                speak.
               </p>
             </div>
 
@@ -266,10 +250,6 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
                     <h3 className="font-semibold text-foreground">
                       PPQ API Key
                     </h3>
-                    <p className="text-sm text-muted-foreground">
-                      This single key powers Groq Whisper for transcription and
-                      Llama/Mixtral for clean-up.
-                    </p>
                   </div>
                 </div>
                 <ApiKeyInput
@@ -290,25 +270,6 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
                     </span>
                   }
                 />
-                <p className="text-xs text-muted-foreground">
-                  Keys stay on your device and are sent directly to Groq&apos;s
-                  APIs over HTTPS—never to PPQ servers.
-                </p>
-                <div className="flex items-center justify-between text-xs text-foreground bg-accent border border-border rounded-lg px-3 py-2">
-                  <span>
-                    {skipAuth
-                      ? "Skipping for now. We'll remind you in Settings."
-                      : "No key handy? You can finish setup without it."}
-                  </span>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={toggleSkipAuth}
-                  >
-                    {skipAuth ? "Require Key" : "Skip for now"}
-                  </Button>
-                </div>
               </div>
 
               <div className="space-y-4 p-6 bg-white border border-stone-200 rounded-2xl shadow-sm">
@@ -316,7 +277,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
                   Preferred Language
                 </h3>
                 <p className="text-sm text-stone-600">
-                  Whisper is fastest when it knows what to expect. You can
+                  Transcription is fastest when it knows what to expect. You can
                   change this later in Settings.
                 </p>
                 <LanguageSelector
@@ -330,13 +291,6 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
                   mid-dictation.
                 </p>
               </div>
-            </div>
-
-            <div className="bg-accent p-4 rounded-xl border border-border">
-              <p className="text-sm text-foreground">
-                PPQ Voice is now fully cloud-only—no local installers or custom
-                URLs. Just plug in your key and start speaking.
-              </p>
             </div>
           </div>
         );
@@ -371,17 +325,6 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
                 onRequest={permissionsHook.testAccessibilityPermission}
                 buttonText="Test & Grant"
               />
-            </div>
-
-            <div className="bg-amber-50 p-4 rounded-lg">
-              <h4 className="font-medium text-amber-900 mb-2">
-                🔒 Privacy Note
-              </h4>
-              <p className="text-sm text-amber-800">
-                PPQ Voice only uses these permissions for dictation. Audio is
-                encrypted and sent straight to Groq&apos;s PPQ Cloud—nothing is
-                stored on PPQ servers.
-              </p>
             </div>
           </div>
         );
@@ -615,7 +558,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
         canAdvance = true;
         break;
       case 1:
-        canAdvance = skipAuth || apiKey.trim().length > 0;
+        canAdvance = apiKey.trim().length > 0;
         break;
       case 2:
         canAdvance =

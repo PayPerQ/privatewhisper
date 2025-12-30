@@ -1,5 +1,9 @@
 class StorageManager {
-  static getLocalStorageValue(key, defaultValue, parser = null) {
+  static getLocalStorageValue<T>(
+    key: string,
+    defaultValue: T,
+    parser?: (value: string) => T
+  ): T {
     if (typeof window === "undefined" || !window.localStorage) {
       return defaultValue;
     }
@@ -17,10 +21,10 @@ class StorageManager {
       }
     }
 
-    return value;
+    return value as unknown as T;
   }
 
-  static setLocalStorageValue(key, value) {
+  static setLocalStorageValue(key: string, value: string) {
     if (typeof window !== "undefined" && window.localStorage) {
       window.localStorage.setItem(key, value);
       return true;
@@ -28,7 +32,7 @@ class StorageManager {
     return false;
   }
 
-  static removeLocalStorageValue(key) {
+  static removeLocalStorageValue(key: string) {
     if (typeof window !== "undefined" && window.localStorage) {
       window.localStorage.removeItem(key);
       return true;

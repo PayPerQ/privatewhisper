@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Card, CardContent } from "./ui/card";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -26,7 +26,7 @@ import { useDialogs } from "../hooks/useDialogs";
 import { usePermissions } from "../hooks/usePermissions";
 import { useClipboard } from "../hooks/useClipboard";
 import { useSettings } from "../hooks/useSettings";
-import { getLanguageLabel, getReasoningModelLabel } from "../utils/languages";
+import { getLanguageLabel } from "../utils/languages";
 import LanguageSelector from "./ui/LanguageSelector";
 const InteractiveKeyboard = React.lazy(() => import("./ui/Keyboard"));
 import { formatHotkeyLabel } from "../utils/hotkeys";
@@ -48,13 +48,10 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
 
   const {
     preferredLanguage,
-    useReasoningModel,
-    reasoningModel,
     ppqApiKey,
     dictationKey,
     setDictationKey,
     updateTranscriptionSettings,
-    updateReasoningSettings,
     updateApiKeys,
   } = useSettings();
 
@@ -68,11 +65,6 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
   const readableHotkey = formatHotkeyLabel(hotkey);
   const { alertDialog, showAlertDialog, hideAlertDialog } = useDialogs();
   const practiceTextareaRef = useRef<HTMLTextAreaElement>(null);
-  const activeReasoningModelLabel = useMemo(
-    () => getReasoningModelLabel(reasoningModel),
-    [reasoningModel]
-  );
-
   const permissionsHook = usePermissions(showAlertDialog);
   const { pasteFromClipboard } = useClipboard(showAlertDialog);
   const openOpenAIKeys = useCallback(() => {
@@ -143,10 +135,6 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     updateTranscriptionSettings({
       preferredLanguage,
     });
-    updateReasoningSettings({
-      useReasoningModel,
-      reasoningModel,
-    });
     setDictationKey(hotkey);
 
     localStorage.setItem(
@@ -175,11 +163,8 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     apiKey,
     skipAuth,
     updateTranscriptionSettings,
-    updateReasoningSettings,
     updateApiKeys,
     setDictationKey,
-    useReasoningModel,
-    reasoningModel,
   ]);
 
   const nextStep = useCallback(async () => {
@@ -217,14 +202,13 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     if (!saved) {
       return;
     }
-    // Clear the onboarding step since we're done
     removeCurrentStep();
     onComplete();
   }, [saveSettings, removeCurrentStep, onComplete]);
 
   const renderStep = () => {
     switch (currentStep) {
-      case 0: // Welcome
+      case 0: 
         return (
           <div
             className="text-center space-y-6"
@@ -570,10 +554,6 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
                 <div className="flex justify-between">
                   <span>Cloud Provider:</span>
                   <span className="font-medium">PPQ Cloud (Groq)</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Reasoning Model:</span>
-                  <span className="font-medium">{activeReasoningModelLabel}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Hotkey:</span>

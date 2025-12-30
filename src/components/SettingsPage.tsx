@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef, useMemo } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { RefreshCw, Download, Keyboard, Mic, Shield } from "lucide-react";
@@ -7,7 +7,6 @@ import { ConfirmDialog, AlertDialog } from "./ui/dialog";
 import { useSettings } from "../hooks/useSettings";
 import { useDialogs } from "../hooks/useDialogs";
 import { usePermissions } from "../hooks/usePermissions";
-import { getAllReasoningModels } from "../utils/languages";
 import { formatHotkeyLabel } from "../utils/hotkeys";
 import LanguageSelector from "./ui/LanguageSelector";
 import { Toggle } from "./ui/toggle";
@@ -35,21 +34,16 @@ export default function SettingsPage({
 
   const {
     preferredLanguage,
-    useReasoningModel,
-    reasoningModel,
     ppqApiKey,
     dictationKey,
     hotkeyMode,
     audioCuesEnabled,
     setPreferredLanguage,
-    setUseReasoningModel,
-    setReasoningModel,
     setPpqApiKey,
     setDictationKey,
     setHotkeyMode,
     setAudioCuesEnabled,
     updateTranscriptionSettings,
-    updateReasoningSettings,
     updateApiKeys,
   } = useSettings();
 
@@ -69,7 +63,6 @@ export default function SettingsPage({
     releaseDate?: string;
     releaseNotes?: string;
   }>({});
-  const reasoningOptions = useMemo(() => getAllReasoningModels(), []);
   const openOpenAIKeys = useCallback(() => {
     window.electronAPI?.openExternal?.(
       "https://platform.openai.com/account/api-keys"
@@ -211,20 +204,6 @@ export default function SettingsPage({
       }
     };
   }, [installInitiated, showAlertDialog]);
-
-  const saveReasoningSettings = useCallback(() => {
-    updateReasoningSettings({
-      useReasoningModel,
-      reasoningModel,
-    });
-
-    showAlertDialog({
-      title: "AI Clean-up Updated",
-      description: useReasoningModel
-        ? `Groq reasoning enabled with ${reasoningModel}.`
-        : "AI clean-up disabled. Dictation will be pasted after basic punctuation fixes.",
-    });
-  }, [useReasoningModel, reasoningModel, updateReasoningSettings, showAlertDialog]);
 
   const saveApiKey = useCallback(async () => {
     try {
@@ -779,7 +758,7 @@ export default function SettingsPage({
                 PPQ Cloud Configuration
               </h3>
               <p className="text-sm text-gray-600">
-                All speech recognition and reasoning now run through Groq. Update your key, language, and clean-up preferences here.
+                Update your key and language preferences here.
               </p>
             </div>
 
@@ -822,45 +801,6 @@ export default function SettingsPage({
               </p>
             </div>
 
-            <div className="space-y-4 p-4 bg-white border border-neutral-200 rounded-xl">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="font-medium text-neutral-900">Groq Smart Clean-Up</h4>
-                  <p className="text-sm text-neutral-600">
-                    Automatically fix punctuation, capitalization, and formatting with Groq reasoning models.
-                  </p>
-                </div>
-                <Toggle
-                  checked={useReasoningModel}
-                  onChange={(checked) => setUseReasoningModel(checked)}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-neutral-800">
-                  Reasoning Model
-                </label>
-                <select
-                  className="w-full rounded-md border border-border px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/30"
-                  value={reasoningModel}
-                  onChange={(event) => setReasoningModel(event.target.value)}
-                  disabled={!useReasoningModel}
-                >
-                  {reasoningOptions.map((model) => (
-                    <option key={model.value} value={model.value}>
-                      {model.fullLabel}
-                    </option>
-                  ))}
-                </select>
-                <p className="text-xs text-neutral-500">
-                  Groq hosts these models in their LPU data centers for near-instant clean-up.
-                </p>
-              </div>
-
-              <Button onClick={saveReasoningSettings} className="w-full">
-                Save AI Settings
-              </Button>
-            </div>
           </div>
         );
 

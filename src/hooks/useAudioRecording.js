@@ -58,20 +58,18 @@ export const useAudioRecording = (toast, settings = {}) => {
 
     window.electronAPI.onToggleDictation(handleToggle);
 
-    // Cleanup
     return () => {
       if (audioManagerRef.current) {
         audioManagerRef.current.cleanup();
       }
     };
-  }, [toast, settings.useReasoningModel, settings.reasoningModel, settings.preferredLanguage]);
+  }, [toast, settings.preferredLanguage]);
 
-  // Update settings when they change without recreating the AudioManager
   useEffect(() => {
     if (audioManagerRef.current) {
       audioManagerRef.current.updateSettings(settings);
     }
-  }, [settings.useReasoningModel, settings.reasoningModel, settings.preferredLanguage]);
+  }, [settings.preferredLanguage]);
 
   const startRecording = async () => {
     if (audioManagerRef.current) {

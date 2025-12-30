@@ -100,18 +100,14 @@ export default function App() {
   const pendingStartRef = useRef(false);
   const audioContextRef = useRef(null);
   const {
-    useReasoningModel,
-    reasoningModel,
     preferredLanguage,
     hotkeyMode,
     audioCuesEnabled,
   } = useSettings();
 
   const audioSettings = useMemo(() => ({
-    useReasoningModel,
-    reasoningModel,
     preferredLanguage,
-  }), [useReasoningModel, reasoningModel, preferredLanguage]);
+  }), [preferredLanguage]);
 
   const setWindowInteractivity = React.useCallback((shouldCapture) => {
     window.electronAPI?.setMainWindowInteractivity?.(shouldCapture);

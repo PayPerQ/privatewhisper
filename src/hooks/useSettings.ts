@@ -22,6 +22,10 @@ export interface ApiKeySettings {
   ppqApiKey: string;
 }
 
+export interface AudioSettings {
+  audioCuesEnabled: boolean;
+}
+
 export function useSettings() {
   const [preferredLanguage, setPreferredLanguage] = useLocalStorage(
     "preferredLanguage",
@@ -71,6 +75,15 @@ export function useSettings() {
     }
   );
 
+  const [audioCuesEnabled, setAudioCuesEnabled] = useLocalStorage(
+    "audioCuesEnabled",
+    true,
+    {
+      serialize: String,
+      deserialize: (value) => value !== "false",
+    }
+  );
+
   // Computed values
   const reasoningProvider = getModelProvider(reasoningModel);
 
@@ -113,6 +126,15 @@ export function useSettings() {
     [setDictationKey, setHotkeyMode]
   );
 
+  const updateAudioSettings = useCallback(
+    (settings: Partial<AudioSettings>) => {
+      if (settings.audioCuesEnabled !== undefined) {
+        setAudioCuesEnabled(settings.audioCuesEnabled);
+      }
+    },
+    [setAudioCuesEnabled]
+  );
+
   return {
     preferredLanguage,
     useReasoningModel,
@@ -121,15 +143,18 @@ export function useSettings() {
     ppqApiKey,
     dictationKey,
     hotkeyMode,
+    audioCuesEnabled,
     setPreferredLanguage,
     setUseReasoningModel,
     setReasoningModel,
     setPpqApiKey,
     setDictationKey,
     setHotkeyMode,
+    setAudioCuesEnabled,
     updateTranscriptionSettings,
     updateReasoningSettings,
     updateApiKeys,
     updateHotkeySettings,
+    updateAudioSettings,
   };
 }

@@ -99,7 +99,13 @@ export default function App() {
   const cancelRecordingRef = useRef(false);
   const pendingStartRef = useRef(false);
   const audioContextRef = useRef(null);
-  const { useReasoningModel, reasoningModel, preferredLanguage, hotkeyMode } = useSettings();
+  const {
+    useReasoningModel,
+    reasoningModel,
+    preferredLanguage,
+    hotkeyMode,
+    audioCuesEnabled,
+  } = useSettings();
 
   const audioSettings = useMemo(() => ({
     useReasoningModel,
@@ -402,6 +408,7 @@ export default function App() {
 
   const playCue = React.useCallback(async (type) => {
     try {
+      if (!audioCuesEnabled) return;
       const AudioContextClass =
         window.AudioContext || window.webkitAudioContext;
       if (!AudioContextClass) return;
@@ -442,7 +449,7 @@ export default function App() {
       osc.start(now);
       osc.stop(now + preset.duration + 0.02);
     } catch (err) {    }
-  }, []);
+  }, [audioCuesEnabled]);
 
   // Determine current mic state
   const getMicState = () => {

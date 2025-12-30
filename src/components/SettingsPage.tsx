@@ -40,12 +40,14 @@ export default function SettingsPage({
     ppqApiKey,
     dictationKey,
     hotkeyMode,
+    audioCuesEnabled,
     setPreferredLanguage,
     setUseReasoningModel,
     setReasoningModel,
     setPpqApiKey,
     setDictationKey,
     setHotkeyMode,
+    setAudioCuesEnabled,
     updateTranscriptionSettings,
     updateReasoningSettings,
     updateApiKeys,
@@ -597,6 +599,32 @@ export default function SettingsPage({
                 >
                   Save Hotkey
                 </Button>
+              </div>
+            </div>
+
+            {/* Audio Cues Section */}
+            <div className="border-t pt-8">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  Audio Cues
+                </h3>
+                <p className="text-sm text-gray-600 mb-4">
+                  Play a short sound when recording starts and when processing begins.
+                </p>
+                <div className="flex items-center justify-between p-4 bg-neutral-50 rounded-lg">
+                  <div>
+                    <p className="text-sm font-medium text-neutral-800">
+                      Recording Sounds
+                    </p>
+                    <p className="text-xs text-neutral-600">
+                      Toggle start/stop indicator sounds.
+                    </p>
+                  </div>
+                  <Toggle
+                    checked={audioCuesEnabled}
+                    onChange={(checked) => setAudioCuesEnabled(checked)}
+                  />
+                </div>
               </div>
             </div>
 

@@ -24,7 +24,6 @@ import { AlertDialog } from "./ui/dialog";
 import { useLocalStorage } from "../hooks/useLocalStorage";
 import { useDialogs } from "../hooks/useDialogs";
 import { usePermissions } from "../hooks/usePermissions";
-import { useClipboard } from "../hooks/useClipboard";
 import { useSettings } from "../hooks/useSettings";
 import { getLanguageLabel } from "../utils/languages";
 import LanguageSelector from "./ui/LanguageSelector";
@@ -61,7 +60,6 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
   const { alertDialog, showAlertDialog, hideAlertDialog } = useDialogs();
   const practiceTextareaRef = useRef<HTMLTextAreaElement>(null);
   const permissionsHook = usePermissions(showAlertDialog);
-  const { pasteFromClipboard } = useClipboard(showAlertDialog);
   const openOpenAIKeys = useCallback(() => {
     window.electronAPI?.openExternal?.(
       "https://platform.openai.com/account/api-keys",
@@ -78,7 +76,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
       }
       updateApiKeys({ ppqApiKey: trimmedKey });
       return true;
-    } catch (error) {
+    } catch (_error) {
       showAlertDialog({
         title: "API Key Save Failed",
         description: "We couldn't save your key. Please try again.",
@@ -119,8 +117,8 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
         return false;
       }
       return true;
-    } catch (error) {
-      console.error("Failed to register onboarding hotkey", error);
+    } catch (_error) {
+      console.error("Failed to register onboarding hotkey", _error);
       showAlertDialog({
         title: "Hotkey Error",
         description:

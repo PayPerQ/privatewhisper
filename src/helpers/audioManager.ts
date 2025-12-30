@@ -220,7 +220,7 @@ class AudioManager {
 
           const wavBlob = this.audioBufferToWav(renderedBuffer);
           resolve(wavBlob);
-        } catch (error) {
+        } catch (_error) {
           resolve(audioBlob);
         }
       };
@@ -547,7 +547,7 @@ class AudioManager {
     try {
       await window.electronAPI.pasteText(text);
       return true;
-    } catch (error) {
+    } catch (_error) {
       this.onError?.({
         title: "Paste Error",
         description:
@@ -561,7 +561,7 @@ class AudioManager {
     try {
       await window.electronAPI.saveTranscription(text);
       return true;
-    } catch (error) {
+    } catch (_error) {
       return false;
     }
   }

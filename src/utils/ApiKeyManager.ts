@@ -15,7 +15,7 @@ class ApiKeyManager {
       }
     }
 
-    const apiKey = await this.fetchFromSources("ppq");
+    const apiKey = await this.fetchFromSources();
 
     if (!this.isValidApiKey(apiKey)) {
       throw new Error(
@@ -27,7 +27,7 @@ class ApiKeyManager {
     return apiKey;
   }
 
-  private async fetchFromSources(keyType: "ppq"): Promise<string | null> {
+  private async fetchFromSources(): Promise<string | null> {
     if (typeof window !== "undefined" && window.electronAPI?.getPPQKey) {
       const key = await window.electronAPI.getPPQKey();
       if (this.isValidApiKey(key)) {

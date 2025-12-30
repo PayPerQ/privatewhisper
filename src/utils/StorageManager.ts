@@ -16,7 +16,7 @@ class StorageManager {
     if (parser) {
       try {
         return parser(value);
-      } catch (error) {
+      } catch (_error) {
         return defaultValue;
       }
     }

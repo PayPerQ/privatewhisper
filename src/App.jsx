@@ -80,7 +80,6 @@ const Tooltip = ({ children, content, emoji }) => {
 export default function App() {
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [transcript, setTranscript] = useState("");
   const [isHovered, setIsHovered] = useState(false);
   const [isCommandMenuOpen, setIsCommandMenuOpen] = useState(false);
   const mediaRecorderRef = useRef(null);
@@ -201,7 +200,6 @@ export default function App() {
         },
         onTranscriptionComplete: async (result) => {
           if (result.success && result.text) {
-            setTranscript(result.text);
             const metrics = result.metrics;
 
             // Paste immediately - don't wait for database save
@@ -410,7 +408,9 @@ export default function App() {
         gain.connect(context.destination);
         osc.start(now);
         osc.stop(now + preset.duration + 0.02);
-      } catch (err) {}
+      } catch (error) {
+        console.debug("Audio cue failed:", error);
+      }
     },
     [audioCuesEnabled],
   );

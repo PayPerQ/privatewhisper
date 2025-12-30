@@ -45,7 +45,7 @@ export default function ControlPanel() {
       try {
         const status = await window.electronAPI.getUpdateStatus();
         setUpdateStatus(status);
-      } catch (error) {
+      } catch (_error) {
         // Update status not critical for app function
       }
     };
@@ -86,7 +86,7 @@ export default function ControlPanel() {
         variant: "success",
         duration: 2000,
       });
-    } catch (err) {
+    } catch (_error) {
       toast({
         title: "Copy Failed",
         description: "Failed to copy text to clipboard",
@@ -107,7 +107,7 @@ export default function ControlPanel() {
             title: "History Cleared",
             description: `Successfully cleared ${result.cleared} transcriptions from your chronicles.`,
           });
-        } catch (error) {
+        } catch (_error) {
           showAlertDialog({
             title: "Error",
             description: "Failed to clear history. Please try again.",
@@ -133,7 +133,7 @@ export default function ControlPanel() {
                 "Failed to delete transcription. It may have already been removed.",
             });
           }
-        } catch (error) {
+        } catch (_error) {
           showAlertDialog({
             title: "Delete Failed",
             description: "Failed to delete transcription. Please try again.",

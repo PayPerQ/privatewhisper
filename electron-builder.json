@@ -70,7 +70,6 @@
   "dmg": {
     "title": "PPQ Voice",
     "icon": "src/assets/icon.icns",
-    "background": "src/assets/dmg-background.png",
     "window": {
       "width": 540,
       "height": 380
@@ -78,8 +77,8 @@
   },
   "publish": {
     "provider": "github",
-    "owner": "HeroTools",
-    "repo": "ppq-voice",
+    "owner": "PayPerQ",
+    "repo": "ppq-voice-private",
     "private": false,
     "releaseType": "draft"
   }

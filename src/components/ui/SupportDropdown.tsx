@@ -33,7 +33,7 @@ export default function SupportDropdown({ className }: SupportDropdownProps) {
   const handleSubmitBug = async () => {
     try {
       const result = await window.electronAPI?.openExternal(
-        "https://github.com/HeroTools/ppq-voice/issues",
+        "https://github.com/PayPerQ/ppq-voice-private/issues",
       );
       if (!result?.success) {
         console.error("Failed to open GitHub issues:", result?.error);

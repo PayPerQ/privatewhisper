@@ -14,7 +14,7 @@ PPQ Voice is a lightweight Electron desktop app that turns any text field into a
 ## Quick Start
 
 ```bash
-git clone https://github.com/HeroTools/ppq-voice.git
+git clone https://github.com/PayPerQ/ppq-voice-private.git
 cd ppq-voice
 npm install
 cp env.example .env   # add your PPQ (Groq) API key
@@ -78,4 +78,4 @@ You can revisit both in **Control Panel → Settings → Permissions** if someth
 ## Support & Feedback
 
 - Email: [support@ppqvoice.com](mailto:support@ppqvoice.com)
-- Issues: [github.com/HeroTools/ppq-voice/issues](https://github.com/HeroTools/ppq-voice/issues)
+- Issues: [github.com/PayPerQ/ppq-voice-private/issues](https://github.com/PayPerQ/ppq-voice-private/issues)

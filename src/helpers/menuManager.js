@@ -94,7 +94,7 @@ class MenuManager {
               click: async () => {
                 const { shell } = require("electron");
                 await shell.openExternal(
-                  "https://github.com/HeroTools/ppq-voice",
+                  "https://github.com/PayPerQ/ppq-voice-private",
                 );
               },
             },

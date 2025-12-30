@@ -41,8 +41,8 @@ class UpdateManager {
 
     this.autoUpdater.setFeedURL({
       provider: "github",
-      owner: "HeroTools",
-      repo: "ppq-voice",
+      owner: "PayPerQ",
+      repo: "ppq-voice-private",
       private: false,
     });
 

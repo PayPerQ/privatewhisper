@@ -1,12 +1,12 @@
 # PPQ Voice
 
-PPQ Voice is a lightweight Electron desktop app that turns any text field into a dictation box. Press a single hotkey, speak, and the app streams your audio directly to Groq’s hosted Whisper endpoint. The finished text is automatically cleaned up by Groq’s Llama/Mixtral models and pasted wherever your cursor was. No local models, no Python installs—just reliable cloud transcription with a tidy UI.
+PPQ Voice is a lightweight Electron desktop app that turns any text field into a dictation box. Press a single hotkey, speak, and the app streams your audio to PPQ Cloud for transcription and clean-up, then pastes the result wherever your cursor was.
 
 ## Why Teams Use PPQ Voice
 
-- **Cloud-first dictation** – Streams audio to Groq’s Whisper API for fast, consistent transcriptions.
+- **Cloud-first dictation** – Streams audio to PPQ Cloud for fast, consistent transcriptions.
 - **Automatic paste + history** – Captured text is pasted into the active app and stored locally in SQLite.
-- **AI clean-up pipeline** – Groq reasoning models (Llama 3.1 + Mixtral) tidy punctuation, lists, and formatting automatically.
+- **AI clean-up pipeline** – PPQ cleans punctuation, lists, and formatting automatically.
 - **Cross-platform** – macOS, Windows, and Linux packages powered by Electron + Vite.
 - **Ops-friendly** – Toggle `PPQVOICE_DEBUG=true` to write rich logs to the user data directory.
 - **Zero local-model overhead** – No llama.cpp builds, Python dependencies, or multi-GB downloads.
@@ -17,7 +17,7 @@ PPQ Voice is a lightweight Electron desktop app that turns any text field into a
 git clone https://github.com/PayPerQ/ppq-voice-private.git
 cd ppq-voice
 npm install
-cp env.example .env   # add your PPQ (Groq) API key
+cp env.example .env   # add your PPQ API key
 npm run dev           # launches Vite + Electron with hot reload
 ```
 
@@ -29,11 +29,10 @@ Want the production build? Run `npm start` to launch Electron with the prebuilt 
 
 | Key                      | Required | Description                                                                                                    |
 | ------------------------ | -------- | -------------------------------------------------------------------------------------------------------------- |
-| `PPQ_API_KEY`            | ✅       | The Groq key used for Whisper transcription and Llama/Mixtral clean-up.                                        |
-| `PPQVOICE_GROQ_BASE_URL` | optional | Override the Groq base URL (defaults to `https://api.groq.com/openai/v1`; HTTPS or localhost only).            |
+| `PPQ_API_KEY`            | ✅       | Your PPQ API key used for transcription and clean-up.                                                         |
 | `PPQVOICE_DEBUG`         | optional | `true` writes detailed logs to `~/Library/Application Support/ppq-voice/logs` (platform-specific equivalents). |
 
-All other preferences (language, reasoning model, hotkeys, API fallbacks) can be changed inside the Control Panel UI. They persist in `localStorage` and synchronize with the renderer.
+All other preferences (language, hotkeys, audio cues) can be changed inside the Control Panel UI. They persist in `localStorage` and synchronize with the renderer.
 
 ## NPM Scripts
 

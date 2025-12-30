@@ -19,7 +19,7 @@ export default function ApiKeyInput({
   className = "",
   placeholder = "sk-...",
   label = "API Key",
-  helpText = "Get your API key from platform.openai.com",
+  helpText = "Get your API key from ppq.ai",
   variant = "default",
 }: ApiKeyInputProps) {
   const { pasteFromClipboardWithFallback } = useClipboard();

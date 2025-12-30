@@ -9,7 +9,7 @@ PPQ Voice is an Electron 36 desktop app (React 19 renderer) that:
 1. Listens for a global hotkey (default `\``).
 2. Records audio via the browser's `MediaRecorder`.
 3. Streams the audio blob to PPQ's API (cloud-only) for transcription.
-4. Optionally runs the transcript through PPQ's reasoning models (with Groq provider routing) for clean-up.
+4. Optionally runs the transcript through PPQ's reasoning models for clean-up.
 5. Pastes the final text wherever the user's cursor sits and stores it in a local SQLite DB.
 
 There is **no** local inferencing, Python bridge, or llama.cpp dependency anymore. Everything runs in the renderer + Electron main process.
@@ -19,9 +19,9 @@ There is **no** local inferencing, Python bridge, or llama.cpp dependency anymor
 ```
 Renderer (React/Vite)
  ├─ audioManager.js ........ handles recording, sending to cloud APIs, reasoning pipeline
- ├─ ReasoningService.ts .... routes clean-up to PPQ reasoning models (via Groq provider)
+ ├─ ReasoningService.ts .... routes clean-up to PPQ reasoning models
  ├─ UI (App.jsx, SettingsPage.tsx, OnboardingFlow.tsx, etc.)
- └─ Hooks (useSettings, useAudioRecording, usePermissions, useLocalStorage)
+ └─ Hooks (useSettings, usePermissions, useLocalStorage)
 
 Preload (preload.js)
  └─ Exposes whitelisted IPC methods (clipboard, db, settings, updater, etc.)
@@ -49,7 +49,6 @@ Main process (Electron)
 
 - Uses PPQ API exclusively – a single PPQ API key is cached via `SecureCache`.
 - Calls `https://api.ppq.ai/chat/completions` with Whisper output + clean-up prompts.
-- Uses provider routing to specify Groq as the backend provider (via `provider: { order: ["Groq"] }` in the request body).
 - Extracts the first `choices[].message.content` text payload and returns it to `audioManager`.
 - Logs every stage via `window.electronAPI.logReasoning` for debugging.
 
@@ -58,9 +57,10 @@ Main process (Electron)
 `src/hooks/useSettings.ts` centralises everything. Keys currently stored in `localStorage`:
 
 - `preferredLanguage` – used to pre-fill the PPQ transcription request.
-- `useReasoningModel`, `reasoningModel` – toggles PPQ reasoning clean-up and the selected model ID (default: `qwen/qwen-3-32b-chat`).
 - `ppqApiKey` – cached in the renderer (also mirrored to `.env` via `environment.js`).
 - `dictationKey` – user's chosen hotkey.
+- `hotkeyMode` – toggle vs hold-to-talk behavior.
+- `audioCuesEnabled` – enable/disable start/stop sounds.
 
 ## 5. Permissions & Windows
 

@@ -60,9 +60,9 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
   const { alertDialog, showAlertDialog, hideAlertDialog } = useDialogs();
   const practiceTextareaRef = useRef<HTMLTextAreaElement>(null);
   const permissionsHook = usePermissions(showAlertDialog);
-  const openOpenAIKeys = useCallback(() => {
+  const openApiDocs = useCallback(() => {
     window.electronAPI?.openExternal?.(
-      "https://platform.openai.com/account/api-keys",
+      "https://ppq.ai/api-docs",
     );
   }, []);
 
@@ -288,9 +288,9 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
                       <button
                         type="button"
                         className="text-link underline hover:opacity-80"
-                        onClick={openOpenAIKeys}
+                        onClick={openApiDocs}
                       >
-                        Open it from OpenAI
+                        Get it from ppq.ai
                       </button>
                       .
                     </span>
@@ -537,7 +537,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
                   <span>Cloud Provider:</span>
-                  <span className="font-medium">PPQ Cloud (Groq)</span>
+                  <span className="font-medium">PPQ Cloud</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Hotkey:</span>

@@ -1,7 +1,7 @@
 {
   "name": "ppq-voice",
   "version": "0.1.0",
-  "description": "PPQ Voice — a Groq-powered desktop dictation app with instant clean-up",
+  "description": "PPQ Voice — a cloud-powered desktop dictation app with instant clean-up",
   "main": "main.js",
   "private": true,
   "scripts": {
@@ -38,7 +38,6 @@
     "dictation",
     "speech-to-text",
     "whisper",
-    "openai",
     "electron",
     "desktop-app"
   ],

@@ -63,9 +63,9 @@ export default function SettingsPage({
     releaseDate?: string;
     releaseNotes?: string;
   }>({});
-  const openOpenAIKeys = useCallback(() => {
+  const openApiDocs = useCallback(() => {
     window.electronAPI?.openExternal?.(
-      "https://platform.openai.com/account/api-keys",
+      "https://ppq.ai/api-docs",
     );
   }, []);
 
@@ -222,7 +222,7 @@ export default function SettingsPage({
       if (!trimmed) {
         showAlertDialog({
           title: "Missing API Key",
-          description: "Add your PPQ (Groq) API key before saving.",
+          description: "Add your PPQ API key before saving.",
         });
         return;
       }
@@ -796,10 +796,10 @@ export default function SettingsPage({
                     Need a key?{" "}
                     <button
                       type="button"
-                      onClick={openOpenAIKeys}
+                      onClick={openApiDocs}
                       className="text-link underline hover:opacity-80"
                     >
-                      Open the OpenAI console
+                      Get it from ppq.ai
                     </button>
                     .
                   </span>

@@ -50,8 +50,7 @@ class EnvironmentManager {
   }
 
   getPPQApiKey() {
-    const apiKey = process.env.PPQ_API_KEY || process.env.OPENAI_API_KEY;
-    return apiKey || "";
+    return process.env.PPQ_API_KEY || "";
   }
 
   savePPQApiKey(key) {
@@ -87,9 +86,6 @@ PPQ_API_KEY=${apiKey}
 
     if (process.env.PPQ_API_KEY) {
       envContent += `PPQ_API_KEY=${process.env.PPQ_API_KEY}\n`;
-    } else if (process.env.OPENAI_API_KEY) {
-      // Legacy fallback so existing environments continue to work
-      envContent += `PPQ_API_KEY=${process.env.OPENAI_API_KEY}\n`;
     }
 
     fs.writeFileSync(envPath, envContent, "utf8");

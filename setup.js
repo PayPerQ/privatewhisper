@@ -34,5 +34,4 @@ Features enabled immediately:
 - Automatic paste at the cursor the moment text is ready
 - Optional AI clean-up using OpenAI, Anthropic, or Gemini
 
-Just grant microphone + accessibility permissions when prompted and you're good to go.`;
-`);
+Just grant microphone + accessibility permissions when prompted and you're good to go.`);

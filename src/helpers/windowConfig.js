@@ -4,6 +4,7 @@ const path = require("path");
 const MAIN_WINDOW_CONFIG = {
   width: 240,
   height: 240,
+  title: "Voice Recorder",
   webPreferences: {
     preload: path.join(__dirname, "..", "..", "preload.js"),
     nodeIntegration: false,
@@ -39,7 +40,7 @@ const CONTROL_PANEL_CONFIG = {
     webSecurity: false,
     spellcheck: false,
   },
-  title: "PPQ Voice Control Panel",
+  title: "Control Panel",
   resizable: true,
   show: false,
   titleBarStyle: "hiddenInset",

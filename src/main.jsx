@@ -19,7 +19,10 @@ function AppRouter() {
   const isDictationPanel = !isControlPanel;
 
   useEffect(() => {
-    // Check if onboarding has been completed
+    document.title = isControlPanel ? "Control Panel" : "Voice Recorder";
+  }, [isControlPanel]);
+
+  useEffect(() => {
     const onboardingCompleted =
       localStorage.getItem("onboardingCompleted") === "true";
     const currentStep = parseInt(
@@ -31,7 +34,6 @@ function AppRouter() {
       setShowOnboarding(true);
     }
 
-    // Hide dictation panel window unless onboarding is complete or we're past the permissions step
     if (isDictationPanel && !onboardingCompleted && currentStep < 4) {
       window.electronAPI?.hideWindow?.();
     }

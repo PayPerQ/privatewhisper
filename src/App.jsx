@@ -192,19 +192,6 @@ export default function App() {
     }
   };
 
-  const safePaste = async (text) => {
-    try {
-      await window.electronAPI.pasteText(text);
-    } catch (err) {
-      toast({
-        title: "Paste Error",
-        description:
-          "Failed to paste text. Please check accessibility permissions.",
-        variant: "destructive",
-      });
-    }
-  };
-
   const processAudio = async (audioBlob) => {
     try {
       const audioManager = new AudioManager(audioSettings);
@@ -223,14 +210,8 @@ export default function App() {
 
             // Paste immediately - don't wait for database save
             metrics?.mark?.("pasteStart");
-            const pastePromise = safePaste(result.text);
-
-            // Save to database in parallel
-            const savePromise = window.electronAPI
-              .saveTranscription(result.text)
-              .catch((err) => {
-                // Failed to save transcription
-              });
+            const pastePromise = audioManager.safePaste(result.text);
+            void audioManager.saveTranscription(result.text);
 
             // Wait for paste to complete, but don't block on database save
             try {

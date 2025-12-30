@@ -79,7 +79,3 @@ You can revisit both in **Control Panel → Settings → Permissions** if someth
 
 - Email: [support@ppqvoice.com](mailto:support@ppqvoice.com)
 - Issues: [github.com/HeroTools/ppq-voice/issues](https://github.com/HeroTools/ppq-voice/issues)
-
-## License
-
-[MIT](LICENSE) – you can use PPQ Voice for commercial or personal projects. Contributions and forks are welcome.

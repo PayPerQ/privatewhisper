@@ -65,7 +65,7 @@ export default function SettingsPage({
   }>({});
   const openOpenAIKeys = useCallback(() => {
     window.electronAPI?.openExternal?.(
-      "https://platform.openai.com/account/api-keys"
+      "https://platform.openai.com/account/api-keys",
     );
   }, []);
 
@@ -80,7 +80,11 @@ export default function SettingsPage({
     if (!window.electronAPI) return;
 
     window.electronAPI.onUpdateAvailable?.((_event, info) => {
-      setUpdateStatus((prev) => ({ ...prev, updateAvailable: true, updateDownloaded: false }));
+      setUpdateStatus((prev) => ({
+        ...prev,
+        updateAvailable: true,
+        updateDownloaded: false,
+      }));
       if (info) {
         setUpdateInfo({
           version: info.version || "unknown",
@@ -91,7 +95,11 @@ export default function SettingsPage({
     });
 
     window.electronAPI.onUpdateNotAvailable?.(() => {
-      setUpdateStatus((prev) => ({ ...prev, updateAvailable: false, updateDownloaded: false }));
+      setUpdateStatus((prev) => ({
+        ...prev,
+        updateAvailable: false,
+        updateDownloaded: false,
+      }));
       setUpdateInfo({});
       setDownloadingUpdate(false);
       setInstallInitiated(false);
@@ -147,9 +155,13 @@ export default function SettingsPage({
           ...prev,
           ...statusResult,
           updateAvailable: prev.updateAvailable || statusResult.updateAvailable,
-          updateDownloaded: prev.updateDownloaded || statusResult.updateDownloaded,
+          updateDownloaded:
+            prev.updateDownloaded || statusResult.updateDownloaded,
         }));
-        if ((statusResult.updateAvailable || statusResult.updateDownloaded) && window.electronAPI?.getUpdateInfo) {
+        if (
+          (statusResult.updateAvailable || statusResult.updateDownloaded) &&
+          window.electronAPI?.getUpdateInfo
+        ) {
           const info = await window.electronAPI.getUpdateInfo();
           if (info) {
             setUpdateInfo({
@@ -162,7 +174,6 @@ export default function SettingsPage({
       }
 
       subscribeToUpdates();
-
     }, 100);
 
     return () => {
@@ -228,7 +239,9 @@ export default function SettingsPage({
       console.error("Failed to save API key:", error);
       showAlertDialog({
         title: "Save Failed",
-        description: error?.message || "We couldn't persist your API key. Please try again.",
+        description:
+          error?.message ||
+          "We couldn't persist your API key. Please try again.",
       });
     }
   }, [ppqApiKey, updateApiKeys, showAlertDialog]);
@@ -248,7 +261,7 @@ export default function SettingsPage({
 
         window.open(
           "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility",
-          "_blank"
+          "_blank",
         );
       },
     });
@@ -331,7 +344,7 @@ export default function SettingsPage({
                         await window.electronAPI?.checkForUpdates();
                       if (result?.updateAvailable) {
                         setUpdateInfo({
-                          version: result.version || 'unknown',
+                          version: result.version || "unknown",
                           releaseDate: result.releaseDate,
                           releaseNotes: result.releaseNotes,
                         });
@@ -342,7 +355,7 @@ export default function SettingsPage({
                         }));
                         showAlertDialog({
                           title: "Update Available",
-                          description: `Update available: v${result.version || 'new version'}`,
+                          description: `Update available: v${result.version || "new version"}`,
                         });
                       } else {
                         showAlertDialog({
@@ -403,7 +416,8 @@ export default function SettingsPage({
                       ) : (
                         <>
                           <Download size={16} className="mr-2" />
-                          Download Update{updateInfo.version ? ` v${updateInfo.version}` : ''}
+                          Download Update
+                          {updateInfo.version ? ` v${updateInfo.version}` : ""}
                         </>
                       )}
                     </Button>
@@ -413,7 +427,9 @@ export default function SettingsPage({
                         <div className="h-2 w-full overflow-hidden rounded-full bg-neutral-200">
                           <div
                             className="h-full bg-green-600 transition-all duration-200"
-                            style={{ width: `${Math.min(100, Math.max(0, updateDownloadProgress))}%` }}
+                            style={{
+                              width: `${Math.min(100, Math.max(0, updateDownloadProgress))}%`,
+                            }}
                           />
                         </div>
                         <p className="text-xs text-neutral-600 text-right">
@@ -429,12 +445,13 @@ export default function SettingsPage({
                     onClick={() => {
                       showConfirmDialog({
                         title: "Install Update",
-                        description: `Ready to install update${updateInfo.version ? ` v${updateInfo.version}` : ''}. The app will restart to complete installation.`,
+                        description: `Ready to install update${updateInfo.version ? ` v${updateInfo.version}` : ""}. The app will restart to complete installation.`,
                         confirmText: "Install & Restart",
                         onConfirm: async () => {
                           try {
                             setInstallInitiated(true);
-                            const result = await window.electronAPI?.installUpdate?.();
+                            const result =
+                              await window.electronAPI?.installUpdate?.();
                             if (!result?.success) {
                               setInstallInitiated(false);
                               showAlertDialog({
@@ -485,13 +502,16 @@ export default function SettingsPage({
                     </h4>
                     {updateInfo.releaseDate && (
                       <p className="text-sm text-muted-foreground mb-2">
-                        Released: {new Date(updateInfo.releaseDate).toLocaleDateString()}
+                        Released:{" "}
+                        {new Date(updateInfo.releaseDate).toLocaleDateString()}
                       </p>
                     )}
                     {updateInfo.releaseNotes && (
                       <div className="text-sm text-foreground">
                         <p className="font-medium mb-1">What's New:</p>
-                        <div className="whitespace-pre-wrap">{updateInfo.releaseNotes}</div>
+                        <div className="whitespace-pre-wrap">
+                          {updateInfo.releaseNotes}
+                        </div>
                       </div>
                     )}
                   </div>
@@ -506,7 +526,8 @@ export default function SettingsPage({
                   Dictation Hotkey
                 </h3>
                 <p className="text-sm text-gray-600 mb-6">
-                  Configure the key you press to start and stop voice dictation, and whether you hold or tap it.
+                  Configure the key you press to start and stop voice dictation,
+                  and whether you hold or tap it.
                 </p>
               </div>
               <div className="space-y-4">
@@ -530,7 +551,9 @@ export default function SettingsPage({
                   </label>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                     <Button
-                      variant={hotkeyMode === "toggle" ? "secondary" : "outline"}
+                      variant={
+                        hotkeyMode === "toggle" ? "secondary" : "outline"
+                      }
                       className="w-full justify-start"
                       onClick={() => setHotkeyMode("toggle")}
                     >
@@ -551,7 +574,8 @@ export default function SettingsPage({
                     </Button>
                   </div>
                   <p className="text-xs text-gray-500">
-                    Choose the behavior that feels natural: tap once to toggle, or hold while you speak.
+                    Choose the behavior that feels natural: tap once to toggle,
+                    or hold while you speak.
                   </p>
                 </div>
                 <div className="bg-gray-50 p-4 rounded-lg">
@@ -588,7 +612,8 @@ export default function SettingsPage({
                   Audio Cues
                 </h3>
                 <p className="text-sm text-gray-600 mb-4">
-                  Play a short sound when recording starts and when processing begins.
+                  Play a short sound when recording starts and when processing
+                  begins.
                 </p>
                 <div className="flex items-center justify-between p-4 bg-neutral-50 rounded-lg">
                   <div>
@@ -745,7 +770,6 @@ export default function SettingsPage({
                   Clean Up All App Data
                 </Button>
               </div>
-
             </div>
           </div>
         );
@@ -797,10 +821,10 @@ export default function SettingsPage({
                 className="w-full"
               />
               <p className="text-xs text-gray-600">
-                Whisper will bias toward this language for faster, more accurate transcripts. Leave on Auto for multilingual workflows.
+                Whisper will bias toward this language for faster, more accurate
+                transcripts. Leave on Auto for multilingual workflows.
               </p>
             </div>
-
           </div>
         );
 

@@ -12,8 +12,8 @@ export abstract class BaseReasoningService {
 
     let prompt = DEFAULT_PROMPT;
 
-    if (typeof window !== 'undefined' && window.localStorage) {
-      const customPrompts = window.localStorage.getItem('customPrompts');
+    if (typeof window !== "undefined" && window.localStorage) {
+      const customPrompts = window.localStorage.getItem("customPrompts");
       if (customPrompts) {
         try {
           const parsed = JSON.parse(customPrompts);
@@ -34,7 +34,7 @@ export abstract class BaseReasoningService {
     textLength: number,
     minTokens = 100,
     maxTokens = 2048,
-    multiplier = 2
+    multiplier = 2,
   ): number {
     return Math.max(minTokens, Math.min(textLength * multiplier, maxTokens));
   }
@@ -50,6 +50,6 @@ export abstract class BaseReasoningService {
   abstract processText(
     text: string,
     modelId: string,
-    config?: ReasoningConfig
+    config?: ReasoningConfig,
   ): Promise<string>;
 }

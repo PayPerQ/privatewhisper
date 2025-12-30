@@ -32,7 +32,7 @@ export default function TitleBar({
         </div>
 
         {/* Right section - actions */}
-        <div 
+        <div
           className="flex items-center gap-2"
           style={{ WebkitAppRegion: "no-drag" }}
         >

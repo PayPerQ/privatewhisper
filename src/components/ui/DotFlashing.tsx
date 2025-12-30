@@ -1,8 +1,15 @@
-import React from 'react';
+import React from "react";
 
 export const DotFlashing = () => (
   <>
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 16 }}>
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        height: 16,
+      }}
+    >
       <div className="dot-flashing"></div>
     </div>
     <style>{`
@@ -48,4 +55,4 @@ export const DotFlashing = () => (
       }
     `}</style>
   </>
-); 
+);

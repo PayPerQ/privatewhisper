@@ -4,7 +4,11 @@ type DebugDetails = Record<string, unknown>;
 type DebugLogger = {
   isDebugMode: boolean | null;
   ensureDebugMode: () => Promise<boolean>;
-  log: (event: string, details?: DebugDetails, level?: DebugLevel) => Promise<void>;
+  log: (
+    event: string,
+    details?: DebugDetails,
+    level?: DebugLevel,
+  ) => Promise<void>;
   logReasoning: (stage: string, details?: DebugDetails) => Promise<void>;
   clearCache: () => void;
 };
@@ -31,10 +35,7 @@ const createDebugLogger = (channel = "renderer"): DebugLogger => ({
     const enabled = await this.ensureDebugMode();
     if (!enabled) return;
 
-    if (
-      typeof window !== "undefined" &&
-      window.electronAPI?.logDebugEvent
-    ) {
+    if (typeof window !== "undefined" && window.electronAPI?.logDebugEvent) {
       try {
         await window.electronAPI.logDebugEvent(channel, event, details, level);
       } catch (error) {

@@ -29,6 +29,8 @@
     "predist": "npm run compile:globe",
     "dist": "npm run build:renderer && electron-builder",
     "lint": "cd src && eslint .",
+    "typecheck": "tsc --noEmit",
+    "format": "prettier --write .",
     "preview": "cd src && vite preview",
     "clean": "node cleanup.js"
   },
@@ -48,6 +50,8 @@
   "devDependencies": {
     "@electron/notarize": "^3.0.1",
     "@eslint/js": "^9.25.0",
+    "@typescript-eslint/eslint-plugin": "^8.34.0",
+    "@typescript-eslint/parser": "^8.34.0",
     "@tailwindcss/vite": "^4.1.10",
     "@types/react": "^19.1.2",
     "@types/react-dom": "^19.1.2",
@@ -62,7 +66,9 @@
     "eslint-plugin-react-refresh": "^0.4.19",
     "globals": "^16.0.0",
     "postcss": "^8.5.6",
+    "prettier": "^3.3.3",
     "tailwindcss": "^4.1.10",
+    "typescript": "^5.7.3",
     "vite": "^6.3.5"
   },
   "dependencies": {

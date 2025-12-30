@@ -35,7 +35,6 @@ interface OnboardingFlowProps {
   onComplete: () => void;
 }
 
-
 export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
   const [currentStep, setCurrentStep, removeCurrentStep] = useLocalStorage(
     "onboardingCurrentStep",
@@ -43,7 +42,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     {
       serialize: String,
       deserialize: (value) => parseInt(value, 10),
-    }
+    },
   );
 
   const {
@@ -69,7 +68,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
   const { pasteFromClipboard } = useClipboard(showAlertDialog);
   const openOpenAIKeys = useCallback(() => {
     window.electronAPI?.openExternal?.(
-      "https://platform.openai.com/account/api-keys"
+      "https://platform.openai.com/account/api-keys",
     );
   }, []);
   const toggleSkipAuth = useCallback(() => {
@@ -95,7 +94,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
       practiceTextareaRef.current.focus();
     }
   }, [currentStep]);
-  
+
   const attemptHotkeyRegistration = useCallback(async () => {
     if (!window.electronAPI?.updateHotkey) {
       return true;
@@ -139,11 +138,11 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
 
     localStorage.setItem(
       "micPermissionGranted",
-      permissionsHook.micPermissionGranted.toString()
+      permissionsHook.micPermissionGranted.toString(),
     );
     localStorage.setItem(
       "accessibilityPermissionGranted",
-      permissionsHook.accessibilityPermissionGranted.toString()
+      permissionsHook.accessibilityPermissionGranted.toString(),
     );
     localStorage.setItem("onboardingCompleted", "true");
 
@@ -208,7 +207,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
 
   const renderStep = () => {
     switch (currentStep) {
-      case 0: 
+      case 0:
         return (
           <div
             className="text-center space-y-6"
@@ -254,7 +253,8 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
                 Connect to PPQ Cloud
               </h2>
               <p className="text-gray-600">
-                Use your PPQ API key (powered by Groq) and choose the language you primarily speak.
+                Use your PPQ API key (powered by Groq) and choose the language
+                you primarily speak.
               </p>
             </div>
 
@@ -263,9 +263,12 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
                 <div className="flex items-center gap-3">
                   <Key className="w-8 h-8 text-primary" />
                   <div>
-                    <h3 className="font-semibold text-foreground">PPQ API Key</h3>
+                    <h3 className="font-semibold text-foreground">
+                      PPQ API Key
+                    </h3>
                     <p className="text-sm text-muted-foreground">
-                      This single key powers Groq Whisper for transcription and Llama/Mixtral for clean-up.
+                      This single key powers Groq Whisper for transcription and
+                      Llama/Mixtral for clean-up.
                     </p>
                   </div>
                 </div>
@@ -288,7 +291,8 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
                   }
                 />
                 <p className="text-xs text-muted-foreground">
-                  Keys stay on your device and are sent directly to Groq&apos;s APIs over HTTPS—never to PPQ servers.
+                  Keys stay on your device and are sent directly to Groq&apos;s
+                  APIs over HTTPS—never to PPQ servers.
                 </p>
                 <div className="flex items-center justify-between text-xs text-foreground bg-accent border border-border rounded-lg px-3 py-2">
                   <span>
@@ -308,23 +312,30 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
               </div>
 
               <div className="space-y-4 p-6 bg-white border border-stone-200 rounded-2xl shadow-sm">
-                <h3 className="font-semibold text-stone-900">Preferred Language</h3>
+                <h3 className="font-semibold text-stone-900">
+                  Preferred Language
+                </h3>
                 <p className="text-sm text-stone-600">
-                  Whisper is fastest when it knows what to expect. You can change this later in Settings.
+                  Whisper is fastest when it knows what to expect. You can
+                  change this later in Settings.
                 </p>
                 <LanguageSelector
                   value={preferredLanguage}
-                  onChange={(value) => updateTranscriptionSettings({ preferredLanguage: value })}
+                  onChange={(value) =>
+                    updateTranscriptionSettings({ preferredLanguage: value })
+                  }
                 />
                 <p className="text-xs text-stone-500">
-                  Leave on Auto-detect if you frequently switch languages mid-dictation.
+                  Leave on Auto-detect if you frequently switch languages
+                  mid-dictation.
                 </p>
               </div>
             </div>
 
             <div className="bg-accent p-4 rounded-xl border border-border">
               <p className="text-sm text-foreground">
-                PPQ Voice is now fully cloud-only—no local installers or custom URLs. Just plug in your key and start speaking.
+                PPQ Voice is now fully cloud-only—no local installers or custom
+                URLs. Just plug in your key and start speaking.
               </p>
             </div>
           </div>
@@ -367,7 +378,9 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
                 🔒 Privacy Note
               </h4>
               <p className="text-sm text-amber-800">
-                PPQ Voice only uses these permissions for dictation. Audio is encrypted and sent straight to Groq&apos;s PPQ Cloud—nothing is stored on PPQ servers.
+                PPQ Voice only uses these permissions for dictation. Audio is
+                encrypted and sent straight to Groq&apos;s PPQ Cloud—nothing is
+                stored on PPQ servers.
               </p>
             </div>
           </div>
@@ -406,7 +419,10 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
                   Click any key to select it:
                 </h4>
                 <React.Suspense fallback={<div>Loading keyboard...</div>}>
-                  <InteractiveKeyboard selectedKey={hotkey} setSelectedKey={setHotkey} />
+                  <InteractiveKeyboard
+                    selectedKey={hotkey}
+                    setSelectedKey={setHotkey}
+                  />
                 </React.Suspense>
               </div>
             </div>
@@ -529,7 +545,6 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
             </div>
           </div>
         );
-
 
       case 5: // Complete
         return (

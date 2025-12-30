@@ -3,7 +3,7 @@ import { useCallback } from "react";
 export interface UseClipboardReturn {
   pasteFromClipboard: (setter: (value: string) => void) => Promise<void>;
   pasteFromClipboardWithFallback: (
-    setter: (value: string) => void
+    setter: (value: string) => void,
   ) => Promise<void>;
 }
 
@@ -12,7 +12,7 @@ export interface UseClipboardProps {
 }
 
 export const useClipboard = (
-  showAlertDialog?: UseClipboardProps["showAlertDialog"]
+  showAlertDialog?: UseClipboardProps["showAlertDialog"],
 ): UseClipboardReturn => {
   const pasteFromClipboard = useCallback(
     async (setter: (value: string) => void) => {
@@ -28,7 +28,7 @@ export const useClipboard = (
         throw err;
       }
     },
-    []
+    [],
   );
 
   const pasteFromClipboardWithFallback = useCallback(
@@ -63,11 +63,11 @@ export const useClipboard = (
         });
       } else {
         alert(
-          "Could not paste from clipboard. Please try typing or using Cmd+V/Ctrl+V."
+          "Could not paste from clipboard. Please try typing or using Cmd+V/Ctrl+V.",
         );
       }
     },
-    [showAlertDialog]
+    [showAlertDialog],
   );
 
   return {

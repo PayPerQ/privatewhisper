@@ -68,7 +68,7 @@ class IPCHandlers {
       } catch (error) {
         debugLogger.error("ipc", "save-settings-failed", {
           error: error.message,
-          stack: error.stack
+          stack: error.stack,
         });
         return { success: false, error: error.message };
       }
@@ -79,7 +79,7 @@ class IPCHandlers {
       if (result?.transcription) {
         this.broadcastTranscriptionEvent(
           "transcription-added",
-          result.transcription
+          result.transcription,
         );
       }
       return result;
@@ -155,8 +155,12 @@ class IPCHandlers {
     });
 
     ipcMain.handle("debug-log", async (_event, payload = {}) => {
-      const { channel = "app", event: entryEvent = "event", details, level } =
-        payload;
+      const {
+        channel = "app",
+        event: entryEvent = "event",
+        details,
+        level,
+      } = payload;
       debugLogger.logEvent(channel, entryEvent, details || {}, level || "info");
       return { success: true };
     });

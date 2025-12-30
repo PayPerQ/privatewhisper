@@ -5,6 +5,7 @@ Use debug logging when you need deeper insight into the microphone, transcriptio
 ## Enabling Debug Mode
 
 ### Option 1 – CLI flag
+
 ```bash
 # macOS
 /Applications/PPQ\ Voice.app/Contents/MacOS/PPQ\ Voice --debug
@@ -14,6 +15,7 @@ Use debug logging when you need deeper insight into the microphone, transcriptio
 ```
 
 ### Option 2 – Environment variable
+
 ```bash
 # macOS / Linux
 export PPQVOICE_DEBUG=true
@@ -36,13 +38,13 @@ Each launch in debug mode creates a new timestamped file.
 
 ## What Gets Logged
 
-| Stage | Details captured |
-| --- | --- |
-| Hotkey & permissions | Registration status, mic/accessibility prompts, failure reasons. |
-| Audio capture | Device metadata, recording duration, blob size, optimization results. |
-| Groq transcription | Endpoint used, payload size, HTTP status, error body if non-200. |
-| ReasoningService | Provider routing, API choices (`/responses` vs `/chat`), retries, timing. |
-| Clipboard / database | Paste attempts, SQLite insert status, error stacks if operations fail. |
+| Stage                   | Details captured                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Hotkey & permissions    | Registration status, mic/accessibility prompts, failure reasons.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| Audio capture           | Device metadata, recording duration, blob size, optimization results.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| Groq transcription      | Endpoint used, payload size, HTTP status, error body if non-200.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ReasoningService        | Provider routing, API choices (`/responses` vs `/chat`), retries, timing.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| Clipboard / database    | Paste attempts, SQLite insert status, error stacks if operations fail.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | Pipeline timing summary | Per-dictation timings (all in ms):<br>- `audioOptimizeMs`: browser-side audio conversion (start of resample → optimized blob ready).<br>- `transcriptionRequestMs`: wire time for transcription POST (before fetch → HTTP response arrives).<br>- `transcriptionDecodeMs`: parse/prepare transcription response (response arrival → text extracted).<br>- `transcriptionTotalMs`: start of dictation → transcription text ready (includes optimize + network + decode).<br>- `reasoningMs`: AI cleanup request/response if used (send text → cleaned text returned).<br>- `pasteMs`: issuing the paste keystroke (command sent → paste call completes).<br>- Totals: `toTranscriptionMs` (start → transcription text ready), `toFinalTextMs` (start → final cleaned text ready), `roundTripMs` (start → final measured stage, defaults to end of paste).<br>- `startedAtMs` is the anchor timestamp for the run; useful to correlate events, not for perf. |
 
 All entries are timestamped and marked with emojis (`🎤`, `🤖`, `📡`, etc.) to make scanning easier.
@@ -59,13 +61,13 @@ Common entries:
 
 ## Troubleshooting Cheatsheet
 
-| Message | Action |
-| --- | --- |
-| `Microphone Access Denied` | Re-run onboarding or go to System Settings → Privacy & Security → Microphone. |
-| `401 Unauthorized` in transcription | The PPQ (Groq) key is missing/invalid. Update `.env` and restart. |
-| `Only HTTPS endpoints are allowed` | Custom base URLs must be HTTPS or localhost. |
-| `Reasoning provider unavailable` | Ensure the relevant API key is set in Settings → AI Models. |
-| `Paste failed` | Re-grant Accessibility permission and restart the app. |
+| Message                             | Action                                                                        |
+| ----------------------------------- | ----------------------------------------------------------------------------- |
+| `Microphone Access Denied`          | Re-run onboarding or go to System Settings → Privacy & Security → Microphone. |
+| `401 Unauthorized` in transcription | The PPQ (Groq) key is missing/invalid. Update `.env` and restart.             |
+| `Only HTTPS endpoints are allowed`  | Custom base URLs must be HTTPS or localhost.                                  |
+| `Reasoning provider unavailable`    | Ensure the relevant API key is set in Settings → AI Models.                   |
+| `Paste failed`                      | Re-grant Accessibility permission and restart the app.                        |
 
 ## Sharing Logs
 

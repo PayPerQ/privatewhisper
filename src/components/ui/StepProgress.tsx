@@ -31,8 +31,8 @@ export default function StepProgress({
                 isActive
                   ? "text-primary"
                   : isCompleted
-                  ? "text-success"
-                  : "text-muted-foreground"
+                    ? "text-success"
+                    : "text-muted-foreground"
               }`}
               style={{ fontFamily: "Noto Sans, sans-serif" }}
             >
@@ -41,8 +41,8 @@ export default function StepProgress({
                   isActive
                     ? "border-primary bg-accent shadow-sm"
                     : isCompleted
-                    ? "border-success bg-success/10 shadow-sm"
-                    : "border-border bg-background"
+                      ? "border-success bg-success/10 shadow-sm"
+                      : "border-border bg-background"
                 }`}
               >
                 {isCompleted ? (

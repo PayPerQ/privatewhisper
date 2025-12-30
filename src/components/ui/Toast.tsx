@@ -17,7 +17,7 @@ export interface ToastContextType {
 }
 
 const ToastContext = React.createContext<ToastContextType | undefined>(
-  undefined
+  undefined,
 );
 
 export const useToast = () => {
@@ -32,7 +32,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
   const [toasts, setToasts] = React.useState<(ToastProps & { id: string })[]>(
-    []
+    [],
   );
 
   const toast = React.useCallback((props: Omit<ToastProps, "id">) => {

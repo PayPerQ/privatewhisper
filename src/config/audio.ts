@@ -4,4 +4,4 @@ export const AUDIO_CONFIG = {
   WAV_HEADER_SIZE: 44,
   TRANSCRIPTION_MODEL: "nova-3",
   BYTES_PER_SAMPLE: 2,
-};
+} as const;

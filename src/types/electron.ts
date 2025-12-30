@@ -58,9 +58,7 @@ declare global {
       onDictationHotkeyUp?: (callback: () => void) => (() => void) | void;
 
       // Database operations
-      saveTranscription: (
-        text: string
-      ) => Promise<{
+      saveTranscription: (text: string) => Promise<{
         id: number;
         success: boolean;
         transcription: TranscriptionItem;
@@ -68,7 +66,7 @@ declare global {
       getTranscriptions: (limit?: number) => Promise<TranscriptionItem[]>;
       clearTranscriptions: () => Promise<{ cleared: number; success: boolean }>;
       deleteTranscription: (
-        id: number
+        id: number,
       ) => Promise<{ success: boolean; id: number }>;
 
       // API key management
@@ -80,7 +78,10 @@ declare global {
       readClipboard: () => Promise<string>;
       writeClipboard: (text: string) => Promise<{ success: boolean }>;
       pasteFromClipboard: () => Promise<{ success: boolean; error?: string }>;
-      pasteFromClipboardWithFallback: () => Promise<{ success: boolean; error?: string }>;
+      pasteFromClipboardWithFallback: () => Promise<{
+        success: boolean;
+        error?: string;
+      }>;
 
       // Settings
       getSettings: () => Promise<any>;
@@ -122,7 +123,7 @@ declare global {
       onUpdateNotAvailable: (callback: (event: any, info: any) => void) => void;
       onUpdateDownloaded: (callback: (event: any, info: any) => void) => void;
       onUpdateDownloadProgress: (
-        callback: (event: any, progressObj: any) => void
+        callback: (event: any, progressObj: any) => void,
       ) => void;
       onUpdateError: (callback: (event: any, error: any) => void) => void;
 
@@ -131,7 +132,7 @@ declare global {
 
       // External URL operations
       openExternal: (
-        url: string
+        url: string,
       ) => Promise<{ success: boolean; error?: string } | void>;
 
       // Event listener cleanup
@@ -139,30 +140,30 @@ declare global {
 
       // Hotkey management
       updateHotkey: (key: string) => Promise<HotkeyUpdateResult>;
-      
+
       // Transcription event listeners
       onTranscriptionAdded?: (
-        callback: (item: TranscriptionItem) => void
+        callback: (item: TranscriptionItem) => void,
       ) => () => void;
       onTranscriptionDeleted?: (callback: (id: number) => void) => () => void;
       onTranscriptionsCleared?: (
-        callback: (payload: { cleared: number }) => void
+        callback: (payload: { cleared: number }) => void,
       ) => () => void;
-      
+
       // Debug logging
       logReasoning?: (stage: string, details: any) => Promise<void>;
       logDebugEvent?: (
         channel: string,
         event: string,
         details?: Record<string, any>,
-        level?: "debug" | "info" | "warn" | "error"
+        level?: "debug" | "info" | "warn" | "error",
       ) => Promise<void>;
       getDebugMode?: () => Promise<boolean>;
-      
+
       // FFmpeg availability
       checkFFmpegAvailability: () => Promise<boolean>;
     };
-    
+
     api?: {
       sendDebugLog: (message: string) => void;
     };

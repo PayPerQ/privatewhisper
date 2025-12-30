@@ -27,24 +27,24 @@ Want the production build? Run `npm start` to launch Electron with the prebuilt 
 
 ### `.env` keys
 
-| Key | Required | Description |
-| --- | --- | --- |
-| `PPQ_API_KEY` | ✅ | The Groq key used for Whisper transcription and Llama/Mixtral clean-up. |
-| `PPQVOICE_GROQ_BASE_URL` | optional | Override the Groq base URL (defaults to `https://api.groq.com/openai/v1`; HTTPS or localhost only). |
-| `PPQVOICE_DEBUG` | optional | `true` writes detailed logs to `~/Library/Application Support/ppq-voice/logs` (platform-specific equivalents). |
+| Key                      | Required | Description                                                                                                    |
+| ------------------------ | -------- | -------------------------------------------------------------------------------------------------------------- |
+| `PPQ_API_KEY`            | ✅       | The Groq key used for Whisper transcription and Llama/Mixtral clean-up.                                        |
+| `PPQVOICE_GROQ_BASE_URL` | optional | Override the Groq base URL (defaults to `https://api.groq.com/openai/v1`; HTTPS or localhost only).            |
+| `PPQVOICE_DEBUG`         | optional | `true` writes detailed logs to `~/Library/Application Support/ppq-voice/logs` (platform-specific equivalents). |
 
 All other preferences (language, reasoning model, hotkeys, API fallbacks) can be changed inside the Control Panel UI. They persist in `localStorage` and synchronize with the renderer.
 
 ## NPM Scripts
 
-| Script | Purpose |
-| --- | --- |
-| `npm run dev` | Runs Vite + Electron with live reload. |
-| `npm start` | Launches Electron in production mode (expects a built renderer). |
+| Script          | Purpose                                                              |
+| --------------- | -------------------------------------------------------------------- |
+| `npm run dev`   | Runs Vite + Electron with live reload.                               |
+| `npm start`     | Launches Electron in production mode (expects a built renderer).     |
 | `npm run build` | Builds the renderer and packages the desktop app for the current OS. |
-| `npm run pack` | Prepares an unsigned directory build (great for quick installs). |
-| `npm run lint` | Runs ESLint on the renderer source (`src/`). |
-| `npm run clean` | Sweeps `dist/`, `src/dist/`, and resets the dev SQLite DB. |
+| `npm run pack`  | Prepares an unsigned directory build (great for quick installs).     |
+| `npm run lint`  | Runs ESLint on the renderer source (`src/`).                         |
+| `npm run clean` | Sweeps `dist/`, `src/dist/`, and resets the dev SQLite DB.           |
 
 ## Building Installers
 
@@ -68,12 +68,12 @@ You can revisit both in **Control Panel → Settings → Permissions** if someth
 
 ## Troubleshooting
 
-| Symptom | Fix |
-| --- | --- |
-| “PPQ key not found” | Confirm `.env` + Control Panel → PPQ Cloud has a valid value. |
-| Nothing pastes after transcription | Re-request Accessibility permission from Settings, then relaunch the app. |
-| Need extra logs | Run `PPQVOICE_DEBUG=true npm start` (or `npm run dev -- --debug`). Logs go to `%APPDATA%/ppq-voice/logs`, `~/Library/Application Support/ppq-voice/logs`, or `~/.config/ppq-voice/logs`. |
-| Updater stuck | Use Control Panel → Settings → Updates → “Download Update” to retry, or grab the latest release from GitHub. |
+| Symptom                            | Fix                                                                                                                                                                                      |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| “PPQ key not found”                | Confirm `.env` + Control Panel → PPQ Cloud has a valid value.                                                                                                                            |
+| Nothing pastes after transcription | Re-request Accessibility permission from Settings, then relaunch the app.                                                                                                                |
+| Need extra logs                    | Run `PPQVOICE_DEBUG=true npm start` (or `npm run dev -- --debug`). Logs go to `%APPDATA%/ppq-voice/logs`, `~/Library/Application Support/ppq-voice/logs`, or `~/.config/ppq-voice/logs`. |
+| Updater stuck                      | Use Control Panel → Settings → Updates → “Download Update” to retry, or grab the latest release from GitHub.                                                                             |
 
 ## Support & Feedback
 

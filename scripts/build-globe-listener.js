@@ -10,7 +10,11 @@ if (!isMac) {
 }
 
 const projectRoot = path.resolve(__dirname, "..");
-const swiftSource = path.join(projectRoot, "resources", "macos-globe-listener.swift");
+const swiftSource = path.join(
+  projectRoot,
+  "resources",
+  "macos-globe-listener.swift",
+);
 const outputDir = path.join(projectRoot, "resources", "bin");
 const outputBinary = path.join(outputDir, "macos-globe-listener");
 const moduleCacheDir = path.join(outputDir, ".swift-module-cache");
@@ -77,14 +81,18 @@ if (result.status !== 0) {
 }
 
 if (result.status !== 0) {
-  console.error("[globe-listener] Failed to compile macOS Globe listener binary.");
+  console.error(
+    "[globe-listener] Failed to compile macOS Globe listener binary.",
+  );
   process.exit(result.status ?? 1);
 }
 
 try {
   fs.chmodSync(outputBinary, 0o755);
 } catch (error) {
-  console.warn(`[globe-listener] Unable to set executable permissions: ${error.message}`);
+  console.warn(
+    `[globe-listener] Unable to set executable permissions: ${error.message}`,
+  );
 }
 
 log("Successfully built macOS Globe listener binary.");

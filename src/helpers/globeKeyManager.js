@@ -20,8 +20,8 @@ class GlobeKeyManager extends EventEmitter {
     if (!listenerPath) {
       this.reportError(
         new Error(
-          "macOS Globe listener binary not found. Run `npm run compile:globe` before packaging."
-        )
+          "macOS Globe listener binary not found. Run `npm run compile:globe` before packaging.",
+        ),
       );
       return;
     }
@@ -30,7 +30,7 @@ class GlobeKeyManager extends EventEmitter {
       fs.accessSync(listenerPath, fs.constants.X_OK);
     } catch (accessError) {
       this.reportError(
-        new Error(`macOS Globe listener is not executable: ${listenerPath}`)
+        new Error(`macOS Globe listener is not executable: ${listenerPath}`),
       );
       return;
     }
@@ -81,7 +81,7 @@ class GlobeKeyManager extends EventEmitter {
       this.process = null;
       if (code !== 0) {
         const error = new Error(
-          `Globe key listener exited with code ${code ?? "null"} signal ${signal ?? "null"}`
+          `Globe key listener exited with code ${code ?? "null"} signal ${signal ?? "null"}`,
         );
         this.reportError(error);
       }
@@ -115,7 +115,14 @@ class GlobeKeyManager extends EventEmitter {
 
   resolveListenerBinary() {
     const candidates = new Set([
-      path.join(__dirname, "..", "..", "resources", "bin", "macos-globe-listener"),
+      path.join(
+        __dirname,
+        "..",
+        "..",
+        "resources",
+        "bin",
+        "macos-globe-listener",
+      ),
       path.join(__dirname, "..", "..", "resources", "macos-globe-listener"),
     ]);
 
@@ -124,26 +131,29 @@ class GlobeKeyManager extends EventEmitter {
         path.join(process.resourcesPath, "macos-globe-listener"),
         path.join(process.resourcesPath, "bin", "macos-globe-listener"),
         path.join(process.resourcesPath, "resources", "macos-globe-listener"),
-        path.join(process.resourcesPath, "resources", "bin", "macos-globe-listener"),
+        path.join(
+          process.resourcesPath,
+          "resources",
+          "bin",
+          "macos-globe-listener",
+        ),
         path.join(
           process.resourcesPath,
           "app.asar.unpacked",
           "resources",
-          "macos-globe-listener"
+          "macos-globe-listener",
         ),
         path.join(
           process.resourcesPath,
           "app.asar.unpacked",
           "resources",
           "bin",
-          "macos-globe-listener"
+          "macos-globe-listener",
         ),
       ].forEach((candidate) => candidates.add(candidate));
     }
 
-    const candidatePaths = [
-      ...candidates,
-    ];
+    const candidatePaths = [...candidates];
 
     for (const candidate of candidatePaths) {
       try {

@@ -91,11 +91,11 @@ class DragManager {
       // Constrain to screen bounds
       const constrainedX = Math.max(
         bounds.x,
-        Math.min(newX, bounds.x + bounds.width - windowBounds.width)
+        Math.min(newX, bounds.x + bounds.width - windowBounds.width),
       );
       const constrainedY = Math.max(
         bounds.y,
-        Math.min(newY, bounds.y + bounds.height - windowBounds.height)
+        Math.min(newY, bounds.y + bounds.height - windowBounds.height),
       );
 
       this.targetWindow.setPosition(constrainedX, constrainedY);

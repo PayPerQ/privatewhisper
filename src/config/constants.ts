@@ -7,16 +7,16 @@ export const normalizeBaseUrl = (value?: string | null): string => {
 
   // Remove common API endpoint suffixes to get the base URL
   const suffixReplacements: Array<[RegExp, string]> = [
-    [/\/v1\/chat\/completions$/i, '/v1'],
-    [/\/chat\/completions$/i, ''],
-    [/\/v1\/responses$/i, '/v1'],
-    [/\/responses$/i, ''],
-    [/\/v1\/models$/i, '/v1'],
-    [/\/models$/i, ''],
-    [/\/v1\/audio\/transcriptions$/i, '/v1'],
-    [/\/audio\/transcriptions$/i, ''],
-    [/\/v1\/audio\/translations$/i, '/v1'],
-    [/\/audio\/translations$/i, ''],
+    [/\/v1\/chat\/completions$/i, "/v1"],
+    [/\/chat\/completions$/i, ""],
+    [/\/v1\/responses$/i, "/v1"],
+    [/\/responses$/i, ""],
+    [/\/v1\/models$/i, "/v1"],
+    [/\/models$/i, ""],
+    [/\/v1\/audio\/transcriptions$/i, "/v1"],
+    [/\/audio\/transcriptions$/i, ""],
+    [/\/v1\/audio\/translations$/i, "/v1"],
+    [/\/audio\/translations$/i, ""],
   ];
 
   for (const [pattern, replacement] of suffixReplacements) {
@@ -33,13 +33,17 @@ export const buildApiUrl = (base: string, path: string): string => {
   if (!path) {
     return normalizedBase;
   }
-  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
   return `${normalizedBase}${normalizedPath}`;
 };
 
-const env = (typeof import.meta !== "undefined" && (import.meta as any).env) || {};
+const env =
+  (typeof import.meta !== "undefined" && (import.meta as any).env) || {};
 
-const computeBaseUrl = (candidates: Array<string | undefined>, fallback: string): string => {
+const computeBaseUrl = (
+  candidates: Array<string | undefined>,
+  fallback: string,
+): string => {
   for (const candidate of candidates) {
     const normalized = normalizeBaseUrl(candidate);
     if (normalized) {
@@ -55,7 +59,7 @@ const DEFAULT_PPQ_TRANSCRIPTION_BASE = computeBaseUrl(
     env.PPQVOICE_PPQ_TRANSCRIPTION_BASE_URL as string | undefined,
     env.PPQVOICE_PPQ_BASE_URL as string | undefined,
   ],
-  'https://ppq.ai/api/v1'
+  "https://ppq.ai/api/v1",
 );
 
 const DEFAULT_PPQ_CHAT_BASE = computeBaseUrl(
@@ -63,14 +67,17 @@ const DEFAULT_PPQ_CHAT_BASE = computeBaseUrl(
     env.PPQVOICE_PPQ_CHAT_BASE_URL as string | undefined,
     env.PPQVOICE_PPQ_BASE_URL as string | undefined,
   ],
-  'https://api.ppq.ai'
+  "https://api.ppq.ai",
 );
 
 export const API_ENDPOINTS = {
   PPQ_BASE: DEFAULT_PPQ_CHAT_BASE,
-  PPQ_CHAT: buildApiUrl(DEFAULT_PPQ_CHAT_BASE, '/chat/completions'),
-  PPQ_MODELS: buildApiUrl(DEFAULT_PPQ_CHAT_BASE, '/models'),
-  PPQ_TRANSCRIPTION: buildApiUrl(DEFAULT_PPQ_TRANSCRIPTION_BASE, '/audio/transcriptions'),
+  PPQ_CHAT: buildApiUrl(DEFAULT_PPQ_CHAT_BASE, "/chat/completions"),
+  PPQ_MODELS: buildApiUrl(DEFAULT_PPQ_CHAT_BASE, "/models"),
+  PPQ_TRANSCRIPTION: buildApiUrl(
+    DEFAULT_PPQ_TRANSCRIPTION_BASE,
+    "/audio/transcriptions",
+  ),
 } as const;
 
 // Model Configuration

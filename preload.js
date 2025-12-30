@@ -76,9 +76,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
   // External link opener
   openExternal: (url) => ipcRenderer.invoke("open-external", url),
-  
+
   // Debug logging for reasoning pipeline
-  logReasoning: (stage, details) => 
+  logReasoning: (stage, details) =>
     ipcRenderer.invoke("log-reasoning", stage, details),
   logDebugEvent: (channel, event, details, level) =>
     ipcRenderer.invoke("debug-log", {
@@ -91,12 +91,12 @@ contextBridge.exposeInMainWorld("electronAPI", {
     const result = await ipcRenderer.invoke("get-debug-mode");
     return Boolean(result?.enabled);
   },
-  
+
   // Remove all listeners for a channel
   removeAllListeners: (channel) => {
     ipcRenderer.removeAllListeners(channel);
   },
-  
+
   // Transcription change listeners
   onTranscriptionAdded: (callback) =>
     exposeListener("transcription-added", callback),

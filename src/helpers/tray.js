@@ -38,7 +38,6 @@ class TrayManager {
     this.createControlPanelCallback = callback;
   }
 
-
   attachControlPanelListeners(window) {
     if (!window || this.attachedControlPanels.has(window)) {
       return;
@@ -71,10 +70,7 @@ class TrayManager {
       }
       this.attachControlPanelListeners(this.controlPanelWindow);
 
-      if (
-        this.controlPanelWindow &&
-        !this.controlPanelWindow.isDestroyed()
-      ) {
+      if (this.controlPanelWindow && !this.controlPanelWindow.isDestroyed()) {
         if (process.platform === "win32") {
           this.controlPanelWindow.setSkipTaskbar(false);
         }
@@ -93,10 +89,7 @@ class TrayManager {
         }
         this.attachControlPanelListeners(this.controlPanelWindow);
 
-        if (
-          this.controlPanelWindow &&
-          !this.controlPanelWindow.isDestroyed()
-        ) {
+        if (this.controlPanelWindow && !this.controlPanelWindow.isDestroyed()) {
           if (process.platform === "win32") {
             this.controlPanelWindow.setSkipTaskbar(false);
           }
@@ -148,21 +141,33 @@ class TrayManager {
     if (platform === "darwin") {
       if (isDevelopment) {
         candidatePaths.push(
-          path.join(__dirname, "..", "assets", "iconTemplate@3x.png")
+          path.join(__dirname, "..", "assets", "iconTemplate@3x.png"),
         );
       } else {
         candidatePaths.push(
-          path.join(process.resourcesPath, "src", "assets", "iconTemplate@3x.png"),
+          path.join(
+            process.resourcesPath,
+            "src",
+            "assets",
+            "iconTemplate@3x.png",
+          ),
           path.join(process.resourcesPath, "assets", "iconTemplate@3x.png"),
           path.join(
             process.resourcesPath,
             "app.asar.unpacked",
             "src",
             "assets",
-            "iconTemplate@3x.png"
+            "iconTemplate@3x.png",
           ),
-          path.join(__dirname, "..", "..", "src", "assets", "iconTemplate@3x.png"),
-          path.join(app.getAppPath(), "src", "assets", "iconTemplate@3x.png")
+          path.join(
+            __dirname,
+            "..",
+            "..",
+            "src",
+            "assets",
+            "iconTemplate@3x.png",
+          ),
+          path.join(app.getAppPath(), "src", "assets", "iconTemplate@3x.png"),
         );
       }
     } else {
@@ -170,7 +175,7 @@ class TrayManager {
       if (isDevelopment) {
         candidatePaths.push(
           path.join(__dirname, "..", "assets", fileName),
-          path.join(__dirname, "..", "assets", "icon.png")
+          path.join(__dirname, "..", "assets", "icon.png"),
         );
       } else {
         candidatePaths.push(
@@ -181,10 +186,10 @@ class TrayManager {
             "app.asar.unpacked",
             "src",
             "assets",
-            fileName
+            fileName,
           ),
           path.join(__dirname, "..", "..", "src", "assets", fileName),
-          path.join(app.getAppPath(), "src", "assets", fileName)
+          path.join(app.getAppPath(), "src", "assets", fileName),
         );
       }
     }
@@ -204,13 +209,13 @@ class TrayManager {
       } catch (error) {
         debugLogger.error("tray", "icon-path-error", {
           path: testPath,
-          error: error.message
+          error: error.message,
         });
       }
     }
 
     debugLogger.error("tray", "icon-not-found", {
-      message: "Could not find tray icon in any expected location"
+      message: "Could not find tray icon in any expected location",
     });
     return this.createFallbackIcon();
   }
@@ -230,13 +235,13 @@ class TrayManager {
       const buffer = canvas.toBuffer("image/png");
       const fallbackIcon = nativeImage.createFromBuffer(buffer);
       debugLogger.logEvent("tray", "fallback-icon-created", {
-        method: "canvas"
+        method: "canvas",
       });
       return fallbackIcon;
     } catch (fallbackError) {
       debugLogger.logEvent("tray", "fallback-icon-created", {
         method: "minimal",
-        reason: "Canvas not available"
+        reason: "Canvas not available",
       });
       const pngData = Buffer.from([
         0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d,
@@ -253,11 +258,14 @@ class TrayManager {
   }
 
   buildContextMenuTemplate() {
-    const dictationVisible = this.windowManager?.isDictationPanelVisible?.() ?? false;
+    const dictationVisible =
+      this.windowManager?.isDictationPanelVisible?.() ?? false;
 
     return [
       {
-        label: dictationVisible ? "Hide Dictation Panel" : "Show Dictation Panel",
+        label: dictationVisible
+          ? "Hide Dictation Panel"
+          : "Show Dictation Panel",
         click: () => {
           if (!this.windowManager) return;
           if (this.windowManager.isDictationPanelVisible()) {
@@ -279,7 +287,7 @@ class TrayManager {
         label: "Quit PPQ Voice",
         click: () => {
           debugLogger.logEvent("tray", "quit-requested", {
-            origin: "tray-menu"
+            origin: "tray-menu",
           });
           app.quit();
         },

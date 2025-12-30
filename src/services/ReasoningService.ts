@@ -27,7 +27,7 @@ class ReasoningService extends BaseReasoningService {
   private buildRequestBody(
     text: string,
     model: string,
-    config: ReasoningConfig = {}
+    config: ReasoningConfig = {},
   ) {
     const systemPrompt = `You are a dictation post-processor. Your task is to clean up speech-to-text transcriptions.
 
@@ -53,7 +53,7 @@ Output: Only the corrected text. No explanations, comments, or formatting.`;
         text.length,
         TOKEN_LIMITS.MIN_TOKENS,
         TOKEN_LIMITS.MAX_TOKENS,
-        TOKEN_LIMITS.TOKEN_MULTIPLIER
+        TOKEN_LIMITS.TOKEN_MULTIPLIER,
       );
 
     return {
@@ -65,7 +65,7 @@ Output: Only the corrected text. No explanations, comments, or formatting.`;
       temperature: config.temperature ?? 0.3,
       max_tokens: maxTokens,
       provider: {
-        order: ['groq'],
+        order: ["groq"],
         allowFallbacks: true,
       },
     };
@@ -113,7 +113,7 @@ Output: Only the corrected text. No explanations, comments, or formatting.`;
   async processText(
     text: string,
     modelId: string,
-    config: ReasoningConfig = {}
+    config: ReasoningConfig = {},
   ): Promise<string> {
     if (this.isProcessing) {
       throw new Error("Already processing a request");
@@ -137,44 +137,41 @@ Output: Only the corrected text. No explanations, comments, or formatting.`;
         temperature: requestBody.temperature,
         textLength: text.length,
         hasApiKey: !!apiKey,
-        apiKeyPrefix: apiKey ? `${apiKey.substring(0, 8)}...` : 'none'
+        apiKeyPrefix: apiKey ? `${apiKey.substring(0, 8)}...` : "none",
       });
 
-      const response = await withRetry(
-        async () => {
-          const res = await fetch(API_ENDPOINTS.PPQ_CHAT, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${apiKey}`,
-            },
-            body: JSON.stringify(requestBody),
-          });
+      const response = await withRetry(async () => {
+        const res = await fetch(API_ENDPOINTS.PPQ_CHAT, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify(requestBody),
+        });
 
-          void debugLogger.log("PPQ_REASONING_RESPONSE", {
+        void debugLogger.log("PPQ_REASONING_RESPONSE", {
+          status: res.status,
+          statusText: res.statusText,
+          ok: res.ok,
+          headers: Object.fromEntries(res.headers.entries()),
+        });
+
+        if (!res.ok) {
+          const errorText = await res.text().catch(() => "");
+          void debugLogger.log("PPQ_REASONING_ERROR_RESPONSE", {
             status: res.status,
-            statusText: res.statusText,
-            ok: res.ok,
-            headers: Object.fromEntries(res.headers.entries())
+            errorText: errorText.substring(0, 500),
           });
+          const message =
+            errorText || res.statusText || "PPQ API request failed";
+          const error: any = new Error(message);
+          error.response = res;
+          throw error;
+        }
 
-          if (!res.ok) {
-            const errorText = await res.text().catch(() => "");
-            void debugLogger.log("PPQ_REASONING_ERROR_RESPONSE", {
-              status: res.status,
-              errorText: errorText.substring(0, 500)
-            });
-            const message =
-              errorText || res.statusText || "PPQ API request failed";
-            const error: any = new Error(message);
-            error.response = res;
-            throw error;
-          }
-
-          return res.json();
-        },
-        createApiRetryStrategy()
-      );
+        return res.json();
+      }, createApiRetryStrategy());
 
       void debugLogger.log("PPQ_RESPONSE_RECEIVED", {
         model: requestBody.model,

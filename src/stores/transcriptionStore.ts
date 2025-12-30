@@ -37,7 +37,11 @@ class TranscriptionStore {
     try {
       const transcriptions =
         (await window.electronAPI?.getTranscriptions?.(50)) ?? [];
-      this.setState({ items: transcriptions, isLoading: false, error: undefined });
+      this.setState({
+        items: transcriptions,
+        isLoading: false,
+        error: undefined,
+      });
     } catch (error) {
       this.setState({
         isLoading: false,
@@ -56,7 +60,10 @@ class TranscriptionStore {
 
     window.electronAPI?.onTranscriptionAdded?.((item) => {
       this.setState({
-        items: [item, ...this.state.items.filter((entry) => entry.id !== item.id)],
+        items: [
+          item,
+          ...this.state.items.filter((entry) => entry.id !== item.id),
+        ],
       });
     });
 

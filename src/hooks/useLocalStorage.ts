@@ -6,7 +6,7 @@ export function useLocalStorage<T>(
   options?: {
     serialize?: (value: T) => string;
     deserialize?: (value: string) => T;
-  }
+  },
 ) {
   const serialize = options?.serialize || JSON.stringify;
   const deserialize = options?.deserialize || JSON.parse;
@@ -31,7 +31,7 @@ export function useLocalStorage<T>(
         console.error(`Error setting localStorage key "${key}":`, error);
       }
     },
-    [key, serialize]
+    [key, serialize],
   );
 
   const remove = useCallback(() => {

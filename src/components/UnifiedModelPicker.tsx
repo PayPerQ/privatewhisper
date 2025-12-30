@@ -23,7 +23,7 @@ export function UnifiedModelPickerCompact({
   const handleOpenAIModels = () => {
     if (typeof window !== "undefined") {
       window.electronAPI?.openExternal?.(
-        "https://platform.openai.com/docs/models"
+        "https://platform.openai.com/docs/models",
       );
     }
   };
@@ -62,9 +62,7 @@ export function UnifiedModelPickerCompact({
                 ) : (
                   <Globe className="w-4 h-4 text-gray-400" aria-hidden="true" />
                 )}
-                <span className="font-medium text-gray-900">
-                  {model.label}
-                </span>
+                <span className="font-medium text-gray-900">{model.label}</span>
               </div>
               {model.description && (
                 <div className="text-xs text-gray-600 mt-1">

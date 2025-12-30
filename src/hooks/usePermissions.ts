@@ -16,7 +16,7 @@ export interface UsePermissionsProps {
 }
 
 export const usePermissions = (
-  showAlertDialog?: UsePermissionsProps["showAlertDialog"]
+  showAlertDialog?: UsePermissionsProps["showAlertDialog"],
 ): UsePermissionsReturn => {
   const [micPermissionGranted, setMicPermissionGranted] = useState(false);
   const [accessibilityPermissionGranted, setAccessibilityPermissionGranted] =
@@ -52,7 +52,7 @@ export const usePermissions = (
         });
       } else {
         alert(
-          "✅ Accessibility permissions working! Check if the test text appeared in another app."
+          "✅ Accessibility permissions working! Check if the test text appeared in another app.",
         );
       }
     } catch (err) {
@@ -65,7 +65,7 @@ export const usePermissions = (
         });
       } else {
         alert(
-          "❌ Accessibility permissions needed! Please grant them in System Settings."
+          "❌ Accessibility permissions needed! Please grant them in System Settings.",
         );
       }
     }

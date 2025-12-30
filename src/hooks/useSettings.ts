@@ -26,7 +26,7 @@ export function useSettings() {
     {
       serialize: String,
       deserialize: String,
-    }
+    },
   );
 
   // API keys
@@ -46,7 +46,7 @@ export function useSettings() {
     {
       serialize: String,
       deserialize: (value) => (value === "hold" ? "hold" : "toggle"),
-    }
+    },
   );
 
   const [audioCuesEnabled, setAudioCuesEnabled] = useLocalStorage(
@@ -55,7 +55,7 @@ export function useSettings() {
     {
       serialize: String,
       deserialize: (value) => value !== "false",
-    }
+    },
   );
 
   // Batch operations
@@ -65,14 +65,14 @@ export function useSettings() {
         setPreferredLanguage(settings.preferredLanguage);
       }
     },
-    [setPreferredLanguage]
+    [setPreferredLanguage],
   );
 
   const updateApiKeys = useCallback(
     (keys: Partial<ApiKeySettings>) => {
       if (keys.ppqApiKey !== undefined) setPpqApiKey(keys.ppqApiKey);
     },
-    [setPpqApiKey]
+    [setPpqApiKey],
   );
 
   const updateHotkeySettings = useCallback(
@@ -84,7 +84,7 @@ export function useSettings() {
         setHotkeyMode(settings.hotkeyMode);
       }
     },
-    [setDictationKey, setHotkeyMode]
+    [setDictationKey, setHotkeyMode],
   );
 
   const updateAudioSettings = useCallback(
@@ -93,7 +93,7 @@ export function useSettings() {
         setAudioCuesEnabled(settings.audioCuesEnabled);
       }
     },
-    [setAudioCuesEnabled]
+    [setAudioCuesEnabled],
   );
 
   return {

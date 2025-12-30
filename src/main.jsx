@@ -23,7 +23,7 @@ function AppRouter() {
     const onboardingCompleted =
       localStorage.getItem("onboardingCompleted") === "true";
     const currentStep = parseInt(
-      localStorage.getItem("onboardingCurrentStep") || "0"
+      localStorage.getItem("onboardingCurrentStep") || "0",
     );
 
     if (isControlPanel && !onboardingCompleted) {
@@ -67,5 +67,5 @@ ReactDOM.createRoot(document.getElementById("root")).render(
     <ToastProvider>
       <AppRouter />
     </ToastProvider>
-  </React.StrictMode>
+  </React.StrictMode>,
 );

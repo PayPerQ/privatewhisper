@@ -45,7 +45,7 @@ let globeKeyAlertShown = false;
 
 // Bypass certificate verification in development
 if (process.env.NODE_ENV === "development") {
-  app.commandLine.appendSwitch('ignore-certificate-errors');
+  app.commandLine.appendSwitch("ignore-certificate-errors");
 }
 
 // Main application startup
@@ -97,10 +97,10 @@ async function startApp() {
   }
 
   // Ensure dock is visible on macOS and stays visible
-  if (process.platform === 'darwin' && app.dock) {
+  if (process.platform === "darwin" && app.dock) {
     app.dock.show();
     // Prevent dock from hiding when windows use setVisibleOnAllWorkspaces
-    app.setActivationPolicy('regular');
+    app.setActivationPolicy("regular");
   }
 
   // Create main window
@@ -118,26 +118,29 @@ async function startApp() {
   }
 
   // Set up tray
-trayManager.setWindows(
-  windowManager.mainWindow,
-  windowManager.controlPanelWindow
-);
-trayManager.setWindowManager(windowManager);
+  trayManager.setWindows(
+    windowManager.mainWindow,
+    windowManager.controlPanelWindow,
+  );
+  trayManager.setWindowManager(windowManager);
   trayManager.setCreateControlPanelCallback(() =>
-    windowManager.createControlPanelWindow()
+    windowManager.createControlPanelWindow(),
   );
   await trayManager.createTray();
 
   // Set windows for update manager and check for updates
   updateManager.setWindows(
     windowManager.mainWindow,
-    windowManager.controlPanelWindow
+    windowManager.controlPanelWindow,
   );
   updateManager.checkForUpdatesOnStartup();
 
   if (process.platform === "darwin") {
     globeKeyManager.on("globe-down", () => {
-      if (hotkeyManager.getCurrentHotkey && hotkeyManager.getCurrentHotkey() === "GLOBE") {
+      if (
+        hotkeyManager.getCurrentHotkey &&
+        hotkeyManager.getCurrentHotkey() === "GLOBE"
+      ) {
         if (
           windowManager.mainWindow &&
           !windowManager.mainWindow.isDestroyed()
@@ -191,7 +194,7 @@ function setupApp() {
   app.whenReady().then(() => {
     // Hide dock icon on macOS for a cleaner experience
     // The app will still show in the menu bar and command bar
-    if (process.platform === 'darwin' && app.dock) {
+    if (process.platform === "darwin" && app.dock) {
       // Keep dock visible for now to maintain command bar access
       // We can hide it later if needed: app.dock.hide()
     }
@@ -211,7 +214,11 @@ function setupApp() {
   // Re-apply always-on-top when app becomes active
   app.on("browser-window-focus", (event, window) => {
     // Only apply always-on-top to the dictation window, not the control panel
-    if (windowManager && windowManager.mainWindow && !windowManager.mainWindow.isDestroyed()) {
+    if (
+      windowManager &&
+      windowManager.mainWindow &&
+      !windowManager.mainWindow.isDestroyed()
+    ) {
       // Check if the focused window is the dictation window
       if (window === windowManager.mainWindow) {
         windowManager.enforceMainWindowOnTop();
@@ -231,7 +238,11 @@ function setupApp() {
       }
     } else {
       // Show control panel when dock icon is clicked (most common user action)
-      if (windowManager && windowManager.controlPanelWindow && !windowManager.controlPanelWindow.isDestroyed()) {
+      if (
+        windowManager &&
+        windowManager.controlPanelWindow &&
+        !windowManager.controlPanelWindow.isDestroyed()
+      ) {
         windowManager.controlPanelWindow.show();
         windowManager.controlPanelWindow.focus();
       } else if (windowManager) {
@@ -240,7 +251,11 @@ function setupApp() {
       }
 
       // Ensure dictation panel maintains its always-on-top status
-      if (windowManager && windowManager.mainWindow && !windowManager.mainWindow.isDestroyed()) {
+      if (
+        windowManager &&
+        windowManager.mainWindow &&
+        !windowManager.mainWindow.isDestroyed()
+      ) {
         windowManager.enforceMainWindowOnTop();
       }
     }

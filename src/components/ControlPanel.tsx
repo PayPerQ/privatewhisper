@@ -22,7 +22,9 @@ export default function ControlPanel() {
     updateDownloaded: false,
     isDevelopment: false,
   });
-  const isWindows = typeof window !== "undefined" && window.electronAPI?.getPlatform?.() === "win32";
+  const isWindows =
+    typeof window !== "undefined" &&
+    window.electronAPI?.getPlatform?.() === "win32";
 
   const {
     confirmDialog,

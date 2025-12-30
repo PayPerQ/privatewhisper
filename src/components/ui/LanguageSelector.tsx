@@ -22,7 +22,7 @@ export default function LanguageSelector({
   const filteredLanguages = LANGUAGE_OPTIONS.filter(
     (lang) =>
       lang.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      lang.value.toLowerCase().includes(searchQuery.toLowerCase())
+      lang.value.toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
   useEffect(() => {
@@ -61,13 +61,13 @@ export default function LanguageSelector({
       case "ArrowDown":
         e.preventDefault();
         setHighlightedIndex((prev) =>
-          prev < filteredLanguages.length - 1 ? prev + 1 : 0
+          prev < filteredLanguages.length - 1 ? prev + 1 : 0,
         );
         break;
       case "ArrowUp":
         e.preventDefault();
         setHighlightedIndex((prev) =>
-          prev > 0 ? prev - 1 : filteredLanguages.length - 1
+          prev > 0 ? prev - 1 : filteredLanguages.length - 1,
         );
         break;
       case "Enter":

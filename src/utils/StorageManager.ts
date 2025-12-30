@@ -2,7 +2,7 @@ class StorageManager {
   static getLocalStorageValue<T>(
     key: string,
     defaultValue: T,
-    parser?: (value: string) => T
+    parser?: (value: string) => T,
   ): T {
     if (typeof window === "undefined" || !window.localStorage) {
       return defaultValue;

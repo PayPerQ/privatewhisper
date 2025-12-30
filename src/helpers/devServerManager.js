@@ -4,7 +4,7 @@ class DevServerManager {
   static async waitForDevServer(
     url = "http://localhost:5174/",
     maxAttempts = 30,
-    delay = 1000
+    delay = 1000,
   ) {
     for (let i = 0; i < maxAttempts; i++) {
       try {
@@ -21,7 +21,7 @@ class DevServerManager {
             },
             (res) => {
               resolve(res.statusCode >= 200 && res.statusCode < 400);
-            }
+            },
           );
 
           req.on("error", () => resolve(false));
@@ -67,7 +67,7 @@ class DevServerManager {
         "..",
         "src",
         "dist",
-        "index.html"
+        "index.html",
       );
       const url = isControlPanel
         ? `file://${htmlPath}?panel=true`

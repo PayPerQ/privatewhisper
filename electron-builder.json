@@ -22,9 +22,7 @@
     "!node_modules/.cache/**/*",
     "!src/node_modules/**/*"
   ],
-  "asarUnpack": [
-    "**/node_modules/better-sqlite3/**/*"
-  ],
+  "asarUnpack": ["**/node_modules/better-sqlite3/**/*"],
   "extraResources": [
     "src/assets/**/*",
     "resources/macos-globe-listener.swift",
@@ -55,17 +53,11 @@
     }
   },
   "win": {
-    "target": [
-      "nsis",
-      "portable"
-    ],
+    "target": ["nsis", "portable"],
     "icon": "src/assets/icon.ico"
   },
   "linux": {
-    "target": [
-      "AppImage",
-      "deb"
-    ],
+    "target": ["AppImage", "deb"],
     "icon": "src/assets/icon.png",
     "category": "Utility"
   },

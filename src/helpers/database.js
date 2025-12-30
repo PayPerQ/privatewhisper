@@ -46,7 +46,7 @@ class DatabaseManager {
       }
       const content = typeof text === "string" ? text.trim() : "";
       const stmt = this.db.prepare(
-        "INSERT INTO transcriptions (text) VALUES (?)"
+        "INSERT INTO transcriptions (text) VALUES (?)",
       );
       const result = stmt.run(content);
       const inserted = this.db
@@ -77,7 +77,7 @@ class DatabaseManager {
         throw new Error("Database not initialized");
       }
       const stmt = this.db.prepare(
-        "SELECT * FROM transcriptions ORDER BY timestamp DESC LIMIT ?"
+        "SELECT * FROM transcriptions ORDER BY timestamp DESC LIMIT ?",
       );
       const transcriptions = stmt.all(limit);
       debugLogger.logEvent("database", "transcriptions-loaded", {

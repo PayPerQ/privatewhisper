@@ -89,8 +89,7 @@ export default function App() {
   const buttonRef = useRef(null);
   const { toast } = useToast();
   const { hotkey } = useHotkey();
-  const { isDragging, handleMouseDown, handleMouseUp } =
-    useWindowDrag();
+  const { isDragging, handleMouseDown, handleMouseUp } = useWindowDrag();
   const [dragStartPos, setDragStartPos] = useState(null);
   const [hasDragged, setHasDragged] = useState(false);
   const [isPushToTalk, setIsPushToTalk] = useState(false);
@@ -98,15 +97,14 @@ export default function App() {
   const cancelRecordingRef = useRef(false);
   const pendingStartRef = useRef(false);
   const audioContextRef = useRef(null);
-  const {
-    preferredLanguage,
-    hotkeyMode,
-    audioCuesEnabled,
-  } = useSettings();
+  const { preferredLanguage, hotkeyMode, audioCuesEnabled } = useSettings();
 
-  const audioSettings = useMemo(() => ({
-    preferredLanguage,
-  }), [preferredLanguage]);
+  const audioSettings = useMemo(
+    () => ({
+      preferredLanguage,
+    }),
+    [preferredLanguage],
+  );
 
   const setWindowInteractivity = React.useCallback((shouldCapture) => {
     window.electronAPI?.setMainWindowInteractivity?.(shouldCapture);
@@ -372,50 +370,50 @@ export default function App() {
     }
   }, [isRecording, isProcessing]);
 
-  const playCue = React.useCallback(async (type) => {
-    try {
-      if (!audioCuesEnabled) return;
-      const AudioContextClass =
-        window.AudioContext || window.webkitAudioContext;
-      if (!AudioContextClass) return;
+  const playCue = React.useCallback(
+    async (type) => {
+      try {
+        if (!audioCuesEnabled) return;
+        const AudioContextClass =
+          window.AudioContext || window.webkitAudioContext;
+        if (!AudioContextClass) return;
 
-      if (!audioContextRef.current || audioContextRef.current.state === "closed") {
-        audioContextRef.current = new AudioContextClass();
-      }
+        if (
+          !audioContextRef.current ||
+          audioContextRef.current.state === "closed"
+        ) {
+          audioContextRef.current = new AudioContextClass();
+        }
 
-      const context = audioContextRef.current;
-      if (context.state === "suspended") {
-        await context.resume();
-      }
+        const context = audioContextRef.current;
+        if (context.state === "suspended") {
+          await context.resume();
+        }
 
-      const isStart = type === "start";
-      const now = context.currentTime;
-      const osc = context.createOscillator();
-      const gain = context.createGain();
-      const preset = isStart
-        ? { startFreq: 720, endFreq: 520, peak: 0.36, duration: 0.18 }
-        : { startFreq: 520, endFreq: 380, peak: 0.32, duration: 0.2 };
+        const isStart = type === "start";
+        const now = context.currentTime;
+        const osc = context.createOscillator();
+        const gain = context.createGain();
+        const preset = isStart
+          ? { startFreq: 720, endFreq: 520, peak: 0.36, duration: 0.18 }
+          : { startFreq: 520, endFreq: 380, peak: 0.32, duration: 0.2 };
 
-      osc.type = "triangle";
-      osc.frequency.setValueAtTime(preset.startFreq, now);
-      osc.frequency.exponentialRampToValueAtTime(
-        preset.endFreq,
-        now + 0.12
-      );
+        osc.type = "triangle";
+        osc.frequency.setValueAtTime(preset.startFreq, now);
+        osc.frequency.exponentialRampToValueAtTime(preset.endFreq, now + 0.12);
 
-      gain.gain.setValueAtTime(0.0001, now);
-      gain.gain.exponentialRampToValueAtTime(preset.peak, now + 0.02);
-      gain.gain.exponentialRampToValueAtTime(
-        0.0001,
-        now + preset.duration
-      );
+        gain.gain.setValueAtTime(0.0001, now);
+        gain.gain.exponentialRampToValueAtTime(preset.peak, now + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + preset.duration);
 
-      osc.connect(gain);
-      gain.connect(context.destination);
-      osc.start(now);
-      osc.stop(now + preset.duration + 0.02);
-    } catch (err) {    }
-  }, [audioCuesEnabled]);
+        osc.connect(gain);
+        gain.connect(context.destination);
+        osc.start(now);
+        osc.stop(now + preset.duration + 0.02);
+      } catch (err) {}
+    },
+    [audioCuesEnabled],
+  );
 
   // Determine current mic state
   const getMicState = () => {
@@ -486,7 +484,7 @@ export default function App() {
                 if (dragStartPos && !hasDragged) {
                   const distance = Math.sqrt(
                     Math.pow(e.clientX - dragStartPos.x, 2) +
-                      Math.pow(e.clientY - dragStartPos.y, 2)
+                      Math.pow(e.clientY - dragStartPos.y, 2),
                   );
                   if (distance > 5) {
                     // 5px threshold for drag
@@ -531,8 +529,8 @@ export default function App() {
                   micState === "processing"
                     ? "not-allowed !important"
                     : isDragging
-                    ? "grabbing !important"
-                    : "pointer !important",
+                      ? "grabbing !important"
+                      : "pointer !important",
                 transition:
                   "transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.25s ease-out",
               }}
@@ -595,10 +593,10 @@ export default function App() {
               <button
                 className="w-full px-3 py-2 text-left text-sm hover:bg-white/10 focus:bg-white/10 focus:outline-none"
                 onClick={() => {
-                setIsCommandMenuOpen(false);
-                setWindowInteractivity(false);
-                handleClose();
-              }}
+                  setIsCommandMenuOpen(false);
+                  setWindowInteractivity(false);
+                  handleClose();
+                }}
               >
                 Hide this for now
               </button>

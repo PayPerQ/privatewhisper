@@ -72,15 +72,12 @@ class WindowManager {
             }
           }, 2000);
         }
-      }
+      },
     );
 
-    this.mainWindow.webContents.on(
-      "did-finish-load",
-      () => {
-        this.enforceMainWindowOnTop();
-      }
-    );
+    this.mainWindow.webContents.on("did-finish-load", () => {
+      this.enforceMainWindowOnTop();
+    });
   }
 
   setMainWindowInteractivity(shouldCapture) {

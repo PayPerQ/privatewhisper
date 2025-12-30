@@ -76,10 +76,10 @@ class UpdateManager {
         this.lastUpdateInfo = null;
         this.notifyRenderers("update-not-available", info);
       },
-      "error": (err) => {
+      error: (err) => {
         debugLogger.error("updater", "auto-updater-error", {
           error: err?.message || err,
-          stack: err?.stack
+          stack: err?.stack,
         });
         this.isDownloading = false;
         this.notifyRenderers("update-error", err);
@@ -88,13 +88,13 @@ class UpdateManager {
         debugLogger.logEvent("updater", "download-progress", {
           percent: progressObj.percent.toFixed(2),
           transferredMB: (progressObj.transferred / 1024 / 1024).toFixed(2),
-          totalMB: (progressObj.total / 1024 / 1024).toFixed(2)
+          totalMB: (progressObj.total / 1024 / 1024).toFixed(2),
         });
         this.notifyRenderers("update-download-progress", progressObj);
       },
       "update-downloaded": (info) => {
         debugLogger.logEvent("updater", "update-downloaded", {
-          version: info?.version
+          version: info?.version,
         });
         this.updateDownloaded = true;
         this.isDownloading = false;
@@ -107,7 +107,7 @@ class UpdateManager {
           };
         }
         this.notifyRenderers("update-downloaded", info);
-      }
+      },
     };
 
     Object.entries(handlers).forEach(([event, handler]) => {
@@ -117,10 +117,18 @@ class UpdateManager {
   }
 
   notifyRenderers(channel, data) {
-    if (this.mainWindow && !this.mainWindow.isDestroyed() && this.mainWindow.webContents) {
+    if (
+      this.mainWindow &&
+      !this.mainWindow.isDestroyed() &&
+      this.mainWindow.webContents
+    ) {
       this.mainWindow.webContents.send(channel, data);
     }
-    if (this.controlPanelWindow && !this.controlPanelWindow.isDestroyed() && this.controlPanelWindow.webContents) {
+    if (
+      this.controlPanelWindow &&
+      !this.controlPanelWindow.isDestroyed() &&
+      this.controlPanelWindow.webContents
+    ) {
       this.controlPanelWindow.webContents.send(channel, data);
     }
   }
@@ -144,7 +152,9 @@ class UpdateManager {
             if (result && result.updateInfo) {
               debugLogger.logEvent("updater", "update-available", {
                 version: result.updateInfo.version,
-                files: result.updateInfo.files?.map(f => `${(f.size / 1024 / 1024).toFixed(2)}MB`).join(", ")
+                files: result.updateInfo.files
+                  ?.map((f) => `${(f.size / 1024 / 1024).toFixed(2)}MB`)
+                  .join(", "),
               });
               return {
                 updateAvailable: true,
@@ -163,11 +173,11 @@ class UpdateManager {
           } catch (error) {
             debugLogger.error("updater", "update-check-error", {
               error: error.message,
-              stack: error.stack
+              stack: error.stack,
             });
             throw error;
           }
-        }
+        },
       },
       {
         channel: "download-update",
@@ -204,11 +214,11 @@ class UpdateManager {
             this.isDownloading = false;
             debugLogger.error("updater", "download-error", {
               error: error.message,
-              stack: error.stack
+              stack: error.stack,
             });
             throw error;
           }
-        }
+        },
       },
       {
         channel: "install-update",
@@ -241,7 +251,7 @@ class UpdateManager {
             this.installTimeout = setTimeout(() => {
               debugLogger.logEvent("updater", "calling-quit-and-install", {
                 platform: process.platform,
-                updateDownloaded: this.updateDownloaded
+                updateDownloaded: this.updateDownloaded,
               });
 
               const { app } = require("electron");
@@ -260,11 +270,11 @@ class UpdateManager {
             }
             debugLogger.error("updater", "installation-error", {
               error: error.message,
-              stack: error.stack
+              stack: error.stack,
             });
             throw error;
           }
-        }
+        },
       },
       {
         channel: "get-app-version",
@@ -274,11 +284,11 @@ class UpdateManager {
             return { version: app.getVersion() };
           } catch (error) {
             debugLogger.error("updater", "get-version-error", {
-              error: error.message
+              error: error.message,
             });
             throw error;
           }
-        }
+        },
       },
       {
         channel: "get-update-status",
@@ -291,11 +301,11 @@ class UpdateManager {
             };
           } catch (error) {
             debugLogger.error("updater", "get-status-error", {
-              error: error.message
+              error: error.message,
             });
             throw error;
           }
-        }
+        },
       },
       {
         channel: "get-update-info",
@@ -304,12 +314,12 @@ class UpdateManager {
             return this.lastUpdateInfo;
           } catch (error) {
             debugLogger.error("updater", "get-info-error", {
-              error: error.message
+              error: error.message,
             });
             throw error;
           }
-        }
-      }
+        },
+      },
     ];
 
     // Register all handlers and track for cleanup
@@ -323,10 +333,10 @@ class UpdateManager {
     if (process.env.NODE_ENV !== "development") {
       setTimeout(() => {
         debugLogger.logEvent("updater", "startup-check");
-        this.autoUpdater.checkForUpdates().catch(err => {
+        this.autoUpdater.checkForUpdates().catch((err) => {
           debugLogger.error("updater", "startup-check-failed", {
             error: err.message,
-            stack: err.stack
+            stack: err.stack,
           });
         });
       }, 3000);

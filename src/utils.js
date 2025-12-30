@@ -17,7 +17,7 @@ class AppUtils {
     } catch (error) {
       debugLogger.error("cleanup", "database-delete-error", {
         error: error.message,
-        stack: error.stack
+        stack: error.stack,
       });
     }
 
@@ -29,13 +29,14 @@ class AppUtils {
         })
         .catch((error) => {
           debugLogger.error("cleanup", "local-storage-error", {
-            error: error.message
+            error: error.message,
           });
         });
     }
 
     debugLogger.logEvent("cleanup", "permissions-reminder", {
-      message: "Manually remove accessibility and microphone permissions if needed"
+      message:
+        "Manually remove accessibility and microphone permissions if needed",
     });
 
     try {
@@ -47,7 +48,7 @@ class AppUtils {
     } catch (error) {
       debugLogger.error("cleanup", "env-file-delete-error", {
         error: error.message,
-        stack: error.stack
+        stack: error.stack,
       });
     }
 

@@ -62,7 +62,7 @@ class ClipboardManager {
     } catch (error) {
       this.safeLog("paste-error", {
         error: error.message,
-        platform: PlatformDetector.current
+        platform: PlatformDetector.current,
       });
       throw error;
     }
@@ -137,8 +137,8 @@ class ClipboardManager {
         } else {
           reject(
             new Error(
-              `Windows paste failed with code ${code}. Text is copied to clipboard.`
-            )
+              `Windows paste failed with code ${code}. Text is copied to clipboard.`,
+            ),
           );
         }
       });
@@ -146,8 +146,8 @@ class ClipboardManager {
       pasteProcess.on("error", (error) => {
         reject(
           new Error(
-            `Windows paste failed: ${error.message}. Text is copied to clipboard.`
-          )
+            `Windows paste failed: ${error.message}. Text is copied to clipboard.`,
+          ),
         );
       });
     });
@@ -167,8 +167,8 @@ class ClipboardManager {
         } else {
           reject(
             new Error(
-              `Linux paste failed with code ${code}. Text is copied to clipboard.`
-            )
+              `Linux paste failed with code ${code}. Text is copied to clipboard.`,
+            ),
           );
         }
       });
@@ -176,8 +176,8 @@ class ClipboardManager {
       pasteProcess.on("error", (error) => {
         reject(
           new Error(
-            `Linux paste failed: ${error.message}. Text is copied to clipboard.`
-          )
+            `Linux paste failed: ${error.message}. Text is copied to clipboard.`,
+          ),
         );
       });
     });

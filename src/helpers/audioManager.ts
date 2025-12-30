@@ -11,7 +11,14 @@ const nowMs = () =>
     ? performance.now()
     : Date.now();
 
+type PipelineMetricsFlags = Record<string, unknown>;
+
 class PipelineMetrics {
+  id: string;
+  startedAt: number;
+  marks: Record<string, number>;
+  flags: PipelineMetricsFlags;
+
   constructor() {
     this.id = `dictation-${Date.now().toString(36)}-${Math.random()
       .toString(16)
@@ -21,7 +28,7 @@ class PipelineMetrics {
     this.flags = {};
   }
 
-  mark(stage, details = {}) {
+  mark(stage: string, details: PipelineMetricsFlags = {}) {
     this.marks[stage] = nowMs();
     if (details && Object.keys(details).length > 0) {
       this.flags[stage] = {
@@ -31,11 +38,11 @@ class PipelineMetrics {
     }
   }
 
-  setFlag(key, value) {
+  setFlag(key: string, value: unknown) {
     this.flags[key] = value;
   }
 
-  duration(from, to) {
+  duration(from: string, to: string) {
     if (this.marks[from] == null || this.marks[to] == null) return null;
     return Math.max(0, Math.round(this.marks[to] - this.marks[from]));
   }
@@ -48,11 +55,11 @@ class PipelineMetrics {
         audioOptimizeMs: this.duration("optimizeStart", "optimizeEnd"),
         transcriptionRequestMs: this.duration(
           "transcriptionRequestStart",
-          "transcriptionResponse"
+          "transcriptionResponse",
         ),
         transcriptionDecodeMs: this.duration(
           "transcriptionResponse",
-          "transcriptionTextReady"
+          "transcriptionTextReady",
         ),
         transcriptionTotalMs: this.duration("start", "transcriptionTextReady"),
         reasoningMs: this.flags.reasoningUsed
@@ -79,30 +86,51 @@ class PipelineMetrics {
   }
 }
 
-const DEFAULT_SETTINGS = {
+type AudioSettings = {
+  useReasoningModel: boolean;
+  reasoningModel: string;
+  preferredLanguage: string;
+};
+
+type AudioManagerCallbacks = {
+  onError?: (error: { title: string; description: string }) => void;
+  onTranscriptionComplete?: (result: {
+    success: boolean;
+    text?: string;
+    source?: string;
+    metrics?: PipelineMetrics | null;
+  }) => void;
+};
+
+const DEFAULT_SETTINGS: AudioSettings = {
   useReasoningModel: true,
   reasoningModel: "qwen/qwen3-32b",
   preferredLanguage: "en",
 };
 
 class AudioManager {
-  constructor(settings = {}) {
+  settings: AudioSettings;
+  onError: AudioManagerCallbacks["onError"];
+  onTranscriptionComplete: AudioManagerCallbacks["onTranscriptionComplete"];
+  metrics: PipelineMetrics | null;
+
+  constructor(settings: Partial<AudioSettings> = {}) {
     this.settings = { ...DEFAULT_SETTINGS, ...settings };
     this.onError = null;
     this.onTranscriptionComplete = null;
     this.metrics = null;
   }
 
-  updateSettings(settings) {
+  updateSettings(settings: Partial<AudioSettings>) {
     this.settings = { ...this.settings, ...settings };
   }
 
-  setCallbacks({ onError, onTranscriptionComplete }) {
+  setCallbacks({ onError, onTranscriptionComplete }: AudioManagerCallbacks) {
     this.onError = onError;
     this.onTranscriptionComplete = onTranscriptionComplete;
   }
 
-  async processAudio(audioBlob) {
+  async processAudio(audioBlob: Blob) {
     try {
       this.metrics = new PipelineMetrics();
       const metrics = this.metrics;
@@ -115,7 +143,7 @@ class AudioManager {
 
       const result = await this.processWithPPQAPI(audioBlob);
       this.onTranscriptionComplete?.(result);
-    } catch (error) {
+    } catch (error: any) {
       this.onError?.({
         title: "Transcription Error",
         description: `Transcription failed: ${error.message}`,
@@ -130,7 +158,7 @@ class AudioManager {
     return text.replace(/\s+/g, " ").trim();
   }
 
-  static cleanTranscription(text) {
+  static cleanTranscription(text: string) {
     const normalized = this.normalizeTranscription(text);
     if (!normalized) {
       return "";
@@ -138,7 +166,7 @@ class AudioManager {
     return normalized.charAt(0).toUpperCase() + normalized.slice(1);
   }
 
-  static cleanTranscriptionForAPI(text) {
+  static cleanTranscriptionForAPI(text: string) {
     return this.normalizeTranscription(text);
   }
 
@@ -146,16 +174,19 @@ class AudioManager {
     return await apiKeyManager.getApiKey();
   }
 
-  async optimizeAudio(audioBlob) {
-    return new Promise((resolve) => {
-      const audioContext = new (window.AudioContext ||
-        window.webkitAudioContext)();
+  async optimizeAudio(audioBlob: Blob) {
+    return new Promise<Blob>((resolve) => {
+      const audioContext = new (
+        window.AudioContext || window.webkitAudioContext
+      )();
       const reader = new FileReader();
 
       reader.onload = async () => {
         try {
           const arrayBuffer = reader.result;
-          const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+          const audioBuffer = await audioContext.decodeAudioData(
+            arrayBuffer as ArrayBuffer,
+          );
 
           const sampleRate = AUDIO_CONFIG.SAMPLE_RATE;
           const channels = AUDIO_CONFIG.MONO_CHANNELS;
@@ -163,7 +194,7 @@ class AudioManager {
           const offlineContext = new OfflineAudioContext(
             channels,
             length,
-            sampleRate
+            sampleRate,
           );
 
           const source = offlineContext.createBufferSource();
@@ -185,16 +216,16 @@ class AudioManager {
     });
   }
 
-  audioBufferToWav(buffer) {
+  audioBufferToWav(buffer: AudioBuffer) {
     const length = buffer.length;
     const arrayBuffer = new ArrayBuffer(
-      AUDIO_CONFIG.WAV_HEADER_SIZE + length * AUDIO_CONFIG.BYTES_PER_SAMPLE
+      AUDIO_CONFIG.WAV_HEADER_SIZE + length * AUDIO_CONFIG.BYTES_PER_SAMPLE,
     );
     const view = new DataView(arrayBuffer);
     const sampleRate = buffer.sampleRate;
     const channelData = buffer.getChannelData(0);
 
-    const writeString = (offset, string) => {
+    const writeString = (offset: number, string: string) => {
       for (let i = 0; i < string.length; i++) {
         view.setUint8(offset + i, string.charCodeAt(i));
       }
@@ -220,7 +251,7 @@ class AudioManager {
       view.setInt16(
         offset,
         sample < 0 ? sample * 0x8000 : sample * 0x7fff,
-        true
+        true,
       );
       offset += 2;
     }
@@ -228,13 +259,13 @@ class AudioManager {
     return new Blob([arrayBuffer], { type: "audio/wav" });
   }
 
-  async processWithReasoningModel(text) {
+  async processWithReasoningModel(text: string) {
     const model = this.settings.reasoningModel;
     const metrics = this.metrics;
 
     void debugLogger.log("CALLING_REASONING_SERVICE", {
       model,
-      textLength: text.length
+      textLength: text.length,
     });
 
     metrics?.mark("reasoningStart");
@@ -254,11 +285,11 @@ class AudioManager {
         model,
         processingTimeMs: processingTime,
         resultLength: result.length,
-        success: true
+        success: true,
       });
 
       return result;
-    } catch (error) {
+    } catch (error: any) {
       const processingTime = Date.now() - startTime;
       metrics?.mark("reasoningEnd");
       metrics?.setFlag("reasoningUsed", true);
@@ -268,7 +299,7 @@ class AudioManager {
         model,
         processingTimeMs: processingTime,
         error: error.message,
-        stack: error.stack
+        stack: error.stack,
       });
 
       throw error;
@@ -289,26 +320,26 @@ class AudioManager {
       void debugLogger.log("REASONING_AVAILABILITY", {
         isAvailable,
         reasoningEnabled: useReasoning,
-        finalDecision: useReasoning && isAvailable
+        finalDecision: useReasoning && isAvailable,
       });
 
       return isAvailable;
-    } catch (error) {
+    } catch (error: any) {
       void debugLogger.log("REASONING_AVAILABILITY_ERROR", {
         error: error.message,
-        stack: error.stack
+        stack: error.stack,
       });
       return false;
     }
   }
 
-  async processTranscription(text, source) {
+  async processTranscription(text: string, source: string) {
     const metrics = this.metrics;
     void debugLogger.log("TRANSCRIPTION_RECEIVED", {
       source,
       textLength: text.length,
       textPreview: text.substring(0, 100) + (text.length > 100 ? "..." : ""),
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
 
     const useReasoning = await this.isReasoningAvailable();
@@ -319,7 +350,7 @@ class AudioManager {
     void debugLogger.log("REASONING_CHECK", {
       useReasoning,
       reasoningModel,
-      reasoningProvider: "ppq"
+      reasoningProvider: "ppq",
     });
 
     if (useReasoning) {
@@ -328,25 +359,26 @@ class AudioManager {
 
         void debugLogger.log("SENDING_TO_REASONING", {
           preparedTextLength: preparedText.length,
-          model: reasoningModel
+          model: reasoningModel,
         });
-        
+
         const result = await this.processWithReasoningModel(preparedText);
         metrics?.mark("finalTextReady");
-        
+
         void debugLogger.log("REASONING_SUCCESS", {
           resultLength: result.length,
-          resultPreview: result.substring(0, 100) + (result.length > 100 ? "..." : ""),
-          processingTime: new Date().toISOString()
+          resultPreview:
+            result.substring(0, 100) + (result.length > 100 ? "..." : ""),
+          processingTime: new Date().toISOString(),
         });
-        
+
         return result;
-      } catch (error) {
+      } catch (error: any) {
         void debugLogger.log("REASONING_FAILED", {
           source,
           error: error.message,
           stack: error.stack,
-          fallbackToCleanup: true
+          fallbackToCleanup: true,
         });
       }
     }
@@ -356,7 +388,7 @@ class AudioManager {
     }
 
     void debugLogger.log("USING_STANDARD_CLEANUP", {
-      reason: useReasoning ? "Reasoning failed" : "Reasoning not enabled"
+      reason: useReasoning ? "Reasoning failed" : "Reasoning not enabled",
     });
 
     const cleaned = AudioManager.cleanTranscription(text);
@@ -365,7 +397,7 @@ class AudioManager {
     return cleaned;
   }
 
-  async processWithPPQAPI(audioBlob) {
+  async processWithPPQAPI(audioBlob: Blob) {
     const metrics = this.metrics;
 
     try {
@@ -392,18 +424,22 @@ class AudioManager {
       formData.append("response_format", "json");
       const { preferredLanguage } = this.settings;
       if (preferredLanguage && preferredLanguage !== "auto") {
-      formData.append("language", preferredLanguage);
+        formData.append("language", preferredLanguage);
       }
 
       metrics?.setFlag("transcriptionModel", AUDIO_CONFIG.TRANSCRIPTION_MODEL);
-      metrics?.setFlag("transcriptionEndpoint", API_ENDPOINTS.PPQ_TRANSCRIPTION);
+      metrics?.setFlag(
+        "transcriptionEndpoint",
+        API_ENDPOINTS.PPQ_TRANSCRIPTION,
+      );
 
       // Log all FormData entries for debugging
-      const formDataEntries = {};
+      const formDataEntries: Record<string, string> = {};
       for (const [key, value] of formData.entries()) {
-        formDataEntries[key] = value instanceof Blob
-          ? `[Blob: ${value.size} bytes, type: ${value.type}]`
-          : value;
+        formDataEntries[key] =
+          value instanceof Blob
+            ? `[Blob: ${value.size} bytes, type: ${value.type}]`
+            : value;
       }
 
       void debugLogger.log("PPQ_TRANSCRIPTION_REQUEST", {
@@ -413,88 +449,87 @@ class AudioManager {
         audioBlobSize: audioBlob.size,
         optimizedAudioSize: optimizedAudio.size,
         hasApiKey: !!apiKey,
-        apiKeyPrefix: apiKey ? `${apiKey.substring(0, 8)}...` : 'none',
-        formDataEntries: formDataEntries
+        apiKeyPrefix: apiKey ? `${apiKey.substring(0, 8)}...` : "none",
+        formDataEntries: formDataEntries,
       });
 
-      const result = await withRetry(
-        async () => {
-          let response;
-          try {
-            const requestHeaders = {
-              Authorization: `Bearer ${apiKey}`,
-            };
+      const result = await withRetry(async () => {
+        let response: Response;
+        try {
+          const requestHeaders = {
+            Authorization: `Bearer ${apiKey}`,
+          };
 
-            void debugLogger.log("PPQ_TRANSCRIPTION_FETCH_START", {
-              endpoint: API_ENDPOINTS.PPQ_TRANSCRIPTION,
-              method: "POST",
-              headers: { Authorization: `Bearer ${apiKey.substring(0, 8)}...` }
-            });
-
-            metrics?.mark("transcriptionRequestStart");
-            response = await fetch(API_ENDPOINTS.PPQ_TRANSCRIPTION, {
-              method: "POST",
-              headers: requestHeaders,
-              body: formData,
-            });
-            metrics?.mark("transcriptionResponse");
-          } catch (fetchError) {
-            void debugLogger.log("PPQ_TRANSCRIPTION_FETCH_ERROR", {
-              error: fetchError.message,
-              errorType: fetchError.name,
-              errorStack: fetchError.stack,
-              endpoint: API_ENDPOINTS.PPQ_TRANSCRIPTION
-            });
-            throw fetchError;
-          }
-
-          void debugLogger.log("PPQ_TRANSCRIPTION_RESPONSE", {
-            status: response.status,
-            statusText: response.statusText,
-            ok: response.ok,
-            headers: Object.fromEntries(response.headers.entries())
+          void debugLogger.log("PPQ_TRANSCRIPTION_FETCH_START", {
+            endpoint: API_ENDPOINTS.PPQ_TRANSCRIPTION,
+            method: "POST",
+            headers: { Authorization: `Bearer ${apiKey.substring(0, 8)}...` },
           });
 
-          if (!response.ok) {
-            const errorText = await response.text();
-            void debugLogger.log("PPQ_TRANSCRIPTION_ERROR_RESPONSE", {
-              status: response.status,
-              errorText: errorText.substring(0, 500)
-            });
-            const error = new Error(`API Error: ${response.status} ${errorText}`);
-            error.response = response;
-            throw error;
-          }
+          metrics?.mark("transcriptionRequestStart");
+          response = await fetch(API_ENDPOINTS.PPQ_TRANSCRIPTION, {
+            method: "POST",
+            headers: requestHeaders,
+            body: formData,
+          });
+          metrics?.mark("transcriptionResponse");
+        } catch (fetchError: any) {
+          void debugLogger.log("PPQ_TRANSCRIPTION_FETCH_ERROR", {
+            error: fetchError.message,
+            errorType: fetchError.name,
+            errorStack: fetchError.stack,
+            endpoint: API_ENDPOINTS.PPQ_TRANSCRIPTION,
+          });
+          throw fetchError;
+        }
 
-          return response.json();
-        },
-        createApiRetryStrategy()
-      );
+        void debugLogger.log("PPQ_TRANSCRIPTION_RESPONSE", {
+          status: response.status,
+          statusText: response.statusText,
+          ok: response.ok,
+          headers: Object.fromEntries(response.headers.entries()),
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          void debugLogger.log("PPQ_TRANSCRIPTION_ERROR_RESPONSE", {
+            status: response.status,
+            errorText: errorText.substring(0, 500),
+          });
+          const error = new Error(`API Error: ${response.status} ${errorText}`);
+          (error as Error & { response?: Response }).response = response;
+          throw error;
+        }
+
+        return response.json();
+      }, createApiRetryStrategy());
       metrics?.mark("transcriptionTextReady");
 
       void debugLogger.log("PPQ_TRANSCRIPTION_SUCCESS", {
         hasText: !!result.text,
         textLength: result.text?.length || 0,
-        textPreview: result.text ? result.text.substring(0, 100) : 'no text'
+        textPreview: result.text ? result.text.substring(0, 100) : "no text",
       });
 
       if (result.text) {
         const text = await this.processTranscription(result.text, "ppq");
-        const source = await this.isReasoningAvailable() ? "ppq-reasoned" : "ppq";
+        const source = (await this.isReasoningAvailable())
+          ? "ppq-reasoned"
+          : "ppq";
         return { success: true, text, source, metrics };
       } else {
         throw new Error("No text transcribed");
       }
-    } catch (error) {
+    } catch (error: any) {
       void debugLogger.log("TRANSCRIPTION_ERROR", {
         error: error.message,
-        stack: error.stack
+        stack: error.stack,
       });
       throw error;
     }
   }
 
-  async safePaste(text) {
+  async safePaste(text: string) {
     try {
       await window.electronAPI.pasteText(text);
       return true;
@@ -508,7 +543,7 @@ class AudioManager {
     }
   }
 
-  async saveTranscription(text) {
+  async saveTranscription(text: string) {
     try {
       await window.electronAPI.saveTranscription(text);
       return true;

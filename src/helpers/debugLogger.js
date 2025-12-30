@@ -102,12 +102,9 @@ class DebugLogger {
     }
 
     const timestamp = new Date().toISOString();
-    const normalizedLevel =
-      LEVELS[level] || LEVELS.info;
+    const normalizedLevel = LEVELS[level] || LEVELS.info;
     const normalizedDetails =
-      details && typeof details === "object"
-        ? details
-        : { message: details };
+      details && typeof details === "object" ? details : { message: details };
     const entry = {
       timestamp,
       level: normalizedLevel,
@@ -120,12 +117,12 @@ class DebugLogger {
       normalizedLevel === LEVELS.error
         ? console.error
         : normalizedLevel === LEVELS.warn
-        ? console.warn
-        : console.log;
+          ? console.warn
+          : console.log;
 
     consoleMethod(
       `[${entry.level}] [${entry.channel}] ${entry.event}`,
-      normalizedDetails
+      normalizedDetails,
     );
 
     if (this.logStream) {
@@ -181,7 +178,7 @@ class DebugLogger {
         "app.asar.unpacked",
         "node_modules",
         "ffmpeg-static",
-        process.platform === "win32" ? "ffmpeg.exe" : "ffmpeg"
+        process.platform === "win32" ? "ffmpeg.exe" : "ffmpeg",
       ),
       "/usr/local/bin/ffmpeg",
       "/opt/homebrew/bin/ffmpeg",
@@ -211,7 +208,7 @@ class DebugLogger {
       const view = new Uint8Array(
         audioBlob,
         0,
-        Math.min(16, audioBlob.byteLength)
+        Math.min(16, audioBlob.byteLength),
       );
       audioInfo.firstBytes = Array.from(view)
         .map((b) => b.toString(16).padStart(2, "0"))

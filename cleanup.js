@@ -2,7 +2,8 @@ const path = require("path");
 const fs = require("fs");
 const os = require("os");
 
-const DEBUG = process.env.PPQVOICE_DEBUG === "true" || process.argv.includes("--debug");
+const DEBUG =
+  process.env.PPQVOICE_DEBUG === "true" || process.argv.includes("--debug");
 
 function log(message, ...args) {
   if (DEBUG) {
@@ -32,8 +33,8 @@ try {
     process.platform === "darwin"
       ? path.join(os.homedir(), "Library", "Application Support", "ppq-voice")
       : process.platform === "win32"
-      ? path.join(process.env.APPDATA || os.homedir(), "ppq-voice")
-      : path.join(os.homedir(), ".config", "ppq-voice");
+        ? path.join(process.env.APPDATA || os.homedir(), "ppq-voice")
+        : path.join(os.homedir(), ".config", "ppq-voice");
 
   const devDbPath = path.join(userDataPath, "transcriptions-dev.db");
 

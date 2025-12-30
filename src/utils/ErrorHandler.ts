@@ -25,7 +25,7 @@ export class AppError extends Error {
     code: ErrorCode | string,
     message: string,
     context: Record<string, unknown> = {},
-    isRecoverable = true
+    isRecoverable = true,
   ) {
     super(message);
     this.name = "AppError";

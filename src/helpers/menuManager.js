@@ -57,10 +57,7 @@ class MenuManager {
             { type: "separator" },
             {
               label: "Speech",
-              submenu: [
-                { role: "startSpeaking" },
-                { role: "stopSpeaking" },
-              ],
+              submenu: [{ role: "startSpeaking" }, { role: "stopSpeaking" }],
             },
           ],
         },
@@ -96,13 +93,15 @@ class MenuManager {
               label: "Learn More",
               click: async () => {
                 const { shell } = require("electron");
-                await shell.openExternal("https://github.com/HeroTools/ppq-voice");
+                await shell.openExternal(
+                  "https://github.com/HeroTools/ppq-voice",
+                );
               },
             },
           ],
         },
       ];
-      
+
       const menu = Menu.buildFromTemplate(template);
       Menu.setApplicationMenu(menu);
     } else {
@@ -140,7 +139,7 @@ class MenuManager {
           ],
         },
       ];
-      
+
       const menu = Menu.buildFromTemplate(template);
       controlPanelWindow.setMenu(menu);
     }

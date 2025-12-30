@@ -19,7 +19,7 @@ class ApiKeyManager {
 
     if (!this.isValidApiKey(apiKey)) {
       throw new Error(
-        "PPQ API key not found. Please add your key in the Control Panel."
+        "PPQ API key not found. Please add your key in the Control Panel.",
       );
     }
 

@@ -98,6 +98,7 @@ export default function App() {
   const hotkeyPressStartRef = useRef(null);
   const cancelRecordingRef = useRef(false);
   const pendingStartRef = useRef(false);
+  const audioContextRef = useRef(null);
   const { useReasoningModel, reasoningModel, preferredLanguage, hotkeyMode } = useSettings();
 
   const audioSettings = useMemo(() => ({
@@ -157,6 +158,7 @@ export default function App() {
         }
 
         setIsProcessing(true);
+        void playCue("stop");
         const audioBlob = new Blob(audioChunksRef.current, {
           type: "audio/wav",
         });
@@ -168,6 +170,7 @@ export default function App() {
       mediaRecorderRef.current.start();
       setIsRecording(true);
       pendingStartRef.current = false;
+      void playCue("start");
     } catch (err) {
       console.error("Recording error:", err);
       toast({
@@ -396,6 +399,50 @@ export default function App() {
       setIsPushToTalk(false);
     }
   }, [isRecording, isProcessing]);
+
+  const playCue = React.useCallback(async (type) => {
+    try {
+      const AudioContextClass =
+        window.AudioContext || window.webkitAudioContext;
+      if (!AudioContextClass) return;
+
+      if (!audioContextRef.current || audioContextRef.current.state === "closed") {
+        audioContextRef.current = new AudioContextClass();
+      }
+
+      const context = audioContextRef.current;
+      if (context.state === "suspended") {
+        await context.resume();
+      }
+
+      const isStart = type === "start";
+      const now = context.currentTime;
+      const osc = context.createOscillator();
+      const gain = context.createGain();
+      const preset = isStart
+        ? { startFreq: 720, endFreq: 520, peak: 0.36, duration: 0.18 }
+        : { startFreq: 520, endFreq: 380, peak: 0.32, duration: 0.2 };
+
+      osc.type = "triangle";
+      osc.frequency.setValueAtTime(preset.startFreq, now);
+      osc.frequency.exponentialRampToValueAtTime(
+        preset.endFreq,
+        now + 0.12
+      );
+
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(preset.peak, now + 0.02);
+      gain.gain.exponentialRampToValueAtTime(
+        0.0001,
+        now + preset.duration
+      );
+
+      osc.connect(gain);
+      gain.connect(context.destination);
+      osc.start(now);
+      osc.stop(now + preset.duration + 0.02);
+    } catch (err) {    }
+  }, []);
 
   // Determine current mic state
   const getMicState = () => {

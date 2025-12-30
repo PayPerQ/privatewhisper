@@ -2,13 +2,10 @@ import ReasoningService from "../services/ReasoningService";
 import { API_ENDPOINTS } from "../config/constants";
 import createDebugLogger from "../utils/debugLoggerRenderer";
 import apiKeyManager from "../utils/ApiKeyManager";
-import { AppError, ErrorCodes } from "../utils/ErrorHandler";
 import { AUDIO_CONFIG } from "../config/audio";
 import { withRetry, createApiRetryStrategy } from "../utils/retry";
 
 const debugLogger = createDebugLogger("audio");
-const pipelineLogger = createDebugLogger("pipeline");
-
 const nowMs = () =>
   typeof performance !== "undefined" && performance.now
     ? performance.now()
@@ -91,11 +88,6 @@ const DEFAULT_SETTINGS = {
 class AudioManager {
   constructor(settings = {}) {
     this.settings = { ...DEFAULT_SETTINGS, ...settings };
-    this.mediaRecorder = null;
-    this.audioChunks = [];
-    this.isRecording = false;
-    this.isProcessing = false;
-    this.onStateChange = null;
     this.onError = null;
     this.onTranscriptionComplete = null;
     this.metrics = null;
@@ -105,82 +97,9 @@ class AudioManager {
     this.settings = { ...this.settings, ...settings };
   }
 
-  setCallbacks({ onStateChange, onError, onTranscriptionComplete }) {
-    this.onStateChange = onStateChange;
+  setCallbacks({ onError, onTranscriptionComplete }) {
     this.onError = onError;
     this.onTranscriptionComplete = onTranscriptionComplete;
-  }
-
-  async startRecording() {
-    try {
-      if (this.isRecording) {
-        return false;
-      }
-
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-
-
-      this.mediaRecorder = new MediaRecorder(stream);
-      this.audioChunks = [];
-
-      this.mediaRecorder.ondataavailable = (event) => {
-        this.audioChunks.push(event.data);
-      };
-
-      this.mediaRecorder.onstop = async () => {
-        this.isRecording = false;
-        this.isProcessing = true;
-        this.onStateChange?.({ isRecording: false, isProcessing: true });
-
-        const audioBlob = new Blob(this.audioChunks, { type: "audio/wav" });
-
-        if (audioBlob.size === 0) {
-          throw new AppError(
-            ErrorCodes.AUDIO_EMPTY,
-            "No audio was recorded",
-            { blobSize: audioBlob.size }
-          );
-        }
-
-        await this.processAudio(audioBlob);
-
-        stream.getTracks().forEach((track) => track.stop());
-      };
-
-      this.mediaRecorder.start();
-      this.isRecording = true;
-      this.onStateChange?.({ isRecording: true, isProcessing: false });
-
-      return true;
-    } catch (error) {
-      let errorTitle = "Recording Error";
-      let errorDescription = `Failed to access microphone: ${error.message}`;
-      
-      if (error.name === "NotAllowedError" || error.name === "PermissionDeniedError") {
-        errorTitle = ErrorCodes.PERMISSION_DENIED;
-        errorDescription = "Please grant microphone permission in your system settings and try again.";
-      } else if (error.name === "NotFoundError" || error.name === "DevicesNotFoundError") {
-        errorTitle = ErrorCodes.MICROPHONE_NOT_FOUND;
-        errorDescription = "No microphone was detected. Please connect a microphone and try again.";
-      } else if (error.name === "NotReadableError" || error.name === "TrackStartError") {
-        errorTitle = ErrorCodes.MICROPHONE_IN_USE;
-        errorDescription = "The microphone is being used by another application. Please close other apps and try again.";
-      }
-      
-      this.onError?.({
-        title: errorTitle,
-        description: errorDescription,
-      });
-      return false;
-    }
-  }
-
-  stopRecording() {
-    if (this.mediaRecorder && this.isRecording) {
-      this.mediaRecorder.stop();
-      return true;
-    }
-    return false;
   }
 
   async processAudio(audioBlob) {
@@ -201,9 +120,6 @@ class AudioManager {
         title: "Transcription Error",
         description: `Transcription failed: ${error.message}`,
       });
-    } finally {
-      this.isProcessing = false;
-      this.onStateChange?.({ isRecording: false, isProcessing: false });
     }
   }
 
@@ -578,18 +494,7 @@ class AudioManager {
     }
   }
 
-  getState() {
-    return {
-      isRecording: this.isRecording,
-      isProcessing: this.isProcessing,
-    };
-  }
-
   cleanup() {
-    if (this.mediaRecorder && this.isRecording) {
-      this.stopRecording();
-    }
-    this.onStateChange = null;
     this.onError = null;
     this.onTranscriptionComplete = null;
   }

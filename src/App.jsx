@@ -209,10 +209,6 @@ export default function App() {
     try {
       const audioManager = new AudioManager(audioSettings);
       audioManager.setCallbacks({
-        onStateChange: ({ isRecording, isProcessing }) => {
-          setIsRecording(isRecording);
-          setIsProcessing(isProcessing);
-        },
         onError: (error) => {
           toast({
             title: error.title,

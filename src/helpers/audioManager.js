@@ -578,28 +578,6 @@ class AudioManager {
     }
   }
 
-  async safePaste(text) {
-    try {
-      await window.electronAPI.pasteText(text);
-      return true;
-    } catch (error) {
-      this.onError?.({
-        title: "Paste Error",
-        description: `Failed to paste text. Please check accessibility permissions. ${error.message}`,
-      });
-      return false;
-    }
-  }
-
-  async saveTranscription(text) {
-    try {
-      await window.electronAPI.saveTranscription(text);
-      return true;
-    } catch (error) {
-      return false;
-    }
-  }
-
   getState() {
     return {
       isRecording: this.isRecording,

@@ -77,7 +77,6 @@ Output: Only the corrected text. No explanations, comments, or formatting.`;
         const message = choice?.message ?? choice?.delta;
         const content = message?.content;
 
-        // Primary: check content field
         if (typeof content === "string" && content.trim()) {
           return content.trim();
         }
@@ -89,10 +88,6 @@ Output: Only the corrected text. No explanations, comments, or formatting.`;
             }
           }
         }
-
-        // Fallback for reasoning models: if content is empty but reasoning exists,
-        // the model ran out of tokens before producing output. Log this case.
-        // We don't use reasoning text as output since it's internal thinking.
       }
     }
 

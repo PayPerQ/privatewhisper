@@ -1,10 +1,10 @@
 import { SecureCache } from "./SecureCache";
 
 class ApiKeyManager {
-  private cache: SecureCache;
+  private cache: SecureCache<string>;
 
   constructor() {
-    this.cache = new SecureCache();
+    this.cache = new SecureCache<string>();
   }
 
   async getApiKey(forceRefresh: boolean = false): Promise<string> {

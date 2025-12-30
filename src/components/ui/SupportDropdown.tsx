@@ -18,8 +18,8 @@ export default function SupportDropdown({ className }: SupportDropdownProps) {
       const result = await window.electronAPI?.openExternal(
         "mailto:support@ppqvoice.com",
       );
-      if (!result?.success) {
-        console.error("Failed to open email client:", result?.error);
+      if (result && !result.success) {
+        console.error("Failed to open email client:", result.error);
         // Fallback: try opening the email as a web URL
         await window.electronAPI?.openExternal(
           "https://mail.google.com/mail/?view=cm&to=support@ppqvoice.com",
@@ -35,8 +35,8 @@ export default function SupportDropdown({ className }: SupportDropdownProps) {
       const result = await window.electronAPI?.openExternal(
         "https://github.com/PayPerQ/ppq-voice-private/issues",
       );
-      if (!result?.success) {
-        console.error("Failed to open GitHub issues:", result?.error);
+      if (result && !result.success) {
+        console.error("Failed to open GitHub issues:", result.error);
       }
     } catch (error) {
       console.error("Error opening GitHub issues:", error);

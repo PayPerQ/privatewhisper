@@ -68,6 +68,25 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     );
   }, []);
 
+  const persistApiKey = useCallback(async () => {
+    const trimmedKey = apiKey.trim();
+    if (!trimmedKey) return false;
+
+    try {
+      if (window.electronAPI?.savePPQKey) {
+        await window.electronAPI.savePPQKey(trimmedKey);
+      }
+      updateApiKeys({ ppqApiKey: trimmedKey });
+      return true;
+    } catch (error) {
+      showAlertDialog({
+        title: "API Key Save Failed",
+        description: "We couldn't save your key. Please try again.",
+      });
+      return false;
+    }
+  }, [apiKey, updateApiKeys, showAlertDialog]);
+
   const steps = [
     { title: "Welcome", icon: Sparkles },
     { title: "Setup", icon: Settings },
@@ -134,10 +153,11 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     );
     localStorage.setItem("onboardingCompleted", "true");
 
-    const trimmedKey = apiKey.trim();
-    if (trimmedKey) {
-      await window.electronAPI.savePPQKey(trimmedKey);
-      updateApiKeys({ ppqApiKey: trimmedKey });
+    if (apiKey.trim()) {
+      const saved = await persistApiKey();
+      if (!saved) {
+        return false;
+      }
     }
 
     return true;
@@ -151,11 +171,19 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     updateTranscriptionSettings,
     updateApiKeys,
     setDictationKey,
+    persistApiKey,
   ]);
 
   const nextStep = useCallback(async () => {
     if (currentStep >= steps.length - 1) {
       return;
+    }
+
+    if (currentStep === 1) {
+      const saved = await persistApiKey();
+      if (!saved) {
+        return;
+      }
     }
 
     if (currentStep === 3 || currentStep === 4) {

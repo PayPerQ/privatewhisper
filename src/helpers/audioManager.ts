@@ -31,8 +31,13 @@ class PipelineMetrics {
   mark(stage: string, details: PipelineMetricsFlags = {}) {
     this.marks[stage] = nowMs();
     if (details && Object.keys(details).length > 0) {
+      const existing = this.flags[stage];
+      const existingDetails =
+        existing && typeof existing === "object" && !Array.isArray(existing)
+          ? (existing as Record<string, unknown>)
+          : {};
       this.flags[stage] = {
-        ...(this.flags[stage] || {}),
+        ...existingDetails,
         ...details,
       };
     }
@@ -176,9 +181,18 @@ class AudioManager {
 
   async optimizeAudio(audioBlob: Blob) {
     return new Promise<Blob>((resolve) => {
-      const audioContext = new (
-        window.AudioContext || window.webkitAudioContext
-      )();
+      const AudioContextClass =
+        window.AudioContext ||
+        (
+          window as typeof window & {
+            webkitAudioContext?: typeof AudioContext;
+          }
+        ).webkitAudioContext;
+      if (!AudioContextClass) {
+        resolve(audioBlob);
+        return;
+      }
+      const audioContext = new AudioContextClass();
       const reader = new FileReader();
 
       reader.onload = async () => {

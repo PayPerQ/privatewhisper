@@ -133,7 +133,7 @@ declare global {
       // External URL operations
       openExternal: (
         url: string,
-      ) => Promise<{ success: boolean; error?: string } | void>;
+      ) => Promise<{ success: boolean; error?: string }>;
 
       // Event listener cleanup
       removeAllListeners: (channel: string) => void;

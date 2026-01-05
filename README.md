@@ -27,10 +27,10 @@ Want the production build? Run `npm start` to launch Electron with the prebuilt 
 
 ### `.env` keys
 
-| Key                      | Required | Description                                                                                                    |
-| ------------------------ | -------- | -------------------------------------------------------------------------------------------------------------- |
-| `PPQ_API_KEY`            | ✅       | Your PPQ API key used for transcription and clean-up.                                                         |
-| `PPQVOICE_DEBUG`         | optional | `true` writes detailed logs to `~/Library/Application Support/ppq-voice/logs` (platform-specific equivalents). |
+| Key              | Required | Description                                                                                                    |
+| ---------------- | -------- | -------------------------------------------------------------------------------------------------------------- |
+| `PPQ_API_KEY`    | ✅       | Your PPQ API key used for transcription and clean-up.                                                          |
+| `PPQVOICE_DEBUG` | optional | `true` writes detailed logs to `~/Library/Application Support/ppq-voice/logs` (platform-specific equivalents). |
 
 All other preferences (language, hotkeys, audio cues) can be changed inside the Control Panel UI. They persist in `localStorage` and synchronize with the renderer.
 

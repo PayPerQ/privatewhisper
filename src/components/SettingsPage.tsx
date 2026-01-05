@@ -64,9 +64,7 @@ export default function SettingsPage({
     releaseNotes?: string;
   }>({});
   const openApiDocs = useCallback(() => {
-    window.electronAPI?.openExternal?.(
-      "https://ppq.ai/api-docs",
-    );
+    window.electronAPI?.openExternal?.("https://ppq.ai/api-docs");
   }, []);
 
   const isUpdateAvailable =

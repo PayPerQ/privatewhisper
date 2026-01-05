@@ -66,7 +66,6 @@ Output: Only the corrected text. No explanations, comments, or formatting.`;
       max_tokens: maxTokens,
       provider: {
         order: ["groq"],
-        allowFallbacks: true,
       },
     };
   }

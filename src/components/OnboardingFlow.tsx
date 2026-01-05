@@ -61,9 +61,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
   const practiceTextareaRef = useRef<HTMLTextAreaElement>(null);
   const permissionsHook = usePermissions(showAlertDialog);
   const openApiDocs = useCallback(() => {
-    window.electronAPI?.openExternal?.(
-      "https://ppq.ai/api-docs",
-    );
+    window.electronAPI?.openExternal?.("https://ppq.ai/api-docs");
   }, []);
 
   const persistApiKey = useCallback(async () => {

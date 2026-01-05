@@ -417,25 +417,60 @@ export default function App() {
         }
 
         const isStart = type === "start";
-        const now = context.currentTime;
-        const osc = context.createOscillator();
-        const gain = context.createGain();
-        const preset = isStart
-          ? { startFreq: 720, endFreq: 520, peak: 0.36, duration: 0.18 }
-          : { startFreq: 520, endFreq: 380, peak: 0.32, duration: 0.2 };
+        const now = context.currentTime + 0.01;
+        const master = context.createGain();
+        master.gain.setValueAtTime(0.9, now);
+        master.connect(context.destination);
 
-        osc.type = "triangle";
-        osc.frequency.setValueAtTime(preset.startFreq, now);
-        osc.frequency.exponentialRampToValueAtTime(preset.endFreq, now + 0.12);
+        const cue = isStart
+          ? {
+              gap: 0.09,
+              bloops: [
+                { startFreq: 560, endFreq: 430, peak: 0.18, duration: 0.14 },
+                { startFreq: 720, endFreq: 520, peak: 0.2, duration: 0.16 },
+              ],
+            }
+          : {
+              gap: 0.12,
+              bloops: [
+                { startFreq: 480, endFreq: 340, peak: 0.16, duration: 0.16 },
+                { startFreq: 360, endFreq: 260, peak: 0.15, duration: 0.18 },
+              ],
+            };
 
-        gain.gain.setValueAtTime(0.0001, now);
-        gain.gain.exponentialRampToValueAtTime(preset.peak, now + 0.02);
-        gain.gain.exponentialRampToValueAtTime(0.0001, now + preset.duration);
+        const scheduleBloop = ({
+          startFreq,
+          endFreq,
+          peak,
+          duration,
+          time,
+        }) => {
+          const osc = context.createOscillator();
+          const gain = context.createGain();
 
-        osc.connect(gain);
-        gain.connect(context.destination);
-        osc.start(now);
-        osc.stop(now + preset.duration + 0.02);
+          osc.type = "sine";
+          osc.frequency.setValueAtTime(startFreq, time);
+          osc.frequency.exponentialRampToValueAtTime(
+            endFreq,
+            time + duration * 0.85,
+          );
+
+          gain.gain.setValueAtTime(0.0001, time);
+          gain.gain.exponentialRampToValueAtTime(peak, time + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.0001, time + duration);
+
+          osc.connect(gain);
+          gain.connect(master);
+          osc.start(time);
+          osc.stop(time + duration + 0.04);
+        };
+
+        cue.bloops.forEach((bloop, index) => {
+          scheduleBloop({
+            ...bloop,
+            time: now + index * cue.gap,
+          });
+        });
       } catch (error) {
         console.debug("Audio cue failed:", error);
       }

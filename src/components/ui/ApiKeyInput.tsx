@@ -10,7 +10,7 @@ interface ApiKeyInputProps {
   placeholder?: string;
   label?: string;
   helpText?: React.ReactNode;
-  variant?: "default" | "purple";
+  variant?: "default";
 }
 
 export default function ApiKeyInput({
@@ -24,14 +24,6 @@ export default function ApiKeyInput({
 }: ApiKeyInputProps) {
   const { pasteFromClipboardWithFallback } = useClipboard();
 
-  const variantClasses =
-    variant === "purple" ? "border-purple-300 focus:border-purple-500" : "";
-
-  const buttonVariantClasses =
-    variant === "purple"
-      ? "border-purple-300 text-purple-700 hover:bg-purple-50"
-      : "";
-
   return (
     <div className={className}>
       <label className="block text-sm font-medium text-neutral-700 mb-2">
@@ -43,12 +35,11 @@ export default function ApiKeyInput({
           placeholder={placeholder}
           value={apiKey}
           onChange={(e) => setApiKey(e.target.value)}
-          className={`flex-1 ${variantClasses}`}
+          className={`flex-1`}
         />
         <Button
           variant="outline"
           onClick={() => pasteFromClipboardWithFallback(setApiKey)}
-          className={buttonVariantClasses}
         >
           Paste
         </Button>

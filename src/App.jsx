@@ -123,6 +123,9 @@ export default function App() {
   }, [isCommandMenuOpen, isHovered, setWindowInteractivity]);
 
   const startRecording = async () => {
+    if (pendingStartRef.current || isRecording || isProcessing) {
+      return false;
+    }
     try {
       cancelRecordingRef.current = false;
       pendingStartRef.current = true;
@@ -138,6 +141,20 @@ export default function App() {
 
       mediaRecorderRef.current = new window.MediaRecorder(stream);
       audioChunksRef.current = [];
+      let didStart = false;
+
+      mediaRecorderRef.current.onstart = () => {
+        if (cancelRecordingRef.current) {
+          mediaRecorderRef.current?.stop();
+          return;
+        }
+        if (!didStart) {
+          didStart = true;
+          setIsRecording(true);
+          pendingStartRef.current = false;
+          void playCue("start");
+        }
+      };
 
       mediaRecorderRef.current.ondataavailable = (event) => {
         audioChunksRef.current.push(event.data);
@@ -165,9 +182,6 @@ export default function App() {
       };
 
       mediaRecorderRef.current.start();
-      setIsRecording(true);
-      pendingStartRef.current = false;
-      void playCue("start");
     } catch (err) {
       console.error("Recording error:", err);
       toast({
@@ -267,6 +281,13 @@ export default function App() {
     const handleToggle = () => {
       setIsCommandMenuOpen(false);
 
+      if (pendingStartRef.current) {
+        cancelRecordingRef.current = true;
+        pendingStartRef.current = false;
+        setIsRecording(false);
+        return;
+      }
+
       if (hotkeyMode === "hold") {
         if (!isRecording && !isProcessing) {
           hotkeyPressStartRef.current = Date.now();
@@ -311,12 +332,13 @@ export default function App() {
       const pressedAt = hotkeyPressStartRef.current;
       const heldDuration = pressedAt ? now - pressedAt : 0;
       const tooQuick = heldDuration < MIN_HOLD_DURATION_MS;
+      const wasPendingStart = pendingStartRef.current;
 
-      cancelRecordingRef.current = tooQuick;
+      cancelRecordingRef.current = tooQuick || wasPendingStart;
       hotkeyPressStartRef.current = null;
       setIsPushToTalk(false);
 
-      if (pendingStartRef.current) {
+      if (wasPendingStart) {
         // Stop immediately if we released before recording actually began
         setIsRecording(false);
         pendingStartRef.current = false;
@@ -339,6 +361,12 @@ export default function App() {
 
   const toggleListening = () => {
     setIsCommandMenuOpen(false);
+    if (pendingStartRef.current) {
+      cancelRecordingRef.current = true;
+      pendingStartRef.current = false;
+      setIsRecording(false);
+      return;
+    }
     if (!isRecording && !isProcessing) {
       startRecording();
     } else if (isRecording) {
@@ -452,7 +480,7 @@ export default function App() {
         };
       case "processing":
         return {
-          className: `${baseClasses} bg-purple-600 cursor-not-allowed`,
+          className: `${baseClasses} bg-primary cursor-not-allowed`,
           tooltip: "Processing...",
         };
       default:
@@ -564,7 +592,7 @@ export default function App() {
 
               {/* State indicator ring for processing */}
               {micState === "processing" && (
-                <div className="absolute inset-0 rounded-full border-2 border-purple-300 opacity-50"></div>
+                <div className="absolute inset-0 rounded-full border-2 border-primary/30 opacity-50"></div>
               )}
             </button>
           </Tooltip>

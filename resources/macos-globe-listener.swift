@@ -7,6 +7,7 @@ let mask = CGEventMask(1 << CGEventType.flagsChanged.rawValue) |
            CGEventMask(1 << CGEventType.keyUp.rawValue)
 var fnIsDown = false
 var eventTap: CFMachPort?
+let fnKeyCode: Int64 = 63
 
 func eventTapCallback(proxy: CGEventTapProxy, type: CGEventType, event: CGEvent, refcon: UnsafeMutableRawPointer?) -> Unmanaged<CGEvent>? {
     if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
@@ -25,17 +26,21 @@ func eventTapCallback(proxy: CGEventTapProxy, type: CGEventType, event: CGEvent,
         }
     }
 
-    let flags = event.flags
-    let containsFn = flags.contains(.maskSecondaryFn)
+    if type == .flagsChanged {
+        let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
+        let containsFn = event.flags.contains(.maskSecondaryFn)
 
-    if containsFn && !fnIsDown {
-        fnIsDown = true
-        FileHandle.standardOutput.write("FN_DOWN\n".data(using: .utf8)!)
-        fflush(stdout)
-    } else if !containsFn && fnIsDown {
-        fnIsDown = false
-        FileHandle.standardOutput.write("FN_UP\n".data(using: .utf8)!)
-        fflush(stdout)
+        if keyCode == fnKeyCode {
+            if containsFn && !fnIsDown {
+                fnIsDown = true
+                FileHandle.standardOutput.write("FN_DOWN\n".data(using: .utf8)!)
+                fflush(stdout)
+            } else if !containsFn && fnIsDown {
+                fnIsDown = false
+                FileHandle.standardOutput.write("FN_UP\n".data(using: .utf8)!)
+                fflush(stdout)
+            }
+        }
     }
 
     return Unmanaged.passUnretained(event)

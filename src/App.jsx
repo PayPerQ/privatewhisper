@@ -12,15 +12,45 @@ const MIN_HOLD_DURATION_MS = 200;
 const pipelineLogger = createDebugLogger("pipeline");
 const BUILT_IN_MIC_LABEL =
   /built[- ]?in|internal|macbook|imac|mac mini|mac studio|mac pro/i;
+const BUILT_IN_MIC_STORAGE_KEY = "builtInMicDeviceId";
 const builtInMicCache = {
   deviceId: "",
   valid: false,
 };
 let builtInMicListenerRegistered = false;
 
-const invalidateBuiltInMicCache = () => {
+const loadBuiltInMicCacheFromStorage = () => {
+  if (builtInMicCache.valid || builtInMicCache.deviceId) {
+    return;
+  }
+  try {
+    const storedDeviceId = localStorage.getItem(BUILT_IN_MIC_STORAGE_KEY);
+    if (storedDeviceId) {
+      builtInMicCache.deviceId = storedDeviceId;
+      builtInMicCache.valid = true;
+    }
+  } catch {}
+};
+
+const persistBuiltInMicCache = () => {
+  if (!builtInMicCache.deviceId) return;
+  try {
+    localStorage.setItem(BUILT_IN_MIC_STORAGE_KEY, builtInMicCache.deviceId);
+  } catch {}
+};
+
+const clearBuiltInMicStorage = () => {
+  try {
+    localStorage.removeItem(BUILT_IN_MIC_STORAGE_KEY);
+  } catch {}
+};
+
+const invalidateBuiltInMicCache = ({ clearStorage = false } = {}) => {
   builtInMicCache.deviceId = "";
   builtInMicCache.valid = false;
+  if (clearStorage) {
+    clearBuiltInMicStorage();
+  }
 };
 
 const registerBuiltInMicCacheListener = () => {
@@ -34,6 +64,7 @@ const registerBuiltInMicCacheListener = () => {
 
 async function getBuiltInMicrophoneStream() {
   registerBuiltInMicCacheListener();
+  loadBuiltInMicCacheFromStorage();
 
   if (builtInMicCache.valid && builtInMicCache.deviceId) {
     try {
@@ -41,7 +72,7 @@ async function getBuiltInMicrophoneStream() {
         audio: { deviceId: { exact: builtInMicCache.deviceId } },
       });
     } catch {
-      invalidateBuiltInMicCache();
+      invalidateBuiltInMicCache({ clearStorage: true });
     }
   }
 
@@ -71,6 +102,7 @@ async function getBuiltInMicrophoneStream() {
 
   builtInMicCache.deviceId = builtInDevice.deviceId;
   builtInMicCache.valid = true;
+  persistBuiltInMicCache();
 
   const currentTrack = initialStream.getAudioTracks()[0];
   const currentDeviceId = currentTrack?.getSettings?.().deviceId;

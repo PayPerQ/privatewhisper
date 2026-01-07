@@ -12,8 +12,39 @@ const MIN_HOLD_DURATION_MS = 200;
 const pipelineLogger = createDebugLogger("pipeline");
 const BUILT_IN_MIC_LABEL =
   /built[- ]?in|internal|macbook|imac|mac mini|mac studio|mac pro/i;
+const builtInMicCache = {
+  deviceId: "",
+  valid: false,
+};
+let builtInMicListenerRegistered = false;
+
+const invalidateBuiltInMicCache = () => {
+  builtInMicCache.deviceId = "";
+  builtInMicCache.valid = false;
+};
+
+const registerBuiltInMicCacheListener = () => {
+  if (builtInMicListenerRegistered) return;
+  if (!navigator.mediaDevices?.addEventListener) return;
+  navigator.mediaDevices.addEventListener("devicechange", () => {
+    invalidateBuiltInMicCache();
+  });
+  builtInMicListenerRegistered = true;
+};
 
 async function getBuiltInMicrophoneStream() {
+  registerBuiltInMicCacheListener();
+
+  if (builtInMicCache.valid && builtInMicCache.deviceId) {
+    try {
+      return await navigator.mediaDevices.getUserMedia({
+        audio: { deviceId: { exact: builtInMicCache.deviceId } },
+      });
+    } catch {
+      invalidateBuiltInMicCache();
+    }
+  }
+
   const initialStream = await navigator.mediaDevices.getUserMedia({
     audio: true,
   });
@@ -37,6 +68,9 @@ async function getBuiltInMicrophoneStream() {
   if (!builtInDevice?.deviceId) {
     return initialStream;
   }
+
+  builtInMicCache.deviceId = builtInDevice.deviceId;
+  builtInMicCache.valid = true;
 
   const currentTrack = initialStream.getAudioTracks()[0];
   const currentDeviceId = currentTrack?.getSettings?.().deviceId;

@@ -17,6 +17,8 @@ export interface ApiKeySettings {
 
 export interface AudioSettings {
   audioCuesEnabled: boolean;
+  alwaysUseBuiltInMic: boolean;
+  preferredMicrophoneId: string;
 }
 
 export function useSettings() {
@@ -58,6 +60,24 @@ export function useSettings() {
     },
   );
 
+  const [alwaysUseBuiltInMic, setAlwaysUseBuiltInMic] = useLocalStorage(
+    "alwaysUseBuiltInMic",
+    true,
+    {
+      serialize: String,
+      deserialize: (value) => value !== "false",
+    },
+  );
+
+  const [preferredMicrophoneId, setPreferredMicrophoneId] = useLocalStorage(
+    "preferredMicrophoneId",
+    "",
+    {
+      serialize: String,
+      deserialize: String,
+    },
+  );
+
   // Batch operations
   const updateTranscriptionSettings = useCallback(
     (settings: Partial<TranscriptionSettings>) => {
@@ -92,8 +112,14 @@ export function useSettings() {
       if (settings.audioCuesEnabled !== undefined) {
         setAudioCuesEnabled(settings.audioCuesEnabled);
       }
+      if (settings.alwaysUseBuiltInMic !== undefined) {
+        setAlwaysUseBuiltInMic(settings.alwaysUseBuiltInMic);
+      }
+      if (settings.preferredMicrophoneId !== undefined) {
+        setPreferredMicrophoneId(settings.preferredMicrophoneId);
+      }
     },
-    [setAudioCuesEnabled],
+    [setAudioCuesEnabled, setAlwaysUseBuiltInMic, setPreferredMicrophoneId],
   );
 
   return {
@@ -102,11 +128,15 @@ export function useSettings() {
     dictationKey,
     hotkeyMode,
     audioCuesEnabled,
+    alwaysUseBuiltInMic,
+    preferredMicrophoneId,
     setPreferredLanguage,
     setPpqApiKey,
     setDictationKey,
     setHotkeyMode,
     setAudioCuesEnabled,
+    setAlwaysUseBuiltInMic,
+    setPreferredMicrophoneId,
     updateTranscriptionSettings,
     updateApiKeys,
     updateHotkeySettings,

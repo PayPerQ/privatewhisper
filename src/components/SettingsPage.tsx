@@ -10,10 +10,19 @@ import { usePermissions } from "../hooks/usePermissions";
 import { formatHotkeyLabel } from "../utils/hotkeys";
 import LanguageSelector from "./ui/LanguageSelector";
 import { Toggle } from "./ui/toggle";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "./ui/select";
 import type { UpdateInfoResult } from "../types/electron";
 const InteractiveKeyboard = React.lazy(() => import("./ui/Keyboard"));
 
 export type SettingsSectionType = "general" | "transcription";
+
+const SYSTEM_DEFAULT_DEVICE_ID = "__system_default__";
 
 interface SettingsPageProps {
   activeSection?: SettingsSectionType;
@@ -38,11 +47,15 @@ export default function SettingsPage({
     dictationKey,
     hotkeyMode,
     audioCuesEnabled,
+    alwaysUseBuiltInMic,
+    preferredMicrophoneId,
     setPreferredLanguage,
     setPpqApiKey,
     setDictationKey,
     setHotkeyMode,
     setAudioCuesEnabled,
+    setAlwaysUseBuiltInMic,
+    setPreferredMicrophoneId,
     updateTranscriptionSettings,
     updateApiKeys,
   } = useSettings();
@@ -63,6 +76,11 @@ export default function SettingsPage({
     releaseDate?: string;
     releaseNotes?: string;
   }>({});
+  const [microphoneDevices, setMicrophoneDevices] = useState<MediaDeviceInfo[]>(
+    [],
+  );
+  const [microphoneLoading, setMicrophoneLoading] = useState(false);
+  const [microphoneError, setMicrophoneError] = useState("");
   const openApiDocs = useCallback(() => {
     window.electronAPI?.openExternal?.("https://ppq.ai/api-docs");
   }, []);
@@ -72,6 +90,15 @@ export default function SettingsPage({
     (updateStatus.updateAvailable || updateStatus.updateDownloaded);
 
   const permissionsHook = usePermissions(showAlertDialog);
+  const hasLabeledMicrophones = microphoneDevices.some(
+    (device) => device.label && device.label.trim(),
+  );
+  const preferredMicrophoneMissing =
+    Boolean(preferredMicrophoneId) &&
+    microphoneDevices.length > 0 &&
+    !microphoneDevices.some(
+      (device) => device.deviceId === preferredMicrophoneId,
+    );
   const installTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const subscribeToUpdates = useCallback(() => {
@@ -136,6 +163,36 @@ export default function SettingsPage({
     });
   }, [showAlertDialog]);
 
+  const loadMicrophones = useCallback(async () => {
+    if (!navigator.mediaDevices?.enumerateDevices) {
+      setMicrophoneDevices([]);
+      setMicrophoneError("Microphone selection isn't supported here.");
+      return;
+    }
+
+    setMicrophoneLoading(true);
+    setMicrophoneError("");
+
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const audioInputs = devices.filter(
+        (device) =>
+          device.kind === "audioinput" &&
+          device.deviceId !== "default" &&
+          device.deviceId !== "communications",
+      );
+      setMicrophoneDevices(audioInputs);
+    } catch (error) {
+      console.error("Failed to enumerate audio devices:", error);
+      setMicrophoneDevices([]);
+      setMicrophoneError(
+        "Unable to load microphones. Check your permission settings.",
+      );
+    } finally {
+      setMicrophoneLoading(false);
+    }
+  }, []);
+
   // Local state for provider selection (overrides computed value)
   useEffect(() => {
     let mounted = true;
@@ -187,6 +244,20 @@ export default function SettingsPage({
       }
     };
   }, [subscribeToUpdates]);
+
+  useEffect(() => {
+    if (alwaysUseBuiltInMic) return;
+
+    void loadMicrophones();
+
+    const mediaDevices = navigator.mediaDevices;
+    if (!mediaDevices?.addEventListener) return;
+
+    mediaDevices.addEventListener("devicechange", loadMicrophones);
+    return () => {
+      mediaDevices.removeEventListener("devicechange", loadMicrophones);
+    };
+  }, [alwaysUseBuiltInMic, loadMicrophones]);
 
   useEffect(() => {
     if (installInitiated) {
@@ -600,6 +671,122 @@ export default function SettingsPage({
                 >
                   Save Hotkey
                 </Button>
+              </div>
+            </div>
+
+            {/* Microphone Section */}
+            <div className="border-t pt-8">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  Microphone
+                </h3>
+                <p className="text-sm text-gray-600 mb-4">
+                  Choose which microphone PPQ Voice uses for recording.
+                </p>
+              </div>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between p-4 bg-neutral-50 rounded-lg">
+                  <div>
+                    <p className="text-sm font-medium text-neutral-800">
+                      Always default to built-in microphone
+                    </p>
+                    <p className="text-xs text-neutral-600">
+                      Recommended for the lowest latency and most consistent
+                      quality.
+                    </p>
+                  </div>
+                  <Toggle
+                    checked={alwaysUseBuiltInMic}
+                    onChange={(checked) => setAlwaysUseBuiltInMic(checked)}
+                  />
+                </div>
+                {!alwaysUseBuiltInMic && (
+                  <div className="space-y-3">
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-medium text-neutral-800">
+                          Preferred microphone
+                        </p>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={loadMicrophones}
+                          disabled={microphoneLoading}
+                        >
+                          <RefreshCw
+                            className={microphoneLoading ? "animate-spin" : ""}
+                            size={14}
+                          />
+                          Refresh
+                        </Button>
+                      </div>
+                      <div className="mt-2">
+                        <Select
+                          value={
+                            preferredMicrophoneId || SYSTEM_DEFAULT_DEVICE_ID
+                          }
+                          onValueChange={(value) =>
+                            setPreferredMicrophoneId(
+                              value === SYSTEM_DEFAULT_DEVICE_ID ? "" : value,
+                            )
+                          }
+                        >
+                          <SelectTrigger className="w-full bg-white">
+                            <SelectValue
+                              placeholder={
+                                microphoneLoading
+                                  ? "Loading microphones..."
+                                  : "Select a microphone"
+                              }
+                            />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value={SYSTEM_DEFAULT_DEVICE_ID}>
+                              System default
+                            </SelectItem>
+                            {microphoneDevices.length === 0 ? (
+                              <SelectItem value="no-mics" disabled>
+                                No microphones found
+                              </SelectItem>
+                            ) : (
+                              microphoneDevices.map((device, index) => (
+                                <SelectItem
+                                  key={device.deviceId}
+                                  value={device.deviceId}
+                                >
+                                  {device.label?.trim() ||
+                                    `Microphone ${index + 1}`}
+                                </SelectItem>
+                              ))
+                            )}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      {microphoneError && (
+                        <p className="text-xs text-rose-600 mt-2">
+                          {microphoneError}
+                        </p>
+                      )}
+                      {!microphoneError &&
+                        microphoneDevices.length > 0 &&
+                        !hasLabeledMicrophones && (
+                          <p className="text-xs text-neutral-500 mt-2">
+                            Grant microphone permission to see device names.
+                          </p>
+                        )}
+                      {!microphoneError && preferredMicrophoneMissing && (
+                        <p className="text-xs text-neutral-500 mt-2">
+                          The selected microphone isn't available. We'll use the
+                          system default instead.
+                        </p>
+                      )}
+                    </div>
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+                      External microphones may introduce latency or reduce audio
+                      quality.
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 

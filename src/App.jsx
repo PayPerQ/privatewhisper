@@ -10,6 +10,74 @@ import createDebugLogger from "./utils/debugLoggerRenderer";
 
 const MIN_HOLD_DURATION_MS = 200;
 const pipelineLogger = createDebugLogger("pipeline");
+const BUILT_IN_MIC_LABEL =
+  /built[- ]?in|internal|macbook|imac|mac mini|mac studio|mac pro/i;
+
+async function getBuiltInMicrophoneStream() {
+  const initialStream = await navigator.mediaDevices.getUserMedia({
+    audio: true,
+  });
+
+  if (!navigator.mediaDevices?.enumerateDevices) {
+    return initialStream;
+  }
+
+  let devices = [];
+  try {
+    devices = await navigator.mediaDevices.enumerateDevices();
+  } catch {
+    return initialStream;
+  }
+
+  const builtInDevice = devices.find(
+    (device) =>
+      device.kind === "audioinput" && BUILT_IN_MIC_LABEL.test(device.label),
+  );
+
+  if (!builtInDevice?.deviceId) {
+    return initialStream;
+  }
+
+  const currentTrack = initialStream.getAudioTracks()[0];
+  const currentDeviceId = currentTrack?.getSettings?.().deviceId;
+  if (currentDeviceId && currentDeviceId === builtInDevice.deviceId) {
+    return initialStream;
+  }
+  if (currentTrack?.label && currentTrack.label === builtInDevice.label) {
+    return initialStream;
+  }
+
+  try {
+    const builtInStream = await navigator.mediaDevices.getUserMedia({
+      audio: { deviceId: { exact: builtInDevice.deviceId } },
+    });
+    initialStream.getTracks().forEach((track) => track.stop());
+    return builtInStream;
+  } catch {
+    return initialStream;
+  }
+}
+
+async function getPreferredMicrophoneStream({
+  alwaysUseBuiltInMic,
+  preferredMicrophoneId,
+}) {
+  if (alwaysUseBuiltInMic) {
+    return getBuiltInMicrophoneStream();
+  }
+
+  if (preferredMicrophoneId) {
+    try {
+      return await navigator.mediaDevices.getUserMedia({
+        audio: { deviceId: { exact: preferredMicrophoneId } },
+      });
+    } catch {
+      return navigator.mediaDevices.getUserMedia({ audio: true });
+    }
+  }
+
+  return navigator.mediaDevices.getUserMedia({ audio: true });
+}
 
 // Sound Wave Icon Component (for idle/hover states)
 const SoundWaveIcon = ({ size = 16 }) => {
@@ -96,7 +164,13 @@ export default function App() {
   const cancelRecordingRef = useRef(false);
   const pendingStartRef = useRef(false);
   const audioContextRef = useRef(null);
-  const { preferredLanguage, hotkeyMode, audioCuesEnabled } = useSettings();
+  const {
+    preferredLanguage,
+    hotkeyMode,
+    audioCuesEnabled,
+    alwaysUseBuiltInMic,
+    preferredMicrophoneId,
+  } = useSettings();
 
   const audioSettings = useMemo(
     () => ({
@@ -129,7 +203,10 @@ export default function App() {
     try {
       cancelRecordingRef.current = false;
       pendingStartRef.current = true;
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await getPreferredMicrophoneStream({
+        alwaysUseBuiltInMic,
+        preferredMicrophoneId,
+      });
 
       // If user released before the stream was ready, abort quietly
       if (cancelRecordingRef.current) {

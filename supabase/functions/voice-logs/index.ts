@@ -37,16 +37,7 @@ Deno.serve(async (req) => {
   const authHeader = req.headers.get("Authorization") ?? "";
   const apiKeyHeader = req.headers.get("apikey") ?? "";
   const providedKey = authHeader.replace(/^Bearer\s+/i, "") || apiKeyHeader;
-  const expectedKey = PUBLISHABLE_KEY;
-
-  console.log("Auth debug:", {
-    providedPrefix: providedKey?.substring(0, 25),
-    expectedPrefix: expectedKey?.substring(0, 25),
-    hasExpected: !!expectedKey,
-    match: providedKey === expectedKey,
-  });
-
-  if (!providedKey || !expectedKey || providedKey !== expectedKey) {
+  if (!providedKey || providedKey !== PUBLISHABLE_KEY) {
     return jsonResponse(401, { error: "Unauthorized" });
   }
 

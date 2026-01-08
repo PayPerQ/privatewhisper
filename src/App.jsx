@@ -426,13 +426,6 @@ export default function App() {
                 const outputTokens =
                   metrics?.flags?.reasoningOutputTokens ?? null;
 
-                const userLocale =
-                  navigator.language?.split("-")[1] ||
-                  Intl.DateTimeFormat()
-                    .resolvedOptions()
-                    .locale?.split("-")[1] ||
-                  null;
-
                 const logPayload = {
                   request_started_at: new Date(
                     requestStartedAtMs,
@@ -440,7 +433,6 @@ export default function App() {
                   response_received_at: new Date(
                     responseReceivedAtMs,
                   ).toISOString(),
-                  country_code: userLocale?.toUpperCase() || null,
                   stt_processing_ms: sttProcessingMs ?? null,
                   audio_duration_ms: lastAudioDurationMsRef.current ?? null,
                   llm_processing_ms: llmProcessingMs ?? null,
@@ -700,11 +692,10 @@ export default function App() {
     [audioCuesEnabled],
   );
 
-  // Determine current mic state
   const getMicState = () => {
     if (isRecording) return "recording";
     if (isProcessing) return "processing";
-    if (isHovered && !isRecording && !isProcessing) return "hover";
+    if (isHovered) return "hover";
     return "idle";
   };
 
@@ -714,39 +705,19 @@ export default function App() {
       ? `Hold [${hotkey}] while you speak`
       : `Press [${hotkey}] to speak`;
 
-  // Get microphone button properties based on state
   const getMicButtonProps = () => {
     const baseClasses =
-      "rounded-full w-10 h-10 flex items-center justify-center relative overflow-hidden border-2 border-white/70 cursor-pointer";
+      "rounded-full w-10 h-10 flex items-center justify-center relative overflow-hidden border-2 border-white/70";
+    const isActive = micState === "recording" || micState === "processing";
 
-    switch (micState) {
-      case "idle":
-        return {
-          className: `${baseClasses} bg-black/50 cursor-pointer`,
-          tooltip: hotkeyTooltip,
-        };
-      case "hover":
-        return {
-          className: `${baseClasses} bg-black/50 cursor-pointer`,
-          tooltip: hotkeyTooltip,
-        };
-      case "recording":
-        return {
-          className: `${baseClasses} bg-primary cursor-pointer`,
-          tooltip: "Recording...",
-        };
-      case "processing":
-        return {
-          className: `${baseClasses} bg-primary cursor-not-allowed`,
-          tooltip: "Processing...",
-        };
-      default:
-        return {
-          className: `${baseClasses} bg-black/50 cursor-pointer`,
-          style: { transform: "scale(0.8)" },
-          tooltip: "Click to speak",
-        };
-    }
+    return {
+      className: `${baseClasses} ${isActive ? "bg-primary" : "bg-black/50"}`,
+      tooltip: isActive
+        ? micState === "recording"
+          ? "Recording..."
+          : "Processing..."
+        : hotkeyTooltip,
+    };
   };
 
   const micProps = getMicButtonProps();
@@ -809,13 +780,12 @@ export default function App() {
               onBlur={() => setIsHovered(false)}
               className={micProps.className}
               style={{
-                ...micProps.style,
                 cursor:
                   micState === "processing"
-                    ? "not-allowed !important"
+                    ? "not-allowed"
                     : isDragging
-                      ? "grabbing !important"
-                      : "pointer !important",
+                      ? "grabbing"
+                      : "pointer",
                 transition:
                   "transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.25s ease-out",
               }}

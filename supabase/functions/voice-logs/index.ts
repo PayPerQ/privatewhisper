@@ -41,6 +41,8 @@ Deno.serve(async (req) => {
     return jsonResponse(401, { error: "Unauthorized" });
   }
 
+  const cfCountry = req.headers.get("cf-ipcountry");
+
   let payload: Record<string, unknown>;
   try {
     payload = await req.json();
@@ -56,7 +58,7 @@ Deno.serve(async (req) => {
     request_started_at: payload.request_started_at,
     response_received_at: payload.response_received_at,
     app_version: normalizeString(payload.app_version),
-    country_code: normalizeCountryCode(payload.country_code),
+    country_code: normalizeCountryCode(cfCountry),
     stt_processing_ms: normalizeInt(payload.stt_processing_ms),
     audio_duration_ms: normalizeInt(payload.audio_duration_ms),
     llm_processing_ms: normalizeInt(payload.llm_processing_ms),

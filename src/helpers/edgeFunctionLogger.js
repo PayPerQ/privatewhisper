@@ -4,8 +4,13 @@ const DEFAULT_FUNCTION_NAME = "voice-logs";
 const REQUEST_TIMEOUT_MS = 2000;
 
 class EdgeFunctionLogger {
-  constructor(environmentManager) {
+  constructor(environmentManager, appVersion = "") {
     this.environmentManager = environmentManager;
+    this.appVersion = appVersion;
+  }
+
+  setAppVersion(version) {
+    this.appVersion = version;
   }
 
   getConfig() {
@@ -42,7 +47,7 @@ class EdgeFunctionLogger {
         ".functions.supabase.co",
       );
       return `${url.protocol}//${host}`;
-    } catch (_error) {
+    } catch {
       return "";
     }
   }
@@ -60,14 +65,19 @@ class EdgeFunctionLogger {
       return { skipped: true, reason: "missing_supabase_config" };
     }
 
-    if (!payload.request_started_at) {
-      return { skipped: true, reason: "missing_required_fields" };
+    if (!payload.request_started_at || !payload.response_received_at) {
+      return { skipped: true, reason: "missing_required_timestamps" };
     }
 
     const endpoint = this.buildEndpoint(config);
     if (!endpoint) {
       return { skipped: true, reason: "missing_endpoint" };
     }
+
+    const enrichedPayload = {
+      ...payload,
+      app_version: this.appVersion || undefined,
+    };
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
@@ -77,9 +87,10 @@ class EdgeFunctionLogger {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${config.publishableKey}`,
           apikey: config.publishableKey,
         },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(enrichedPayload),
         signal: controller.signal,
       });
 

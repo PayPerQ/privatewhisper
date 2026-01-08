@@ -426,6 +426,13 @@ export default function App() {
                 const outputTokens =
                   metrics?.flags?.reasoningOutputTokens ?? null;
 
+                const userLocale =
+                  navigator.language?.split("-")[1] ||
+                  Intl.DateTimeFormat()
+                    .resolvedOptions()
+                    .locale?.split("-")[1] ||
+                  null;
+
                 const logPayload = {
                   request_started_at: new Date(
                     requestStartedAtMs,
@@ -433,6 +440,7 @@ export default function App() {
                   response_received_at: new Date(
                     responseReceivedAtMs,
                   ).toISOString(),
+                  country_code: userLocale?.toUpperCase() || null,
                   stt_processing_ms: sttProcessingMs ?? null,
                   audio_duration_ms: lastAudioDurationMsRef.current ?? null,
                   llm_processing_ms: llmProcessingMs ?? null,

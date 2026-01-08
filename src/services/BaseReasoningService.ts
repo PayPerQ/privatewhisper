@@ -6,7 +6,6 @@ export interface ReasoningConfig {
 
 export interface ReasoningUsage {
   promptTokens?: number;
-  completionTokens?: number;
   outputTokens?: number;
   totalTokens?: number;
 }

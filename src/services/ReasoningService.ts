@@ -77,32 +77,23 @@ Output: Only the corrected text. No explanations, comments, or formatting.`;
 
   private extractUsage(payload: any): ReasoningUsage | undefined {
     const usage = payload?.usage;
-    if (!usage || typeof usage !== "object") {
-      return undefined;
-    }
+    if (!usage || typeof usage !== "object") return undefined;
 
-    const promptTokens =
-      usage.prompt_tokens ?? usage.promptTokens ?? usage.input_tokens;
-    const completionTokens =
-      usage.completion_tokens ?? usage.completionTokens ?? usage.output_tokens;
-    const outputTokens = usage.output_tokens ?? usage.outputTokens;
-    const totalTokens = usage.total_tokens ?? usage.totalTokens;
+    const num = (v: unknown) => (typeof v === "number" ? v : undefined);
+    const { prompt_tokens, completion_tokens, total_tokens } = usage;
 
     if (
-      promptTokens == null &&
-      completionTokens == null &&
-      outputTokens == null &&
-      totalTokens == null
+      prompt_tokens == null &&
+      completion_tokens == null &&
+      total_tokens == null
     ) {
       return undefined;
     }
 
     return {
-      promptTokens: typeof promptTokens === "number" ? promptTokens : undefined,
-      completionTokens:
-        typeof completionTokens === "number" ? completionTokens : undefined,
-      outputTokens: typeof outputTokens === "number" ? outputTokens : undefined,
-      totalTokens: typeof totalTokens === "number" ? totalTokens : undefined,
+      promptTokens: num(prompt_tokens),
+      outputTokens: num(completion_tokens),
+      totalTokens: num(total_tokens),
     };
   }
 

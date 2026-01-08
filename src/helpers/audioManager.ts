@@ -292,8 +292,7 @@ class AudioManager {
 
     try {
       const result = await ReasoningService.processText(text, model);
-      const outputTokens =
-        result.usage?.completionTokens ?? result.usage?.outputTokens ?? null;
+      const outputTokens = result.usage?.outputTokens ?? null;
 
       const processingTime = Date.now() - startTime;
       metrics?.mark("reasoningEnd");

@@ -61,7 +61,10 @@ async function startApp() {
   trayManager = new TrayManager();
   updateManager = new UpdateManager();
   globeKeyManager = new GlobeKeyManager();
-  edgeFunctionLogger = new EdgeFunctionLogger(environmentManager);
+  edgeFunctionLogger = new EdgeFunctionLogger(
+    environmentManager,
+    app.getVersion(),
+  );
 
   // Set up Globe key error handler (macOS only)
   if (process.platform === "darwin") {

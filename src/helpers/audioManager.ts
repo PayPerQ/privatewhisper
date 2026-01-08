@@ -19,6 +19,7 @@ class PipelineMetrics {
   startedAtEpochMs: number;
   marks: Record<string, number>;
   flags: PipelineMetricsFlags;
+  errorMessage: string | null;
 
   constructor() {
     this.id = `dictation-${Date.now().toString(36)}-${Math.random()
@@ -28,6 +29,13 @@ class PipelineMetrics {
     this.startedAt = nowMs();
     this.marks = { start: this.startedAt };
     this.flags = {};
+    this.errorMessage = null;
+  }
+
+  setError(message: string) {
+    if (!this.errorMessage) {
+      this.errorMessage = message;
+    }
   }
 
   mark(stage: string, details: PipelineMetricsFlags = {}) {
@@ -155,6 +163,11 @@ class AudioManager {
       this.onError?.({
         title: "Transcription Error",
         description: `Transcription failed: ${error.message}`,
+      });
+      // Also call onTranscriptionComplete with failure so errors get logged
+      this.onTranscriptionComplete?.({
+        success: false,
+        metrics: this.metrics,
       });
     }
   }
@@ -316,6 +329,7 @@ class AudioManager {
       metrics?.mark("reasoningEnd");
       metrics?.setFlag("reasoningUsed", true);
       metrics?.setFlag("reasoningSuccess", false);
+      metrics?.setError(`reasoning_failed: ${error.message}`);
 
       void debugLogger.log("REASONING_SERVICE_ERROR", {
         model,
@@ -550,6 +564,7 @@ class AudioManager {
         error: error.message,
         stack: error.stack,
       });
+      metrics?.setError(`transcription_failed: ${error.message}`);
       throw error;
     }
   }

@@ -373,9 +373,9 @@ export default function App() {
           });
         },
         onTranscriptionComplete: async (result) => {
-          if (result.success && result.text) {
-            const metrics = result.metrics;
+          const metrics = result.metrics;
 
+          if (result.success && result.text) {
             // Paste immediately - don't wait for database save
             metrics?.mark?.("pasteStart");
             const pastePromise = audioManager.safePaste(result.text);
@@ -386,69 +386,68 @@ export default function App() {
               await pastePromise;
             } finally {
               metrics?.mark?.("pasteEnd");
-              const summary = metrics?.buildSummary
-                ? metrics.buildSummary("pasteEnd")
-                : null;
+            }
+          }
 
-              if (summary) {
-                summary.textLength = result.text.length;
-                summary.source = result.source;
-                void pipelineLogger.log("PIPELINE_TIMING_SUMMARY", summary);
+          // Log metrics for both success and failure cases
+          const summary = metrics?.buildSummary
+            ? metrics.buildSummary(result.success ? "pasteEnd" : "start")
+            : null;
 
-                const requestStartedAtMs =
-                  summary.startedAtEpochMs || Date.now();
-                const responseReceivedAtMs =
-                  metrics?.flags?.finalTextReadyAtMs || Date.now();
-                const sttProcessingMs = metrics?.duration?.(
-                  "transcriptionRequestStart",
-                  "transcriptionTextReady",
-                );
-                const llmProcessingMs = summary.stages?.reasoningMs ?? null;
-                const roundtripMs = Number.isFinite(responseReceivedAtMs)
-                  ? Math.max(0, responseReceivedAtMs - requestStartedAtMs)
-                  : null;
-                const miscProcessingMs =
-                  roundtripMs == null
-                    ? null
-                    : Math.max(
-                        0,
-                        roundtripMs -
-                          (sttProcessingMs ?? 0) -
-                          (llmProcessingMs ?? 0),
-                      );
-                const reasoningUsed = Boolean(metrics?.flags?.reasoningUsed);
-                const modelUsed = reasoningUsed
-                  ? metrics?.flags?.reasoningModel
-                  : metrics?.flags?.transcriptionModel;
-                const providerUsed = reasoningUsed
-                  ? metrics?.flags?.reasoningProvider || "groq"
-                  : "ppq";
-                const outputTokens =
-                  metrics?.flags?.reasoningOutputTokens ?? null;
+          if (summary) {
+            summary.textLength = result.text?.length ?? 0;
+            summary.source = result.source;
+            void pipelineLogger.log("PIPELINE_TIMING_SUMMARY", summary);
 
-                const logPayload = {
-                  request_started_at: new Date(
-                    requestStartedAtMs,
-                  ).toISOString(),
-                  response_received_at: new Date(
-                    responseReceivedAtMs,
-                  ).toISOString(),
-                  stt_processing_ms: sttProcessingMs ?? null,
-                  audio_duration_ms: lastAudioDurationMsRef.current ?? null,
-                  llm_processing_ms: llmProcessingMs ?? null,
-                  output_tokens: outputTokens,
-                  roundtrip_ms: roundtripMs,
-                  misc_processing_ms: miscProcessingMs,
-                  model_used: modelUsed ?? null,
-                  provider_used: providerUsed ?? null,
-                };
+            const requestStartedAtMs = summary.startedAtEpochMs || Date.now();
+            const responseReceivedAtMs =
+              metrics?.flags?.finalTextReadyAtMs || Date.now();
+            const sttProcessingMs = metrics?.duration?.(
+              "transcriptionRequestStart",
+              "transcriptionTextReady",
+            );
+            const llmProcessingMs = summary.stages?.reasoningMs ?? null;
+            const roundtripMs = Number.isFinite(responseReceivedAtMs)
+              ? Math.max(0, responseReceivedAtMs - requestStartedAtMs)
+              : null;
+            const miscProcessingMs =
+              roundtripMs == null
+                ? null
+                : Math.max(
+                    0,
+                    roundtripMs -
+                      (sttProcessingMs ?? 0) -
+                      (llmProcessingMs ?? 0),
+                  );
+            const reasoningUsed = Boolean(metrics?.flags?.reasoningUsed);
+            const modelUsed = reasoningUsed
+              ? metrics?.flags?.reasoningModel
+              : metrics?.flags?.transcriptionModel;
+            const providerUsed = reasoningUsed
+              ? metrics?.flags?.reasoningProvider || "groq"
+              : "ppq";
+            const outputTokens = metrics?.flags?.reasoningOutputTokens ?? null;
 
-                if (window.electronAPI?.logPipelineMetrics) {
-                  scheduleBackgroundTask(() => {
-                    void window.electronAPI.logPipelineMetrics(logPayload);
-                  });
-                }
-              }
+            const logPayload = {
+              request_started_at: new Date(requestStartedAtMs).toISOString(),
+              response_received_at: new Date(
+                responseReceivedAtMs,
+              ).toISOString(),
+              stt_processing_ms: sttProcessingMs ?? null,
+              audio_duration_ms: lastAudioDurationMsRef.current ?? null,
+              llm_processing_ms: llmProcessingMs ?? null,
+              output_tokens: outputTokens,
+              roundtrip_ms: roundtripMs,
+              misc_processing_ms: miscProcessingMs,
+              model_used: modelUsed ?? null,
+              provider_used: providerUsed ?? null,
+              error_message: metrics?.errorMessage ?? null,
+            };
+
+            if (window.electronAPI?.logPipelineMetrics) {
+              scheduleBackgroundTask(() => {
+                void window.electronAPI.logPipelineMetrics(logPayload);
+              });
             }
           }
         },

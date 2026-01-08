@@ -31,9 +31,7 @@ const getClientIp = (req: Request): string | null => {
     return forwarded.split(",")[0]?.trim() || null;
   }
   return (
-    req.headers.get("cf-connecting-ip") ||
-    req.headers.get("x-real-ip") ||
-    null
+    req.headers.get("cf-connecting-ip") || req.headers.get("x-real-ip") || null
   );
 };
 
@@ -107,6 +105,7 @@ Deno.serve(async (req) => {
     misc_processing_ms: normalizeInt(payload.misc_processing_ms),
     model_used: normalizeString(payload.model_used),
     provider_used: normalizeString(payload.provider_used),
+    error_message: normalizeString(payload.error_message),
   };
 
   if (!SERVICE_ROLE_KEY) {

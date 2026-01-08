@@ -39,7 +39,9 @@ const fetchGeo = async (ip: string) => {
 };
 
 const normalizeInt = (value: unknown) =>
-  typeof value === "number" && Number.isFinite(value) ? Math.round(value) : null;
+  typeof value === "number" && Number.isFinite(value)
+    ? Math.round(value)
+    : null;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -79,7 +81,8 @@ Deno.serve(async (req) => {
     output_tokens: normalizeInt(payload.output_tokens),
     roundtrip_ms: normalizeInt(payload.roundtrip_ms),
     misc_processing_ms: normalizeInt(payload.misc_processing_ms),
-    model_used: typeof payload.model_used === "string" ? payload.model_used : null,
+    model_used:
+      typeof payload.model_used === "string" ? payload.model_used : null,
     provider_used:
       typeof payload.provider_used === "string" ? payload.provider_used : null,
   };

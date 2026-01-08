@@ -4,6 +4,20 @@ export interface ReasoningConfig {
   contextSize?: number;
 }
 
+export interface ReasoningUsage {
+  promptTokens?: number;
+  completionTokens?: number;
+  outputTokens?: number;
+  totalTokens?: number;
+}
+
+export interface ReasoningResult {
+  text: string;
+  usage?: ReasoningUsage;
+  model?: string;
+  provider?: string;
+}
+
 export abstract class BaseReasoningService {
   protected isProcessing = false;
 
@@ -51,5 +65,5 @@ export abstract class BaseReasoningService {
     text: string,
     modelId: string,
     config?: ReasoningConfig,
-  ): Promise<string>;
+  ): Promise<ReasoningResult>;
 }

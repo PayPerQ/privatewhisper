@@ -1,0 +1,107 @@
+const debugLogger = require("./debugLogger");
+
+const DEFAULT_FUNCTION_NAME = "voice-logs";
+const REQUEST_TIMEOUT_MS = 2000;
+
+class EdgeFunctionLogger {
+  constructor(environmentManager) {
+    this.environmentManager = environmentManager;
+  }
+
+  getConfig() {
+    if (!this.environmentManager?.getSupabaseConfig) {
+      return null;
+    }
+    const config = this.environmentManager.getSupabaseConfig();
+    if (!config?.publishableKey) {
+      return null;
+    }
+
+    const functionsBaseUrl =
+      config.functionsBaseUrl || this.deriveFunctionsBaseUrl(config.url);
+
+    if (!functionsBaseUrl) {
+      return null;
+    }
+
+    return {
+      publishableKey: config.publishableKey,
+      functionsBaseUrl,
+      logFunctionName: config.logFunctionName || DEFAULT_FUNCTION_NAME,
+    };
+  }
+
+  deriveFunctionsBaseUrl(supabaseUrl = "") {
+    try {
+      const url = new URL(supabaseUrl);
+      if (!url.hostname.endsWith(".supabase.co")) {
+        return "";
+      }
+      const host = url.hostname.replace(
+        ".supabase.co",
+        ".functions.supabase.co",
+      );
+      return `${url.protocol}//${host}`;
+    } catch (_error) {
+      return "";
+    }
+  }
+
+  buildEndpoint(config) {
+    const base = config?.functionsBaseUrl;
+    if (!base) return null;
+    const trimmed = base.replace(/\/+$/g, "");
+    return `${trimmed}/${config.logFunctionName}`;
+  }
+
+  async logPipelineMetrics(payload = {}) {
+    const config = this.getConfig();
+    if (!config) {
+      return { skipped: true, reason: "missing_supabase_config" };
+    }
+
+    if (!payload.request_started_at) {
+      return { skipped: true, reason: "missing_required_fields" };
+    }
+
+    const endpoint = this.buildEndpoint(config);
+    if (!endpoint) {
+      return { skipped: true, reason: "missing_endpoint" };
+    }
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+    try {
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          apikey: config.publishableKey,
+        },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => "");
+        debugLogger.error("edge-function", "log-insert-failed", {
+          status: response.status,
+          error: errorText || response.statusText,
+        });
+        return { success: false, status: response.status };
+      }
+
+      return { success: true };
+    } catch (error) {
+      debugLogger.error("edge-function", "log-insert-error", {
+        error: error.message,
+      });
+      return { success: false, error: error.message };
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+}
+
+module.exports = EdgeFunctionLogger;

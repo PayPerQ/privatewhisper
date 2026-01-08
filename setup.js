@@ -7,6 +7,13 @@ const envTemplate = `# PPQ Voice Environment Variables
 # Required: PPQ API key for transcription + clean-up
 PPQ_API_KEY=your_ppq_api_key_here
 
+# Optional: Supabase logging (Edge Function)
+SUPABASE_URL=your_supabase_url_here
+SUPABASE_PUBLISHABLE_KEY=your_supabase_publishable_key_here
+SUPABASE_FUNCTIONS_BASE_URL=https://your-project-ref.functions.supabase.co
+SUPABASE_LOG_FUNCTION_NAME=voice-logs
+SUPABASE_LOG_TABLE=voice_pipeline_logs
+
 # Optional: Verbose logging toggle
 PPQVOICE_DEBUG=false`;
 

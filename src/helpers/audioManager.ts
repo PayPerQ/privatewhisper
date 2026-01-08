@@ -16,6 +16,7 @@ type PipelineMetricsFlags = Record<string, unknown>;
 class PipelineMetrics {
   id: string;
   startedAt: number;
+  startedAtEpochMs: number;
   marks: Record<string, number>;
   flags: PipelineMetricsFlags;
 
@@ -23,6 +24,7 @@ class PipelineMetrics {
     this.id = `dictation-${Date.now().toString(36)}-${Math.random()
       .toString(16)
       .slice(2)}`;
+    this.startedAtEpochMs = Date.now();
     this.startedAt = nowMs();
     this.marks = { start: this.startedAt };
     this.flags = {};
@@ -56,6 +58,7 @@ class PipelineMetrics {
     const summary = {
       id: this.id,
       startedAtMs: this.startedAt,
+      startedAtEpochMs: this.startedAtEpochMs,
       stages: {
         audioOptimizeMs: this.duration("optimizeStart", "optimizeEnd"),
         transcriptionRequestMs: this.duration(
@@ -289,20 +292,26 @@ class AudioManager {
 
     try {
       const result = await ReasoningService.processText(text, model);
+      const outputTokens =
+        result.usage?.completionTokens ?? result.usage?.outputTokens ?? null;
 
       const processingTime = Date.now() - startTime;
       metrics?.mark("reasoningEnd");
       metrics?.setFlag("reasoningUsed", true);
       metrics?.setFlag("reasoningSuccess", true);
+      metrics?.setFlag("reasoningProvider", result.provider);
+      metrics?.setFlag("reasoningOutputTokens", outputTokens);
+      metrics?.setFlag("reasoningResponseReceivedAtMs", Date.now());
 
       void debugLogger.log("REASONING_SERVICE_COMPLETE", {
         model,
         processingTimeMs: processingTime,
-        resultLength: result.length,
+        resultLength: result.text.length,
+        outputTokens,
         success: true,
       });
 
-      return result;
+      return result.text;
     } catch (error: any) {
       const processingTime = Date.now() - startTime;
       metrics?.mark("reasoningEnd");
@@ -378,6 +387,7 @@ class AudioManager {
 
         const result = await this.processWithReasoningModel(preparedText);
         metrics?.mark("finalTextReady");
+        metrics?.setFlag("finalTextReadyAtMs", Date.now());
 
         void debugLogger.log("REASONING_SUCCESS", {
           resultLength: result.length,
@@ -407,6 +417,7 @@ class AudioManager {
 
     const cleaned = AudioManager.cleanTranscription(text);
     metrics?.mark("finalTextReady");
+    metrics?.setFlag("finalTextReadyAtMs", Date.now());
 
     return cleaned;
   }
@@ -518,6 +529,7 @@ class AudioManager {
         return response.json();
       }, createApiRetryStrategy());
       metrics?.mark("transcriptionTextReady");
+      metrics?.setFlag("transcriptionTextReadyAtMs", Date.now());
 
       void debugLogger.log("PPQ_TRANSCRIPTION_SUCCESS", {
         hasText: !!result.text,

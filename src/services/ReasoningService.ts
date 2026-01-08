@@ -1,4 +1,9 @@
-import { BaseReasoningService, ReasoningConfig } from "./BaseReasoningService";
+import {
+  BaseReasoningService,
+  ReasoningConfig,
+  ReasoningResult,
+  ReasoningUsage,
+} from "./BaseReasoningService";
 import { withRetry, createApiRetryStrategy } from "../utils/retry";
 import { API_ENDPOINTS, TOKEN_LIMITS } from "../config/constants";
 import createDebugLogger from "../utils/debugLoggerRenderer";
@@ -70,6 +75,50 @@ Output: Only the corrected text. No explanations, comments, or formatting.`;
     };
   }
 
+  private extractUsage(payload: any): ReasoningUsage | undefined {
+    const usage = payload?.usage;
+    if (!usage || typeof usage !== "object") {
+      return undefined;
+    }
+
+    const promptTokens =
+      usage.prompt_tokens ?? usage.promptTokens ?? usage.input_tokens;
+    const completionTokens =
+      usage.completion_tokens ?? usage.completionTokens ?? usage.output_tokens;
+    const outputTokens = usage.output_tokens ?? usage.outputTokens;
+    const totalTokens = usage.total_tokens ?? usage.totalTokens;
+
+    if (
+      promptTokens == null &&
+      completionTokens == null &&
+      outputTokens == null &&
+      totalTokens == null
+    ) {
+      return undefined;
+    }
+
+    return {
+      promptTokens: typeof promptTokens === "number" ? promptTokens : undefined,
+      completionTokens:
+        typeof completionTokens === "number" ? completionTokens : undefined,
+      outputTokens: typeof outputTokens === "number" ? outputTokens : undefined,
+      totalTokens: typeof totalTokens === "number" ? totalTokens : undefined,
+    };
+  }
+
+  private extractProvider(payload: any): string | undefined {
+    if (typeof payload?.provider === "string") {
+      return payload.provider;
+    }
+    if (typeof payload?.provider_name === "string") {
+      return payload.provider_name;
+    }
+    if (typeof payload?.model_provider === "string") {
+      return payload.model_provider;
+    }
+    return undefined;
+  }
+
   private extractResponseText(payload: any): string {
     if (Array.isArray(payload?.choices)) {
       for (const choice of payload.choices) {
@@ -113,7 +162,7 @@ Output: Only the corrected text. No explanations, comments, or formatting.`;
     text: string,
     modelId: string,
     config: ReasoningConfig = {},
-  ): Promise<string> {
+  ): Promise<ReasoningResult> {
     if (this.isProcessing) {
       throw new Error("Already processing a request");
     }
@@ -189,7 +238,13 @@ Output: Only the corrected text. No explanations, comments, or formatting.`;
         throw new Error("PPQ API returned an empty response");
       }
 
-      return cleaned;
+      return {
+        text: cleaned,
+        usage: this.extractUsage(response),
+        model: requestBody.model,
+        provider:
+          this.extractProvider(response) ?? requestBody?.provider?.order?.[0],
+      };
     } catch (error) {
       void debugLogger.log("PPQ_ERROR", {
         error: (error as Error).message,

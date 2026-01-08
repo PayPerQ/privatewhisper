@@ -27,6 +27,7 @@ const DatabaseManager = require("./src/helpers/database");
 const ClipboardManager = require("./src/helpers/clipboard");
 const TrayManager = require("./src/helpers/tray");
 const IPCHandlers = require("./src/helpers/ipcHandlers");
+const EdgeFunctionLogger = require("./src/helpers/edgeFunctionLogger");
 const UpdateManager = require("./src/updater");
 const GlobeKeyManager = require("./src/helpers/globeKeyManager");
 const { matchesMacKeyCode } = require("./src/helpers/hotkeyKeycodes");
@@ -40,6 +41,7 @@ let clipboardManager;
 let trayManager;
 let updateManager;
 let globeKeyManager;
+let edgeFunctionLogger;
 let ipcHandlers;
 let globeKeyAlertShown = false;
 
@@ -59,6 +61,7 @@ async function startApp() {
   trayManager = new TrayManager();
   updateManager = new UpdateManager();
   globeKeyManager = new GlobeKeyManager();
+  edgeFunctionLogger = new EdgeFunctionLogger(environmentManager);
 
   // Set up Globe key error handler (macOS only)
   if (process.platform === "darwin") {
@@ -89,6 +92,7 @@ async function startApp() {
     databaseManager,
     clipboardManager,
     windowManager,
+    edgeFunctionLogger,
   });
 
   // In development, add a small delay to let Vite start properly

@@ -159,6 +159,9 @@ declare global {
         level?: "debug" | "info" | "warn" | "error",
       ) => Promise<void>;
       getDebugMode?: () => Promise<boolean>;
+      logPipelineMetrics?: (
+        payload: Record<string, any>,
+      ) => Promise<{ queued: boolean }>;
 
       // FFmpeg availability
       checkFFmpegAvailability: () => Promise<boolean>;

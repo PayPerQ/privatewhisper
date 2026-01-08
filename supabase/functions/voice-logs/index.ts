@@ -22,8 +22,47 @@ const normalizeString = (value: unknown): string | null =>
 const normalizeCountryCode = (value: unknown): string | null => {
   if (typeof value !== "string") return null;
   const code = value.trim().toUpperCase();
-  // Valid ISO 3166-1 alpha-2 codes are exactly 2 letters
   return /^[A-Z]{2}$/.test(code) ? code : null;
+};
+
+const getClientIp = (req: Request): string | null => {
+  const forwarded = req.headers.get("x-forwarded-for");
+  if (forwarded) {
+    return forwarded.split(",")[0]?.trim() || null;
+  }
+  return (
+    req.headers.get("cf-connecting-ip") ||
+    req.headers.get("x-real-ip") ||
+    null
+  );
+};
+
+// Cache IP -> country code for 6 hours (persists within isolate lifetime)
+const IP_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+const ipCache = new Map<string, { code: string | null; expiresAt: number }>();
+
+const lookupCountryCode = async (ip: string): Promise<string | null> => {
+  const cached = ipCache.get(ip);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.code;
+  }
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 2000);
+  try {
+    const res = await fetch(`http://ip-api.com/json/${ip}?fields=countryCode`, {
+      signal: controller.signal,
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const code = normalizeCountryCode(data?.countryCode);
+    ipCache.set(ip, { code, expiresAt: Date.now() + IP_CACHE_TTL_MS });
+    return code;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 };
 
 Deno.serve(async (req) => {
@@ -41,8 +80,6 @@ Deno.serve(async (req) => {
     return jsonResponse(401, { error: "Unauthorized" });
   }
 
-  const cfCountry = req.headers.get("cf-ipcountry");
-
   let payload: Record<string, unknown>;
   try {
     payload = await req.json();
@@ -54,11 +91,14 @@ Deno.serve(async (req) => {
     return jsonResponse(400, { error: "Missing required timestamps" });
   }
 
+  const clientIp = getClientIp(req);
+  const countryCode = clientIp ? await lookupCountryCode(clientIp) : null;
+
   const row = {
     request_started_at: payload.request_started_at,
     response_received_at: payload.response_received_at,
     app_version: normalizeString(payload.app_version),
-    country_code: normalizeCountryCode(cfCountry),
+    country_code: countryCode,
     stt_processing_ms: normalizeInt(payload.stt_processing_ms),
     audio_duration_ms: normalizeInt(payload.audio_duration_ms),
     llm_processing_ms: normalizeInt(payload.llm_processing_ms),

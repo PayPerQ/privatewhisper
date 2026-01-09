@@ -42,7 +42,7 @@ class UpdateManager {
     this.autoUpdater.setFeedURL({
       provider: "github",
       owner: "PayPerQ",
-      repo: "ppq-voice-private",
+      repo: "ppq-voice-releases",
       private: false,
     });
 

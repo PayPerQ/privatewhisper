@@ -79,8 +79,8 @@
   "publish": {
     "provider": "github",
     "owner": "PayPerQ",
-    "repo": "ppq-voice-private",
+    "repo": "ppq-voice-releases",
     "private": false,
-    "releaseType": "draft"
+    "releaseType": "release"
   }
 }

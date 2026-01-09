@@ -1,7 +1,15 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
-import { Trash2, Settings, FileText, Mic, X } from "lucide-react";
+import {
+  Trash2,
+  Settings,
+  FileText,
+  Mic,
+  X,
+  Download,
+  Loader2,
+} from "lucide-react";
 import SettingsModal from "./SettingsModal";
 import TitleBar from "./TitleBar";
 import SupportDropdown from "./ui/SupportDropdown";
@@ -22,6 +30,9 @@ export default function ControlPanel() {
     updateDownloaded: false,
     isDevelopment: false,
   });
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [isInstalling, setIsInstalling] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState(0);
   const isWindows =
     typeof window !== "undefined" &&
     window.electronAPI?.getPlatform?.() === "win32";
@@ -59,21 +70,30 @@ export default function ControlPanel() {
 
     const handleUpdateDownloaded = (_event: any, _info: any) => {
       setUpdateStatus((prev) => ({ ...prev, updateDownloaded: true }));
+      setIsDownloading(false);
+      setDownloadProgress(100);
     };
 
     const handleUpdateError = (_event: any, _error: any) => {
-      // Update errors are handled by the update service
+      setIsDownloading(false);
+      setIsInstalling(false);
+    };
+
+    const handleDownloadProgress = (_event: any, progress: any) => {
+      setDownloadProgress(Math.round(progress.percent || 0));
     };
 
     window.electronAPI.onUpdateAvailable(handleUpdateAvailable);
     window.electronAPI.onUpdateDownloaded(handleUpdateDownloaded);
     window.electronAPI.onUpdateError(handleUpdateError);
+    window.electronAPI.onUpdateDownloadProgress(handleDownloadProgress);
 
     // Cleanup listeners on unmount
     return () => {
       window.electronAPI.removeAllListeners?.("update-available");
       window.electronAPI.removeAllListeners?.("update-downloaded");
       window.electronAPI.removeAllListeners?.("update-error");
+      window.electronAPI.removeAllListeners?.("update-download-progress");
     };
   }, []);
 
@@ -144,6 +164,42 @@ export default function ControlPanel() {
     });
   };
 
+  const handleInstallUpdate = async () => {
+    if (updateStatus.updateDownloaded) {
+      showConfirmDialog({
+        title: "Install Update",
+        description:
+          "The app will restart to install the update. Any unsaved work will be lost.",
+        onConfirm: async () => {
+          try {
+            setIsInstalling(true);
+            await window.electronAPI.installUpdate();
+          } catch (_error) {
+            setIsInstalling(false);
+            toast({
+              title: "Update Failed",
+              description: "Failed to install update. Please try again.",
+              variant: "destructive",
+            });
+          }
+        },
+      });
+    } else if (updateStatus.updateAvailable) {
+      try {
+        setIsDownloading(true);
+        setDownloadProgress(0);
+        await window.electronAPI.downloadUpdate();
+      } catch (_error) {
+        setIsDownloading(false);
+        toast({
+          title: "Download Failed",
+          description: "Failed to download update. Please try again.",
+          variant: "destructive",
+        });
+      }
+    }
+  };
+
   return (
     <div className="min-h-screen bg-white">
       <ConfirmDialog
@@ -166,13 +222,41 @@ export default function ControlPanel() {
       <TitleBar
         actions={
           <>
-            {/* Update notification badge */}
+            {/* Update button - shows when update is available or downloaded */}
             {!updateStatus.isDevelopment &&
               (updateStatus.updateAvailable ||
                 updateStatus.updateDownloaded) && (
-                <div className="relative">
-                  <div className="absolute -top-1 -right-1 w-2 h-2 bg-primary rounded-full"></div>
-                </div>
+                <Button
+                  variant={
+                    updateStatus.updateDownloaded ? "default" : "outline"
+                  }
+                  size="sm"
+                  onClick={handleInstallUpdate}
+                  disabled={isDownloading || isInstalling}
+                  className="h-8 gap-1.5 text-xs"
+                >
+                  {isInstalling ? (
+                    <>
+                      <Loader2 size={14} className="animate-spin" />
+                      Installing...
+                    </>
+                  ) : isDownloading ? (
+                    <>
+                      <Loader2 size={14} className="animate-spin" />
+                      {downloadProgress}%
+                    </>
+                  ) : updateStatus.updateDownloaded ? (
+                    <>
+                      <Download size={14} />
+                      Install Update
+                    </>
+                  ) : (
+                    <>
+                      <Download size={14} />
+                      Update Available
+                    </>
+                  )}
+                </Button>
               )}
             <SupportDropdown />
             <Button

@@ -16,16 +16,26 @@ type PipelineMetricsFlags = Record<string, unknown>;
 class PipelineMetrics {
   id: string;
   startedAt: number;
+  startedAtEpochMs: number;
   marks: Record<string, number>;
   flags: PipelineMetricsFlags;
+  errorMessage: string | null;
 
   constructor() {
     this.id = `dictation-${Date.now().toString(36)}-${Math.random()
       .toString(16)
       .slice(2)}`;
+    this.startedAtEpochMs = Date.now();
     this.startedAt = nowMs();
     this.marks = { start: this.startedAt };
     this.flags = {};
+    this.errorMessage = null;
+  }
+
+  setError(message: string) {
+    if (!this.errorMessage) {
+      this.errorMessage = message;
+    }
   }
 
   mark(stage: string, details: PipelineMetricsFlags = {}) {
@@ -56,6 +66,7 @@ class PipelineMetrics {
     const summary = {
       id: this.id,
       startedAtMs: this.startedAt,
+      startedAtEpochMs: this.startedAtEpochMs,
       stages: {
         audioOptimizeMs: this.duration("optimizeStart", "optimizeEnd"),
         transcriptionRequestMs: this.duration(
@@ -152,6 +163,11 @@ class AudioManager {
       this.onError?.({
         title: "Transcription Error",
         description: `Transcription failed: ${error.message}`,
+      });
+      // Also call onTranscriptionComplete with failure so errors get logged
+      this.onTranscriptionComplete?.({
+        success: false,
+        metrics: this.metrics,
       });
     }
   }
@@ -289,25 +305,31 @@ class AudioManager {
 
     try {
       const result = await ReasoningService.processText(text, model);
+      const outputTokens = result.usage?.outputTokens ?? null;
 
       const processingTime = Date.now() - startTime;
       metrics?.mark("reasoningEnd");
       metrics?.setFlag("reasoningUsed", true);
       metrics?.setFlag("reasoningSuccess", true);
+      metrics?.setFlag("reasoningProvider", result.provider);
+      metrics?.setFlag("reasoningOutputTokens", outputTokens);
+      metrics?.setFlag("reasoningResponseReceivedAtMs", Date.now());
 
       void debugLogger.log("REASONING_SERVICE_COMPLETE", {
         model,
         processingTimeMs: processingTime,
-        resultLength: result.length,
+        resultLength: result.text.length,
+        outputTokens,
         success: true,
       });
 
-      return result;
+      return result.text;
     } catch (error: any) {
       const processingTime = Date.now() - startTime;
       metrics?.mark("reasoningEnd");
       metrics?.setFlag("reasoningUsed", true);
       metrics?.setFlag("reasoningSuccess", false);
+      metrics?.setError(`reasoning_failed: ${error.message}`);
 
       void debugLogger.log("REASONING_SERVICE_ERROR", {
         model,
@@ -378,6 +400,7 @@ class AudioManager {
 
         const result = await this.processWithReasoningModel(preparedText);
         metrics?.mark("finalTextReady");
+        metrics?.setFlag("finalTextReadyAtMs", Date.now());
 
         void debugLogger.log("REASONING_SUCCESS", {
           resultLength: result.length,
@@ -407,6 +430,7 @@ class AudioManager {
 
     const cleaned = AudioManager.cleanTranscription(text);
     metrics?.mark("finalTextReady");
+    metrics?.setFlag("finalTextReadyAtMs", Date.now());
 
     return cleaned;
   }
@@ -518,6 +542,7 @@ class AudioManager {
         return response.json();
       }, createApiRetryStrategy());
       metrics?.mark("transcriptionTextReady");
+      metrics?.setFlag("transcriptionTextReadyAtMs", Date.now());
 
       void debugLogger.log("PPQ_TRANSCRIPTION_SUCCESS", {
         hasText: !!result.text,
@@ -539,6 +564,7 @@ class AudioManager {
         error: error.message,
         stack: error.stack,
       });
+      metrics?.setError(`transcription_failed: ${error.message}`);
       throw error;
     }
   }

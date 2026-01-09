@@ -145,6 +145,14 @@ async function getPreferredMicrophoneStream({
   return navigator.mediaDevices.getUserMedia({ audio: true });
 }
 
+const scheduleBackgroundTask = (task) => {
+  if (typeof window !== "undefined" && window.requestIdleCallback) {
+    window.requestIdleCallback(() => task(), { timeout: 1500 });
+  } else {
+    setTimeout(task, 0);
+  }
+};
+
 // Sound Wave Icon Component (for idle/hover states)
 const SoundWaveIcon = ({ size = 16 }) => {
   return (
@@ -230,6 +238,8 @@ export default function App() {
   const cancelRecordingRef = useRef(false);
   const pendingStartRef = useRef(false);
   const audioContextRef = useRef(null);
+  const recordingStartedAtRef = useRef(null);
+  const lastAudioDurationMsRef = useRef(null);
   const {
     preferredLanguage,
     hotkeyMode,
@@ -293,6 +303,7 @@ export default function App() {
         }
         if (!didStart) {
           didStart = true;
+          recordingStartedAtRef.current = Date.now();
           setIsRecording(true);
           pendingStartRef.current = false;
           void playCue("start");
@@ -311,11 +322,17 @@ export default function App() {
           stream.getTracks().forEach((track) => track.stop());
           setIsProcessing(false);
           pendingStartRef.current = false;
+          recordingStartedAtRef.current = null;
+          lastAudioDurationMsRef.current = null;
           return;
         }
 
         setIsProcessing(true);
         void playCue("stop");
+        const recordingDurationMs = recordingStartedAtRef.current
+          ? Math.max(0, Date.now() - recordingStartedAtRef.current)
+          : null;
+        lastAudioDurationMsRef.current = recordingDurationMs;
         const audioBlob = new Blob(audioChunksRef.current, {
           type: "audio/wav",
         });
@@ -356,9 +373,9 @@ export default function App() {
           });
         },
         onTranscriptionComplete: async (result) => {
-          if (result.success && result.text) {
-            const metrics = result.metrics;
+          const metrics = result.metrics;
 
+          if (result.success && result.text) {
             // Paste immediately - don't wait for database save
             metrics?.mark?.("pasteStart");
             const pastePromise = audioManager.safePaste(result.text);
@@ -369,15 +386,68 @@ export default function App() {
               await pastePromise;
             } finally {
               metrics?.mark?.("pasteEnd");
-              const summary = metrics?.buildSummary
-                ? metrics.buildSummary("pasteEnd")
-                : null;
+            }
+          }
 
-              if (summary) {
-                summary.textLength = result.text.length;
-                summary.source = result.source;
-                void pipelineLogger.log("PIPELINE_TIMING_SUMMARY", summary);
-              }
+          // Log metrics for both success and failure cases
+          const summary = metrics?.buildSummary
+            ? metrics.buildSummary(result.success ? "pasteEnd" : "start")
+            : null;
+
+          if (summary) {
+            summary.textLength = result.text?.length ?? 0;
+            summary.source = result.source;
+            void pipelineLogger.log("PIPELINE_TIMING_SUMMARY", summary);
+
+            const requestStartedAtMs = summary.startedAtEpochMs || Date.now();
+            const responseReceivedAtMs =
+              metrics?.flags?.finalTextReadyAtMs || Date.now();
+            const sttProcessingMs = metrics?.duration?.(
+              "transcriptionRequestStart",
+              "transcriptionTextReady",
+            );
+            const llmProcessingMs = summary.stages?.reasoningMs ?? null;
+            const roundtripMs = Number.isFinite(responseReceivedAtMs)
+              ? Math.max(0, responseReceivedAtMs - requestStartedAtMs)
+              : null;
+            const miscProcessingMs =
+              roundtripMs == null
+                ? null
+                : Math.max(
+                    0,
+                    roundtripMs -
+                      (sttProcessingMs ?? 0) -
+                      (llmProcessingMs ?? 0),
+                  );
+            const reasoningUsed = Boolean(metrics?.flags?.reasoningUsed);
+            const modelUsed = reasoningUsed
+              ? metrics?.flags?.reasoningModel
+              : metrics?.flags?.transcriptionModel;
+            const providerUsed = reasoningUsed
+              ? metrics?.flags?.reasoningProvider || "groq"
+              : "ppq";
+            const outputTokens = metrics?.flags?.reasoningOutputTokens ?? null;
+
+            const logPayload = {
+              request_started_at: new Date(requestStartedAtMs).toISOString(),
+              response_received_at: new Date(
+                responseReceivedAtMs,
+              ).toISOString(),
+              stt_processing_ms: sttProcessingMs ?? null,
+              audio_duration_ms: lastAudioDurationMsRef.current ?? null,
+              llm_processing_ms: llmProcessingMs ?? null,
+              output_tokens: outputTokens,
+              roundtrip_ms: roundtripMs,
+              misc_processing_ms: miscProcessingMs,
+              model_used: modelUsed ?? null,
+              provider_used: providerUsed ?? null,
+              error_message: metrics?.errorMessage ?? null,
+            };
+
+            if (window.electronAPI?.logPipelineMetrics) {
+              scheduleBackgroundTask(() => {
+                void window.electronAPI.logPipelineMetrics(logPayload);
+              });
             }
           }
         },
@@ -621,11 +691,10 @@ export default function App() {
     [audioCuesEnabled],
   );
 
-  // Determine current mic state
   const getMicState = () => {
     if (isRecording) return "recording";
     if (isProcessing) return "processing";
-    if (isHovered && !isRecording && !isProcessing) return "hover";
+    if (isHovered) return "hover";
     return "idle";
   };
 
@@ -635,39 +704,19 @@ export default function App() {
       ? `Hold [${hotkey}] while you speak`
       : `Press [${hotkey}] to speak`;
 
-  // Get microphone button properties based on state
   const getMicButtonProps = () => {
     const baseClasses =
-      "rounded-full w-10 h-10 flex items-center justify-center relative overflow-hidden border-2 border-white/70 cursor-pointer";
+      "rounded-full w-10 h-10 flex items-center justify-center relative overflow-hidden border-2 border-white/70";
+    const isActive = micState === "recording" || micState === "processing";
 
-    switch (micState) {
-      case "idle":
-        return {
-          className: `${baseClasses} bg-black/50 cursor-pointer`,
-          tooltip: hotkeyTooltip,
-        };
-      case "hover":
-        return {
-          className: `${baseClasses} bg-black/50 cursor-pointer`,
-          tooltip: hotkeyTooltip,
-        };
-      case "recording":
-        return {
-          className: `${baseClasses} bg-primary cursor-pointer`,
-          tooltip: "Recording...",
-        };
-      case "processing":
-        return {
-          className: `${baseClasses} bg-primary cursor-not-allowed`,
-          tooltip: "Processing...",
-        };
-      default:
-        return {
-          className: `${baseClasses} bg-black/50 cursor-pointer`,
-          style: { transform: "scale(0.8)" },
-          tooltip: "Click to speak",
-        };
-    }
+    return {
+      className: `${baseClasses} ${isActive ? "bg-primary" : "bg-black/50"}`,
+      tooltip: isActive
+        ? micState === "recording"
+          ? "Recording..."
+          : "Processing..."
+        : hotkeyTooltip,
+    };
   };
 
   const micProps = getMicButtonProps();
@@ -730,13 +779,12 @@ export default function App() {
               onBlur={() => setIsHovered(false)}
               className={micProps.className}
               style={{
-                ...micProps.style,
                 cursor:
                   micState === "processing"
-                    ? "not-allowed !important"
+                    ? "not-allowed"
                     : isDragging
-                      ? "grabbing !important"
-                      : "pointer !important",
+                      ? "grabbing"
+                      : "pointer",
                 transition:
                   "transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.25s ease-out",
               }}

@@ -91,6 +91,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
     const result = await ipcRenderer.invoke("get-debug-mode");
     return Boolean(result?.enabled);
   },
+  logPipelineMetrics: (payload) =>
+    ipcRenderer.invoke("log-pipeline-metrics", payload),
 
   // Remove all listeners for a channel
   removeAllListeners: (channel) => {

@@ -1,4 +1,9 @@
-import { BaseReasoningService, ReasoningConfig } from "./BaseReasoningService";
+import {
+  BaseReasoningService,
+  ReasoningConfig,
+  ReasoningResult,
+  ReasoningUsage,
+} from "./BaseReasoningService";
 import { withRetry, createApiRetryStrategy } from "../utils/retry";
 import { API_ENDPOINTS, TOKEN_LIMITS } from "../config/constants";
 import createDebugLogger from "../utils/debugLoggerRenderer";
@@ -70,6 +75,41 @@ Output: Only the corrected text. No explanations, comments, or formatting.`;
     };
   }
 
+  private extractUsage(payload: any): ReasoningUsage | undefined {
+    const usage = payload?.usage;
+    if (!usage || typeof usage !== "object") return undefined;
+
+    const num = (v: unknown) => (typeof v === "number" ? v : undefined);
+    const { prompt_tokens, completion_tokens, total_tokens } = usage;
+
+    if (
+      prompt_tokens == null &&
+      completion_tokens == null &&
+      total_tokens == null
+    ) {
+      return undefined;
+    }
+
+    return {
+      promptTokens: num(prompt_tokens),
+      outputTokens: num(completion_tokens),
+      totalTokens: num(total_tokens),
+    };
+  }
+
+  private extractProvider(payload: any): string | undefined {
+    if (typeof payload?.provider === "string") {
+      return payload.provider;
+    }
+    if (typeof payload?.provider_name === "string") {
+      return payload.provider_name;
+    }
+    if (typeof payload?.model_provider === "string") {
+      return payload.model_provider;
+    }
+    return undefined;
+  }
+
   private extractResponseText(payload: any): string {
     if (Array.isArray(payload?.choices)) {
       for (const choice of payload.choices) {
@@ -113,7 +153,7 @@ Output: Only the corrected text. No explanations, comments, or formatting.`;
     text: string,
     modelId: string,
     config: ReasoningConfig = {},
-  ): Promise<string> {
+  ): Promise<ReasoningResult> {
     if (this.isProcessing) {
       throw new Error("Already processing a request");
     }
@@ -189,7 +229,13 @@ Output: Only the corrected text. No explanations, comments, or formatting.`;
         throw new Error("PPQ API returned an empty response");
       }
 
-      return cleaned;
+      return {
+        text: cleaned,
+        usage: this.extractUsage(response),
+        model: requestBody.model,
+        provider:
+          this.extractProvider(response) ?? requestBody?.provider?.order?.[0],
+      };
     } catch (error) {
       void debugLogger.log("PPQ_ERROR", {
         error: (error as Error).message,

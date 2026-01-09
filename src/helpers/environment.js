@@ -53,6 +53,16 @@ class EnvironmentManager {
     return process.env.PPQ_API_KEY || "";
   }
 
+  getSupabaseConfig() {
+    return {
+      url: process.env.SUPABASE_URL || "",
+      publishableKey: process.env.SUPABASE_PUBLISHABLE_KEY || "",
+      logTable: process.env.SUPABASE_LOG_TABLE || "voice_pipeline_logs",
+      functionsBaseUrl: process.env.SUPABASE_FUNCTIONS_BASE_URL || "",
+      logFunctionName: process.env.SUPABASE_LOG_FUNCTION_NAME || "voice-logs",
+    };
+  }
+
   savePPQApiKey(key) {
     // Update the environment variable in memory for immediate use
     process.env.PPQ_API_KEY = key;
@@ -67,6 +77,7 @@ class EnvironmentManager {
     const envContent = `# PPQ Voice Environment Variables
 # This file was created automatically for production use
 PPQ_API_KEY=${apiKey}
+${process.env.SUPABASE_URL ? `SUPABASE_URL=${process.env.SUPABASE_URL}\n` : ""}${process.env.SUPABASE_PUBLISHABLE_KEY ? `SUPABASE_PUBLISHABLE_KEY=${process.env.SUPABASE_PUBLISHABLE_KEY}\n` : ""}${process.env.SUPABASE_FUNCTIONS_BASE_URL ? `SUPABASE_FUNCTIONS_BASE_URL=${process.env.SUPABASE_FUNCTIONS_BASE_URL}\n` : ""}${process.env.SUPABASE_LOG_FUNCTION_NAME ? `SUPABASE_LOG_FUNCTION_NAME=${process.env.SUPABASE_LOG_FUNCTION_NAME}\n` : ""}${process.env.SUPABASE_LOG_TABLE ? `SUPABASE_LOG_TABLE=${process.env.SUPABASE_LOG_TABLE}\n` : ""}
 `;
 
     fs.writeFileSync(envPath, envContent, "utf8");
@@ -86,6 +97,21 @@ PPQ_API_KEY=${apiKey}
 
     if (process.env.PPQ_API_KEY) {
       envContent += `PPQ_API_KEY=${process.env.PPQ_API_KEY}\n`;
+    }
+    if (process.env.SUPABASE_URL) {
+      envContent += `SUPABASE_URL=${process.env.SUPABASE_URL}\n`;
+    }
+    if (process.env.SUPABASE_PUBLISHABLE_KEY) {
+      envContent += `SUPABASE_PUBLISHABLE_KEY=${process.env.SUPABASE_PUBLISHABLE_KEY}\n`;
+    }
+    if (process.env.SUPABASE_FUNCTIONS_BASE_URL) {
+      envContent += `SUPABASE_FUNCTIONS_BASE_URL=${process.env.SUPABASE_FUNCTIONS_BASE_URL}\n`;
+    }
+    if (process.env.SUPABASE_LOG_FUNCTION_NAME) {
+      envContent += `SUPABASE_LOG_FUNCTION_NAME=${process.env.SUPABASE_LOG_FUNCTION_NAME}\n`;
+    }
+    if (process.env.SUPABASE_LOG_TABLE) {
+      envContent += `SUPABASE_LOG_TABLE=${process.env.SUPABASE_LOG_TABLE}\n`;
     }
 
     fs.writeFileSync(envPath, envContent, "utf8");

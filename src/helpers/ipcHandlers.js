@@ -8,6 +8,7 @@ class IPCHandlers {
     this.databaseManager = managers.databaseManager;
     this.clipboardManager = managers.clipboardManager;
     this.windowManager = managers.windowManager;
+    this.edgeFunctionLogger = managers.edgeFunctionLogger;
     this.setupHandlers();
   }
 
@@ -167,6 +168,13 @@ class IPCHandlers {
 
     ipcMain.handle("get-debug-mode", async () => {
       return { enabled: debugLogger.isEnabled() };
+    });
+
+    ipcMain.handle("log-pipeline-metrics", async (_event, payload = {}) => {
+      if (this.edgeFunctionLogger?.logPipelineMetrics) {
+        void this.edgeFunctionLogger.logPipelineMetrics(payload);
+      }
+      return { queued: true };
     });
   }
 

@@ -27,6 +27,15 @@ class HotkeyManager {
         return { success: true, hotkey };
       }
 
+      const isAlreadyRegistered = globalShortcut.isRegistered(hotkey);
+      if (isAlreadyRegistered) {
+        console.error(`Hotkey already in use: ${hotkey}`);
+        return {
+          success: false,
+          error: `The hotkey "${hotkey}" is already in use by another application. Please choose a different key.`,
+        };
+      }
+
       // Register the new hotkey
       const success = globalShortcut.register(hotkey, callback);
 
@@ -37,7 +46,7 @@ class HotkeyManager {
         console.error(`Failed to register hotkey: ${hotkey}`);
         return {
           success: false,
-          error: `Failed to register hotkey: ${hotkey}`,
+          error: `Failed to register hotkey "${hotkey}". It may be reserved by the system or another application.`,
         };
       }
     } catch (error) {

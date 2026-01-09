@@ -242,11 +242,15 @@ export default function App() {
   const lastAudioDurationMsRef = useRef(null);
   const {
     preferredLanguage,
-    hotkeyMode,
+    hotkeyMode: rawHotkeyMode,
     audioCuesEnabled,
     alwaysUseBuiltInMic,
     preferredMicrophoneId,
   } = useSettings();
+
+  // Hold-to-talk only works on macOS (requires native key-up detection)
+  const isMacOS = window.electronAPI?.getPlatform?.() === "darwin";
+  const hotkeyMode = isMacOS ? rawHotkeyMode : "toggle";
 
   const audioSettings = useMemo(
     () => ({

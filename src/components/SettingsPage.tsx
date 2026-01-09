@@ -81,6 +81,8 @@ export default function SettingsPage({
   );
   const [microphoneLoading, setMicrophoneLoading] = useState(false);
   const [microphoneError, setMicrophoneError] = useState("");
+  const [platform, setPlatform] = useState<string>("");
+  const isMacOS = platform === "darwin";
   const openApiDocs = useCallback(() => {
     window.electronAPI?.openExternal?.("https://ppq.ai/api-docs");
   }, []);
@@ -191,6 +193,12 @@ export default function SettingsPage({
     } finally {
       setMicrophoneLoading(false);
     }
+  }, []);
+
+  // Get platform on mount
+  useEffect(() => {
+    const detectedPlatform = window.electronAPI?.getPlatform?.() || "";
+    setPlatform(detectedPlatform);
   }, []);
 
   // Local state for provider selection (overrides computed value)
@@ -614,39 +622,43 @@ export default function SettingsPage({
                     Use this key from anywhere to control dictation.
                   </p>
                 </div>
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-700">
-                    Hotkey Style
-                  </label>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                    <Button
-                      variant={
-                        hotkeyMode === "toggle" ? "secondary" : "outline"
-                      }
-                      className="w-full justify-start"
-                      onClick={() => setHotkeyMode("toggle")}
-                    >
-                      <span className="font-medium">Press once</span>
-                      <span className="text-xs text-gray-600 ml-auto">
-                        Tap to start/stop
-                      </span>
-                    </Button>
-                    <Button
-                      variant={hotkeyMode === "hold" ? "secondary" : "outline"}
-                      className="w-full justify-start"
-                      onClick={() => setHotkeyMode("hold")}
-                    >
-                      <span className="font-medium">Hold to talk</span>
-                      <span className="text-xs text-gray-600 ml-auto">
-                        Hold while you speak, release to finish
-                      </span>
-                    </Button>
+                {isMacOS && (
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Hotkey Style
+                    </label>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      <Button
+                        variant={
+                          hotkeyMode === "toggle" ? "secondary" : "outline"
+                        }
+                        className="w-full justify-start"
+                        onClick={() => setHotkeyMode("toggle")}
+                      >
+                        <span className="font-medium">Press once</span>
+                        <span className="text-xs text-gray-600 ml-auto">
+                          Tap to start/stop
+                        </span>
+                      </Button>
+                      <Button
+                        variant={
+                          hotkeyMode === "hold" ? "secondary" : "outline"
+                        }
+                        className="w-full justify-start"
+                        onClick={() => setHotkeyMode("hold")}
+                      >
+                        <span className="font-medium">Hold to talk</span>
+                        <span className="text-xs text-gray-600 ml-auto">
+                          Hold while you speak, release to finish
+                        </span>
+                      </Button>
+                    </div>
+                    <p className="text-xs text-gray-500">
+                      Choose the behavior that feels natural: tap once to
+                      toggle, or hold while you speak.
+                    </p>
                   </div>
-                  <p className="text-xs text-gray-500">
-                    Choose the behavior that feels natural: tap once to toggle,
-                    or hold while you speak.
-                  </p>
-                </div>
+                )}
                 <div className="bg-gray-50 p-4 rounded-lg">
                   <h4 className="font-medium text-gray-900 mb-3">
                     Click any key to select it:

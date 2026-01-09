@@ -358,9 +358,10 @@ export default function SettingsPage({
         return;
       }
 
+      const effectiveMode = isMacOS ? hotkeyMode : "toggle";
       showAlertDialog({
         title: "Key Saved",
-        description: `Dictation key saved: ${formatHotkeyLabel(dictationKey)} (${hotkeyMode === "hold" ? "hold to talk" : "press to toggle"})`,
+        description: `Dictation key saved: ${formatHotkeyLabel(dictationKey)} (${effectiveMode === "hold" ? "hold to talk" : "press to toggle"})`,
       });
     } catch (error) {
       console.error("Failed to update hotkey:", error);

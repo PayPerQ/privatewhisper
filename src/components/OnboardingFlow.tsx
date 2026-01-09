@@ -66,13 +66,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
 
   const persistApiKey = useCallback(async () => {
     const trimmedKey = apiKey.trim();
-    if (!trimmedKey) {
-      showAlertDialog({
-        title: "API Key Required",
-        description: "Please enter your PPQ API key to continue.",
-      });
-      return false;
-    }
+    if (!trimmedKey) return false;
 
     try {
       if (window.electronAPI?.savePPQKey) {

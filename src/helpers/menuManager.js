@@ -1,37 +1,73 @@
 const { Menu } = require("electron");
 
+// Shared menu templates to avoid duplication
+const getAppMenu = () => ({
+  label: "PPQ Voice",
+  submenu: [
+    { role: "about" },
+    { type: "separator" },
+    { role: "services" },
+    { type: "separator" },
+    { role: "hide" },
+    { role: "hideOthers" },
+    { role: "unhide" },
+    { type: "separator" },
+    { role: "quit", label: "Quit PPQ Voice" },
+  ],
+});
+
+const getEditMenuBase = () => [
+  { role: "undo" },
+  { role: "redo" },
+  { type: "separator" },
+  { role: "cut" },
+  { role: "copy" },
+  { role: "paste" },
+];
+
+const getEditMenu = ({
+  includePasteAndMatchStyle = false,
+  includeSpeech = false,
+} = {}) => ({
+  label: "Edit",
+  submenu: [
+    ...getEditMenuBase(),
+    ...(includePasteAndMatchStyle ? [{ role: "pasteAndMatchStyle" }] : []),
+    { role: "delete" },
+    { role: "selectAll" },
+    ...(includeSpeech
+      ? [
+          { type: "separator" },
+          {
+            label: "Speech",
+            submenu: [{ role: "startSpeaking" }, { role: "stopSpeaking" }],
+          },
+        ]
+      : []),
+  ],
+});
+
+const getViewMenu = () => ({
+  label: "View",
+  submenu: [
+    { role: "reload" },
+    { role: "forceReload" },
+    { role: "toggleDevTools" },
+    { type: "separator" },
+    { role: "resetZoom" },
+    { role: "zoomIn" },
+    { role: "zoomOut" },
+    { type: "separator" },
+    { role: "togglefullscreen" },
+  ],
+});
+
 class MenuManager {
   static setupMainMenu() {
     if (process.platform === "darwin") {
       const template = [
-        {
-          label: "PPQ Voice",
-          submenu: [
-            { role: "about" },
-            { type: "separator" },
-            { role: "services" },
-            { type: "separator" },
-            { role: "hide" },
-            { role: "hideOthers" },
-            { role: "unhide" },
-            { type: "separator" },
-            { role: "quit", label: "Quit PPQ Voice" },
-          ],
-        },
-        {
-          label: "Edit",
-          submenu: [
-            { role: "undo" },
-            { role: "redo" },
-            { type: "separator" },
-            { role: "cut" },
-            { role: "copy" },
-            { role: "paste" },
-            { role: "pasteAndMatchStyle" },
-            { role: "delete" },
-            { role: "selectAll" },
-          ],
-        },
+        getAppMenu(),
+        getEditMenu({ includePasteAndMatchStyle: true }),
       ];
       const menu = Menu.buildFromTemplate(template);
       Menu.setApplicationMenu(menu);
@@ -40,55 +76,10 @@ class MenuManager {
 
   static setupControlPanelMenu(controlPanelWindow) {
     if (process.platform === "darwin") {
-      // On macOS, create a proper application menu
       const template = [
-        {
-          label: "PPQ Voice",
-          submenu: [
-            { role: "about" },
-            { type: "separator" },
-            { role: "services" },
-            { type: "separator" },
-            { role: "hide" },
-            { role: "hideOthers" },
-            { role: "unhide" },
-            { type: "separator" },
-            { role: "quit", label: "Quit PPQ Voice" },
-          ],
-        },
-        {
-          label: "Edit",
-          submenu: [
-            { role: "undo" },
-            { role: "redo" },
-            { type: "separator" },
-            { role: "cut" },
-            { role: "copy" },
-            { role: "paste" },
-            { role: "pasteAndMatchStyle" },
-            { role: "delete" },
-            { role: "selectAll" },
-            { type: "separator" },
-            {
-              label: "Speech",
-              submenu: [{ role: "startSpeaking" }, { role: "stopSpeaking" }],
-            },
-          ],
-        },
-        {
-          label: "View",
-          submenu: [
-            { role: "reload" },
-            { role: "forceReload" },
-            { role: "toggleDevTools" },
-            { type: "separator" },
-            { role: "resetZoom" },
-            { role: "zoomIn" },
-            { role: "zoomOut" },
-            { type: "separator" },
-            { role: "togglefullscreen" },
-          ],
-        },
+        getAppMenu(),
+        getEditMenu({ includePasteAndMatchStyle: true, includeSpeech: true }),
+        getViewMenu(),
         {
           label: "Window",
           submenu: [
@@ -128,30 +119,12 @@ class MenuManager {
         {
           label: "Edit",
           submenu: [
-            { role: "undo" },
-            { role: "redo" },
-            { type: "separator" },
-            { role: "cut" },
-            { role: "copy" },
-            { role: "paste" },
+            ...getEditMenuBase(),
             { type: "separator" },
             { role: "selectAll" },
           ],
         },
-        {
-          label: "View",
-          submenu: [
-            { role: "reload" },
-            { role: "forceReload" },
-            { role: "toggleDevTools" },
-            { type: "separator" },
-            { role: "resetZoom" },
-            { role: "zoomIn" },
-            { role: "zoomOut" },
-            { type: "separator" },
-            { role: "togglefullscreen" },
-          ],
-        },
+        getViewMenu(),
       ];
 
       const menu = Menu.buildFromTemplate(template);

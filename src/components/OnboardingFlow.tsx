@@ -198,7 +198,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
         window.electronAPI.showDictationPanel();
       }
     }
-  }, [attemptHotkeyRegistration, currentStep, setCurrentStep, steps.length]);
+  }, [attemptHotkeyRegistration, currentStep, persistApiKey, setCurrentStep, steps.length]);
 
   const prevStep = useCallback(() => {
     if (currentStep > 0) {

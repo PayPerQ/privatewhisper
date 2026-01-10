@@ -243,6 +243,7 @@ export default function App() {
   const {
     preferredLanguage,
     hotkeyMode: rawHotkeyMode,
+    setHotkeyMode,
     audioCuesEnabled,
     alwaysUseBuiltInMic,
     preferredMicrophoneId,
@@ -251,6 +252,19 @@ export default function App() {
   // Hold-to-talk only works on macOS (requires native key-up detection)
   const isMacOS = window.electronAPI?.getPlatform?.() === "darwin";
   const hotkeyMode = isMacOS ? rawHotkeyMode : "toggle";
+
+  // Listen for hotkey mode changes from other windows (e.g., Settings)
+  useEffect(() => {
+    if (!window.electronAPI?.onHotkeyModeChanged) return;
+    const unsubscribe = window.electronAPI.onHotkeyModeChanged((newMode) => {
+      setHotkeyMode(newMode);
+    });
+    return () => {
+      if (typeof unsubscribe === "function") {
+        unsubscribe();
+      }
+    };
+  }, [setHotkeyMode]);
 
   const audioSettings = useMemo(
     () => ({

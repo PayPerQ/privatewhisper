@@ -120,8 +120,19 @@ class IPCHandlers {
     // Utility handlers
     ipcMain.handle("cleanup-app", async (event) => {
       try {
-        AppUtils.cleanup(this.windowManager.mainWindow);
-        return { success: true, message: "Cleanup completed successfully" };
+        await AppUtils.cleanup({
+          mainWindow: this.windowManager.mainWindow,
+          databaseManager: this.databaseManager,
+        });
+        setTimeout(() => {
+          app.relaunch();
+          app.exit(0);
+        }, 750);
+        return {
+          success: true,
+          relaunch: true,
+          message: "Cleanup completed. Relaunching PPQ Voice...",
+        };
       } catch (error) {
         throw error;
       }
@@ -176,14 +187,24 @@ class IPCHandlers {
       }
       return { queued: true };
     });
+
+    // Settings sync handlers - broadcast to all windows
+    ipcMain.handle("update-hotkey-mode", async (_event, mode) => {
+      this.broadcastToAllWindows("hotkey-mode-changed", mode);
+      return { success: true };
+    });
   }
 
-  broadcastTranscriptionEvent(channel, payload) {
+  broadcastToAllWindows(channel, payload) {
     BrowserWindow.getAllWindows().forEach((windowInstance) => {
       if (!windowInstance.isDestroyed()) {
         windowInstance.webContents.send(channel, payload);
       }
     });
+  }
+
+  broadcastTranscriptionEvent(channel, payload) {
+    this.broadcastToAllWindows(channel, payload);
   }
 }
 

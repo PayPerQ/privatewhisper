@@ -21,6 +21,13 @@ export interface AudioSettings {
   preferredMicrophoneId: string;
 }
 
+// Default hotkey: Globe key on Mac, backtick on other platforms
+const DEFAULT_HOTKEY =
+  typeof window !== "undefined" &&
+  window.electronAPI?.getPlatform?.() === "darwin"
+    ? "GLOBE"
+    : "`";
+
 export function useSettings() {
   const [preferredLanguage, setPreferredLanguage] = useLocalStorage(
     "preferredLanguage",
@@ -37,11 +44,15 @@ export function useSettings() {
     deserialize: String,
   });
 
-  // Hotkey
-  const [dictationKey, setDictationKey] = useLocalStorage("dictationKey", "", {
-    serialize: String,
-    deserialize: String,
-  });
+  // Hotkey - defaults to Globe on Mac, backtick elsewhere
+  const [dictationKey, setDictationKey] = useLocalStorage(
+    "dictationKey",
+    DEFAULT_HOTKEY,
+    {
+      serialize: String,
+      deserialize: String,
+    },
+  );
   const [hotkeyMode, setHotkeyMode] = useLocalStorage<HotkeyMode>(
     "hotkeyMode",
     "toggle",

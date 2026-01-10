@@ -1,7 +1,6 @@
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import { Button } from "./ui/button";
-import { Input } from "./ui/input";
-import { RefreshCw, Download, Keyboard, Mic, Shield } from "lucide-react";
+import { RefreshCw, Download, Mic, Shield, Keyboard } from "lucide-react";
 import ApiKeyInput from "./ui/ApiKeyInput";
 import { ConfirmDialog, AlertDialog } from "./ui/dialog";
 import { useSettings } from "../hooks/useSettings";
@@ -9,6 +8,8 @@ import { useDialogs } from "../hooks/useDialogs";
 import { usePermissions } from "../hooks/usePermissions";
 import { formatHotkeyLabel } from "../utils/hotkeys";
 import LanguageSelector from "./ui/LanguageSelector";
+import { useToast } from "./ui/Toast";
+import HotkeyInput from "./ui/HotkeyInput";
 import { Toggle } from "./ui/toggle";
 import {
   Select,
@@ -18,7 +19,6 @@ import {
   SelectValue,
 } from "./ui/select";
 import type { UpdateInfoResult } from "../types/electron";
-const InteractiveKeyboard = React.lazy(() => import("./ui/Keyboard"));
 
 export type SettingsSectionType = "general" | "transcription";
 
@@ -82,7 +82,9 @@ export default function SettingsPage({
   const [microphoneLoading, setMicrophoneLoading] = useState(false);
   const [microphoneError, setMicrophoneError] = useState("");
   const [platform, setPlatform] = useState<string>("");
+  const [isSavingHotkey, setIsSavingHotkey] = useState(false);
   const isMacOS = platform === "darwin";
+  const { toast } = useToast();
   const openApiDocs = useCallback(() => {
     window.electronAPI?.openExternal?.("https://ppq.ai/api-docs");
   }, []);
@@ -344,33 +346,45 @@ export default function SettingsPage({
     });
   };
 
-  const saveKey = async () => {
-    try {
-      const result = await window.electronAPI?.updateHotkey(dictationKey);
+  const saveHotkey = useCallback(
+    async (newKey: string) => {
+      setIsSavingHotkey(true);
+      try {
+        const result = await window.electronAPI?.updateHotkey(newKey);
 
-      if (!result?.success) {
-        showAlertDialog({
-          title: "Hotkey Not Saved",
-          description:
-            result?.message ||
-            "This key could not be registered. Please choose a different key.",
+        if (!result?.success) {
+          toast({
+            title: "Hotkey Not Registered",
+            description:
+              result?.message ||
+              "This key could not be registered. Please try a different key.",
+            variant: "destructive",
+          });
+          return false;
+        }
+
+        setDictationKey(newKey);
+        toast({
+          title: "Hotkey Saved",
+          description: `Now using ${formatHotkeyLabel(newKey)} for dictation`,
+          variant: "success",
+          duration: 2000,
         });
-        return;
+        return true;
+      } catch (error) {
+        console.error("Failed to update hotkey:", error);
+        toast({
+          title: "Error",
+          description: "Failed to register hotkey. Please try again.",
+          variant: "destructive",
+        });
+        return false;
+      } finally {
+        setIsSavingHotkey(false);
       }
-
-      const effectiveMode = isMacOS ? hotkeyMode : "toggle";
-      showAlertDialog({
-        title: "Key Saved",
-        description: `Dictation key saved: ${formatHotkeyLabel(dictationKey)} (${effectiveMode === "hold" ? "hold to talk" : "press to toggle"})`,
-      });
-    } catch (error) {
-      console.error("Failed to update hotkey:", error);
-      showAlertDialog({
-        title: "Error",
-        description: `Failed to update hotkey: ${error.message}`,
-      });
-    }
-  };
+    },
+    [setDictationKey, toast],
+  );
 
   const renderSectionContent = () => {
     switch (activeSection) {
@@ -603,87 +617,83 @@ export default function SettingsPage({
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">
                   Dictation Hotkey
                 </h3>
-                <p className="text-sm text-gray-600 mb-6">
-                  Configure the key you press to start and stop voice dictation,
-                  and whether you hold or tap it.
+                <p className="text-sm text-gray-600 mb-4">
+                  Click below and press any key or combination (Ctrl+key,
+                  Alt+key) to set your hotkey.
                 </p>
               </div>
               <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Activation Key
-                  </label>
-                  <Input
-                    placeholder="Default: ` (backtick)"
-                    value={dictationKey}
-                    onChange={(e) => setDictationKey(e.target.value)}
-                    className="text-center text-lg font-mono"
-                  />
-                  <p className="text-xs text-gray-500 mt-2">
-                    Use this key from anywhere to control dictation.
-                  </p>
-                </div>
+                <HotkeyInput
+                  value={dictationKey}
+                  onSave={saveHotkey}
+                  isSaving={isSavingHotkey}
+                  showGlobeOption={isMacOS}
+                />
+
+                {/* Hotkey mode - Mac only */}
                 {isMacOS && (
-                  <div className="space-y-2">
+                  <div className="space-y-3 pt-2">
                     <label className="block text-sm font-medium text-gray-700">
-                      Hotkey Style
+                      Activation Style
                     </label>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                      <Button
-                        variant={
-                          hotkeyMode === "toggle" ? "secondary" : "outline"
-                        }
-                        className="w-full justify-start"
-                        onClick={() => setHotkeyMode("toggle")}
+                    <div className="grid grid-cols-2 gap-3">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setHotkeyMode("toggle");
+                          window.electronAPI?.updateHotkeyMode?.("toggle");
+                        }}
+                        className={`
+                          relative p-4 rounded-xl border-2 transition-all duration-200 text-left
+                          ${
+                            hotkeyMode === "toggle"
+                              ? "border-primary bg-primary/5 ring-2 ring-primary/20"
+                              : "border-border bg-muted/30 hover:border-primary/50"
+                          }
+                        `}
                       >
-                        <span className="font-medium">Press once</span>
-                        <span className="text-xs text-gray-600 ml-auto">
-                          Tap to start/stop
-                        </span>
-                      </Button>
-                      <Button
-                        variant={
-                          hotkeyMode === "hold" ? "secondary" : "outline"
-                        }
-                        className="w-full justify-start"
-                        onClick={() => setHotkeyMode("hold")}
+                        {hotkeyMode === "toggle" && (
+                          <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-primary" />
+                        )}
+                        <div
+                          className={`font-semibold ${hotkeyMode === "toggle" ? "text-primary" : "text-foreground"}`}
+                        >
+                          Press once
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-1">
+                          Tap to start, tap again to stop
+                        </div>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setHotkeyMode("hold");
+                          window.electronAPI?.updateHotkeyMode?.("hold");
+                        }}
+                        className={`
+                          relative p-4 rounded-xl border-2 transition-all duration-200 text-left
+                          ${
+                            hotkeyMode === "hold"
+                              ? "border-primary bg-primary/5 ring-2 ring-primary/20"
+                              : "border-border bg-muted/30 hover:border-primary/50"
+                          }
+                        `}
                       >
-                        <span className="font-medium">Hold to talk</span>
-                        <span className="text-xs text-gray-600 ml-auto">
-                          Hold while you speak, release to finish
-                        </span>
-                      </Button>
+                        {hotkeyMode === "hold" && (
+                          <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-primary" />
+                        )}
+                        <div
+                          className={`font-semibold ${hotkeyMode === "hold" ? "text-primary" : "text-foreground"}`}
+                        >
+                          Hold to talk
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-1">
+                          Hold while speaking, release to stop
+                        </div>
+                      </button>
                     </div>
-                    <p className="text-xs text-gray-500">
-                      Choose the behavior that feels natural: tap once to
-                      toggle, or hold while you speak.
-                    </p>
                   </div>
                 )}
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <h4 className="font-medium text-gray-900 mb-3">
-                    Click any key to select it:
-                  </h4>
-                  <React.Suspense
-                    fallback={
-                      <div className="h-32 flex items-center justify-center text-gray-500">
-                        Loading keyboard...
-                      </div>
-                    }
-                  >
-                    <InteractiveKeyboard
-                      selectedKey={dictationKey}
-                      setSelectedKey={setDictationKey}
-                    />
-                  </React.Suspense>
-                </div>
-                <Button
-                  onClick={saveKey}
-                  disabled={!dictationKey.trim()}
-                  className="w-full"
-                >
-                  Save Hotkey
-                </Button>
               </div>
             </div>
 
@@ -919,19 +929,17 @@ export default function SettingsPage({
                       showConfirmDialog({
                         title: "⚠️ DANGER: Cleanup App Data",
                         description:
-                          "This will permanently delete ALL PPQ Voice data including:\n\n• Database and transcriptions\n• Local storage settings\n• Cached logs and preferences\n• Environment files\n\nYou will need to manually remove app permissions in System Settings.\n\nThis action cannot be undone. Are you sure?",
+                          "This will permanently delete ALL PPQ Voice data including:\n\n• Database and transcriptions\n• Local storage settings\n• Cached logs and preferences\n• Environment files\n\nThe app will relaunch after cleanup.\n\nYou will need to manually remove app permissions in System Settings.\n\nThis action cannot be undone. Are you sure?",
                         onConfirm: () => {
                           window.electronAPI
                             ?.cleanupApp()
-                            .then(() => {
+                            .then((result) => {
                               showAlertDialog({
                                 title: "Cleanup Completed",
                                 description:
-                                  "✅ Cleanup completed! All app data has been removed.",
+                                  result?.message ||
+                                  "✅ Cleanup completed! Relaunching PPQ Voice...",
                               });
-                              setTimeout(() => {
-                                window.location.reload();
-                              }, 1000);
                             })
                             .catch((error) => {
                               showAlertDialog({

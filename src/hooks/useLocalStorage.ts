@@ -42,9 +42,12 @@ export function useLocalStorage<T>(
   const setValue = useCallback(
     (value: T | ((prevState: T) => T)) => {
       try {
-        const valueToStore = value instanceof Function ? value(state) : value;
-        setState(valueToStore);
-        localStorage.setItem(key, serialize(valueToStore));
+        setState((prevState) => {
+          const valueToStore =
+            value instanceof Function ? value(prevState) : value;
+          localStorage.setItem(key, serialize(valueToStore));
+          return valueToStore;
+        });
       } catch (error) {
         console.error(`Error setting localStorage key "${key}":`, error);
       }

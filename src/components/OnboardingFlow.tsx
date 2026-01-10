@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Card, CardContent } from "./ui/card";
 import { Button } from "./ui/button";
-import { Input } from "./ui/input";
 import { Textarea } from "./ui/textarea";
 import {
   ChevronRight,
@@ -12,9 +11,7 @@ import {
   Key,
   Shield,
   Keyboard,
-  TestTube,
   Sparkles,
-  X,
 } from "lucide-react";
 import TitleBar from "./TitleBar";
 import ApiKeyInput from "./ui/ApiKeyInput";
@@ -25,10 +22,10 @@ import { useLocalStorage } from "../hooks/useLocalStorage";
 import { useDialogs } from "../hooks/useDialogs";
 import { usePermissions } from "../hooks/usePermissions";
 import { useSettings } from "../hooks/useSettings";
-import { getLanguageLabel } from "../utils/languages";
 import { formatHotkeyLabel } from "../utils/hotkeys";
 import LanguageSelector from "./ui/LanguageSelector";
-const InteractiveKeyboard = React.lazy(() => import("./ui/Keyboard"));
+import { useToast } from "./ui/Toast";
+import HotkeyInput from "./ui/HotkeyInput";
 
 interface OnboardingFlowProps {
   onComplete: () => void;
@@ -54,11 +51,16 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
   } = useSettings();
 
   const [apiKey, setApiKey] = useState(ppqApiKey);
-  const [hotkey, setHotkey] = useState(dictationKey || "`");
+  const detectedPlatform = window.electronAPI?.getPlatform?.() || "";
+  const defaultHotkey = detectedPlatform === "darwin" ? "GLOBE" : "`";
+  const [hotkey, setHotkey] = useState(dictationKey || defaultHotkey);
   const [isRegisteringHotkey, setIsRegisteringHotkey] = useState(false);
+  const isMacOS = detectedPlatform === "darwin";
   const readableHotkey = formatHotkeyLabel(hotkey);
   const { alertDialog, showAlertDialog, hideAlertDialog } = useDialogs();
+  const { toast } = useToast();
   const practiceTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const hotkeyRegistrationRef = useRef(false);
   const permissionsHook = usePermissions(showAlertDialog);
   const openApiDocs = useCallback(() => {
     window.electronAPI?.openExternal?.("https://ppq.ai/api-docs");
@@ -88,14 +90,46 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     { title: "Setup", icon: Settings },
     { title: "Permissions", icon: Shield },
     { title: "Hotkey", icon: Keyboard },
-    { title: "Practice", icon: TestTube },
-    { title: "Finish", icon: Check },
   ];
 
   useEffect(() => {
-    if (currentStep === 4 && practiceTextareaRef.current) {
+    if (currentStep === 3 && practiceTextareaRef.current) {
       practiceTextareaRef.current.focus();
     }
+  }, [currentStep]);
+
+  // Auto-register the default hotkey when entering step 3 (hotkey step)
+  // This ensures the default Globe key (or any default) works immediately
+  // without requiring the user to explicitly select it first
+  useEffect(() => {
+    if (currentStep !== 3) return;
+    if (!window.electronAPI?.updateHotkey) return;
+    // Use ref to prevent concurrent registrations (React.StrictMode double-invokes effects)
+    if (hotkeyRegistrationRef.current) return;
+
+    const registerDefaultHotkey = async () => {
+      hotkeyRegistrationRef.current = true;
+      setIsRegisteringHotkey(true);
+      try {
+        const result = await window.electronAPI.updateHotkey(hotkey);
+        if (!result?.success) {
+          // Silent failure for auto-registration - user can still manually select
+          console.warn(
+            "Auto-registration of default hotkey failed:",
+            result?.message,
+          );
+        }
+      } catch (error) {
+        console.warn("Failed to auto-register default hotkey:", error);
+      } finally {
+        setIsRegisteringHotkey(false);
+        hotkeyRegistrationRef.current = false;
+      }
+    };
+
+    void registerDefaultHotkey();
+    // Only run when entering step 3, not when hotkey changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentStep]);
 
   const attemptHotkeyRegistration = useCallback(async () => {
@@ -182,13 +216,6 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
       }
     }
 
-    if (currentStep === 3 || currentStep === 4) {
-      const registered = await attemptHotkeyRegistration();
-      if (!registered) {
-        return;
-      }
-    }
-
     const newStep = currentStep + 1;
     setCurrentStep(newStep);
 
@@ -198,7 +225,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
         window.electronAPI.showDictationPanel();
       }
     }
-  }, [attemptHotkeyRegistration, currentStep, persistApiKey, setCurrentStep, steps.length]);
+  }, [currentStep, persistApiKey, setCurrentStep, steps.length]);
 
   const prevStep = useCallback(() => {
     if (currentStep > 0) {
@@ -353,220 +380,100 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
           </div>
         );
 
-      case 3: // Choose Hotkey
-        return (
-          <div className="space-y-6">
-            <div className="text-center">
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">
-                Choose Your Hotkey
-              </h2>
-              <p className="text-gray-600">
-                Select which key you want to press to start/stop dictation
-              </p>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Activation Key
-                </label>
-                <Input
-                  placeholder="Default: ` (backtick)"
-                  value={hotkey}
-                  onChange={(e) => setHotkey(e.target.value)}
-                  className="text-center text-lg font-mono"
-                />
-                <p className="text-xs text-gray-500 mt-2">
-                  Press this key from anywhere to start/stop dictation
-                </p>
-              </div>
-
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <h4 className="font-medium text-gray-900 mb-3">
-                  Click any key to select it:
-                </h4>
-                <React.Suspense fallback={<div>Loading keyboard...</div>}>
-                  <InteractiveKeyboard
-                    selectedKey={hotkey}
-                    setSelectedKey={setHotkey}
-                  />
-                </React.Suspense>
-              </div>
-            </div>
-          </div>
-        );
-
-      case 4: // Test & Practice
+      case 3: // Choose Hotkey & Practice (combined step)
         return (
           <div
             className="space-y-6"
             style={{ fontFamily: "Noto Sans, sans-serif" }}
           >
             <div className="text-center">
-              <h2
-                className="text-2xl font-bold text-stone-900 mb-2"
-                style={{ fontFamily: "Noto Sans, sans-serif" }}
-              >
-                Test & Practice
+              <h2 className="text-2xl font-bold text-stone-900 mb-2">
+                Choose Your Hotkey
               </h2>
-              <p
-                className="text-stone-600"
-                style={{ fontFamily: "Noto Sans, sans-serif" }}
-              >
-                Let's test your setup and practice using PPQ Voice
+              <p className="text-stone-600">
+                Click below and press any key or combination (Ctrl+key, Alt+key)
+                to set your dictation trigger
               </p>
             </div>
 
-            <div className="space-y-6">
-              <div className="bg-accent/50 p-6 rounded-lg border border-accent">
-                <h3
-                  className="font-semibold text-foreground mb-3"
-                  style={{ fontFamily: "Noto Sans, sans-serif" }}
-                >
-                  Practice with Your Hotkey
-                </h3>
-                <p
-                  className="text-sm text-accent-foreground mb-4"
-                  style={{ fontFamily: "Noto Sans, sans-serif" }}
-                >
-                  <strong>Step 1:</strong> Click in the text area below to place
-                  your cursor there.
-                  <br />
-                  <strong>Step 2:</strong> Press{" "}
-                  <kbd className="bg-white px-2 py-1 rounded text-xs font-mono border border-border">
-                    {readableHotkey}
-                  </kbd>{" "}
-                  to start recording, then speak something.
-                  <br />
-                  <strong>Step 3:</strong> Press{" "}
-                  <kbd className="bg-white px-2 py-1 rounded text-xs font-mono border border-border">
-                    {readableHotkey}
-                  </kbd>{" "}
-                  again to stop and see your transcribed text appear where your
-                  cursor is!
-                </p>
+            {/* Hotkey input using shared component */}
+            <HotkeyInput
+              value={hotkey}
+              onSave={async (newKey) => {
+                setIsRegisteringHotkey(true);
+                try {
+                  const result = await window.electronAPI?.updateHotkey(newKey);
+                  if (!result?.success) {
+                    toast({
+                      title: "Hotkey Not Registered",
+                      description:
+                        result?.message ||
+                        "This key could not be registered. Please try a different key.",
+                      variant: "destructive",
+                    });
+                    return false;
+                  }
+                  setHotkey(newKey);
+                  toast({
+                    title: "Hotkey Set",
+                    description: `Now using ${formatHotkeyLabel(newKey)} for dictation`,
+                    variant: "success",
+                    duration: 2000,
+                  });
+                  return true;
+                } catch (error) {
+                  console.error("Failed to register hotkey:", error);
+                  toast({
+                    title: "Error",
+                    description: "Failed to register hotkey. Please try again.",
+                    variant: "destructive",
+                  });
+                  return false;
+                } finally {
+                  setIsRegisteringHotkey(false);
+                }
+              }}
+              isSaving={isRegisteringHotkey}
+              showGlobeOption={isMacOS}
+            />
 
-                <div className="space-y-4">
-                  <div className="text-center">
-                    <div className="flex items-center justify-center gap-2 text-stone-600">
-                      <Mic className="w-4 h-4" />
-                      <span style={{ fontFamily: "Noto Sans, sans-serif" }}>
-                        Click in the text area below, then press{" "}
-                        <kbd className="bg-white px-1 py-0.5 rounded text-xs font-mono border">
-                          {readableHotkey}
-                        </kbd>{" "}
-                        to start dictation
-                      </span>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label
-                      className="block text-sm font-medium text-stone-700 mb-2"
-                      style={{ fontFamily: "Noto Sans, sans-serif" }}
-                    >
-                      Transcribed Text:
-                    </label>
-                    <Textarea
-                      ref={practiceTextareaRef}
-                      rows={4}
-                      placeholder="Click here to place your cursor, then use your hotkey to start dictation..."
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-green-50/50 p-4 rounded-lg border border-green-200/60">
-                <h4
-                  className="font-medium text-green-900 mb-2"
-                  style={{ fontFamily: "Noto Sans, sans-serif" }}
-                >
-                  💡 How to use PPQ Voice:
-                </h4>
-                <ol
-                  className="text-sm text-green-800 space-y-1"
-                  style={{ fontFamily: "Noto Sans, sans-serif" }}
-                >
-                  <li>1. Click in any text field (email, document, etc.)</li>
-                  <li>
-                    2. Press{" "}
-                    <kbd className="bg-white px-2 py-1 rounded text-xs font-mono border border-green-200">
-                      {readableHotkey}
-                    </kbd>{" "}
-                    to start recording
-                  </li>
-                  <li>3. Speak your text clearly</li>
-                  <li>
-                    4. Press{" "}
-                    <kbd className="bg-white px-2 py-1 rounded text-xs font-mono border border-green-200">
-                      {readableHotkey}
-                    </kbd>{" "}
-                    again to stop
-                  </li>
-                  <li>
-                    5. Your text will automatically appear where you were
-                    typing!
-                  </li>
-                </ol>
-              </div>
-            </div>
-          </div>
-        );
-
-      case 5: // Complete
-        return (
-          <div className="text-center space-y-6">
-            <div className="w-16 h-16 mx-auto bg-green-100 rounded-full flex items-center justify-center">
-              <Check className="w-8 h-8 text-green-600" />
-            </div>
-            <div>
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">
-                You're All Set!
-              </h2>
-              <p className="text-gray-600">
-                PPQ Voice is now configured and ready to use.
-              </p>
-            </div>
-
-            <div className="bg-accent p-6 rounded-lg">
-              <h3 className="font-semibold text-gray-900 mb-3">
-                Your Setup Summary:
+            {/* Practice section */}
+            <div className="bg-accent/50 p-6 rounded-xl border border-accent">
+              <h3 className="font-semibold text-foreground mb-3">
+                Try it out!
               </h3>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span>API Key:</span>
-                  <span className="font-medium">
-                    {apiKey.trim() ? "Saved" : "Missing"}
-                  </span>
+              <p className="text-sm text-accent-foreground mb-4">
+                Click in the text area below, press{" "}
+                <kbd className="bg-white px-2 py-1 rounded text-xs font-mono border border-border">
+                  {readableHotkey}
+                </kbd>{" "}
+                to start recording, speak, then press it again to stop.
+              </p>
+
+              <div className="space-y-3">
+                <div className="flex items-center justify-center gap-2 text-stone-500 text-sm">
+                  <Mic className="w-4 h-4" />
+                  <span>Your transcribed text will appear below</span>
                 </div>
-                <div className="flex justify-between">
-                  <span>Hotkey:</span>
-                  <kbd className="bg-white px-2 py-1 rounded text-xs font-mono">
-                    {hotkey}
-                  </kbd>
-                </div>
-                <div className="flex justify-between">
-                  <span>Language:</span>
-                  <span className="font-medium">
-                    {getLanguageLabel(preferredLanguage)}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Permissions:</span>
-                  <span className="font-medium text-green-600">
-                    {permissionsHook.micPermissionGranted &&
-                    permissionsHook.accessibilityPermissionGranted
-                      ? "✓ Granted"
-                      : "⚠ Review needed"}
-                  </span>
-                </div>
+                <Textarea
+                  ref={practiceTextareaRef}
+                  rows={3}
+                  placeholder="Click here, then use your hotkey to dictate..."
+                  className="resize-none"
+                />
               </div>
             </div>
 
-            <div className="bg-accent p-4 rounded-lg">
-              <p className="text-sm text-accent-foreground">
-                <strong>Pro tip:</strong> You can always change these settings
-                later in the Control Panel.
+            {/* Quick tips */}
+            <div className="bg-green-50/50 p-4 rounded-lg border border-green-200/60">
+              <h4 className="font-medium text-green-900 mb-2">Quick tip</h4>
+              <p className="text-sm text-green-800">
+                After setup, press{" "}
+                <kbd className="bg-white px-2 py-1 rounded text-xs font-mono border border-green-200">
+                  {readableHotkey}
+                </kbd>{" "}
+                from anywhere on your computer to start dictating into any text
+                field!
               </p>
             </div>
           </div>
@@ -592,13 +499,8 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
           permissionsHook.accessibilityPermissionGranted;
         break;
       case 3:
+        // Combined hotkey + practice step - just need a valid hotkey
         canAdvance = hotkey.trim() !== "";
-        break;
-      case 4:
-        canAdvance = true;
-        break;
-      case 5:
-        canAdvance = true;
         break;
       default:
         canAdvance = false;
@@ -681,7 +583,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
             {currentStep === steps.length - 1 ? (
               <Button
                 onClick={() => void finishOnboarding()}
-                disabled={isRegisteringHotkey}
+                disabled={!canProceed()}
                 className="bg-green-600 hover:bg-green-700 px-8 py-3 h-12 text-sm font-medium"
                 style={{ fontFamily: "Noto Sans, sans-serif" }}
               >

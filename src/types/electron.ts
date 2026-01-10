@@ -106,7 +106,11 @@ declare global {
       setMainWindowInteractivity: (interactive: boolean) => Promise<void>;
 
       // App management
-      cleanupApp: () => Promise<{ success: boolean; message: string }>;
+      cleanupApp: () => Promise<{
+        success: boolean;
+        message: string;
+        relaunch?: boolean;
+      }>;
       getTranscriptionHistory: () => Promise<any[]>;
       clearTranscriptionHistory: () => Promise<void>;
 
@@ -140,6 +144,12 @@ declare global {
 
       // Hotkey management
       updateHotkey: (key: string) => Promise<HotkeyUpdateResult>;
+      updateHotkeyMode?: (
+        mode: "toggle" | "hold",
+      ) => Promise<{ success: boolean }>;
+      onHotkeyModeChanged?: (
+        callback: (mode: "toggle" | "hold") => void,
+      ) => () => void;
 
       // Transcription event listeners
       onTranscriptionAdded?: (

@@ -1,18 +1,19 @@
 const fs = require("fs");
 const path = require("path");
-const { app } = require("electron");
+const { app, BrowserWindow, session } = require("electron");
 const debugLogger = require("./helpers/debugLogger");
 const DbPathManager = require("./utils/DbPathManager");
 
 class AppUtils {
-  static cleanup(mainWindow) {
+  static async cleanup({ mainWindow, databaseManager } = {}) {
     debugLogger.logEvent("cleanup", "process-start");
 
     try {
-      const dbPath = DbPathManager.getDbPath();
-      if (fs.existsSync(dbPath)) {
-        fs.unlinkSync(dbPath);
-        debugLogger.logEvent("cleanup", "database-deleted", { path: dbPath });
+      if (databaseManager?.cleanup) {
+        databaseManager.cleanup();
+        debugLogger.logEvent("cleanup", "database-deleted", {
+          path: DbPathManager.getDbPath(),
+        });
       }
     } catch (error) {
       debugLogger.error("cleanup", "database-delete-error", {
@@ -21,26 +22,68 @@ class AppUtils {
       });
     }
 
-    if (mainWindow && mainWindow.webContents) {
-      mainWindow.webContents
-        .executeJavaScript("localStorage.clear()")
-        .then(() => {
-          debugLogger.logEvent("cleanup", "local-storage-cleared");
-        })
-        .catch((error) => {
-          debugLogger.error("cleanup", "local-storage-error", {
+    const windows = BrowserWindow.getAllWindows().filter(
+      (windowInstance) => !windowInstance.isDestroyed(),
+    );
+    const sessions = new Set();
+    if (mainWindow?.webContents?.session) {
+      sessions.add(mainWindow.webContents.session);
+    }
+    windows.forEach((windowInstance) => {
+      if (windowInstance?.webContents?.session) {
+        sessions.add(windowInstance.webContents.session);
+      }
+    });
+    if (sessions.size === 0 && session?.defaultSession) {
+      sessions.add(session.defaultSession);
+    }
+
+    await Promise.all(
+      Array.from(sessions).map(async (activeSession) => {
+        try {
+          await activeSession.clearStorageData();
+          debugLogger.logEvent("cleanup", "session-storage-cleared");
+        } catch (error) {
+          debugLogger.error("cleanup", "session-storage-error", {
             error: error.message,
           });
-        });
-    }
+        }
+
+        try {
+          await activeSession.clearCache();
+          debugLogger.logEvent("cleanup", "session-cache-cleared");
+        } catch (error) {
+          debugLogger.error("cleanup", "session-cache-error", {
+            error: error.message,
+          });
+        }
+      }),
+    );
+
+    await Promise.all(
+      windows.map((windowInstance) =>
+        windowInstance.webContents
+          .executeJavaScript("localStorage.clear()")
+          .then(() => {
+            debugLogger.logEvent("cleanup", "local-storage-cleared");
+          })
+          .catch((error) => {
+            debugLogger.error("cleanup", "local-storage-error", {
+              error: error.message,
+            });
+          }),
+      ),
+    );
 
     debugLogger.logEvent("cleanup", "permissions-reminder", {
       message:
         "Manually remove accessibility and microphone permissions if needed",
     });
 
+    const userDataPath = app.getPath("userData");
+
     try {
-      const envPath = path.join(app.getPath("userData"), ".env");
+      const envPath = path.join(userDataPath, ".env");
       if (fs.existsSync(envPath)) {
         fs.unlinkSync(envPath);
         debugLogger.logEvent("cleanup", "env-file-deleted", { path: envPath });
@@ -52,7 +95,31 @@ class AppUtils {
       });
     }
 
-    debugLogger.logEvent("cleanup", "process-completed");
+    try {
+      const debugFlagPath = path.join(userDataPath, "ENABLE_DEBUG");
+      if (fs.existsSync(debugFlagPath)) {
+        fs.unlinkSync(debugFlagPath);
+        debugLogger.logEvent("cleanup", "debug-flag-deleted", {
+          path: debugFlagPath,
+        });
+      }
+    } catch (error) {
+      debugLogger.error("cleanup", "debug-flag-delete-error", {
+        error: error.message,
+        stack: error.stack,
+      });
+    }
+
+    try {
+      const logsDir = path.join(userDataPath, "logs");
+      if (fs.existsSync(logsDir)) {
+        debugLogger.close();
+        fs.rmSync(logsDir, { recursive: true, force: true });
+      }
+    } catch (error) {
+      // Logger is closed at this point, so we can't log this error
+      // The error will be silently swallowed, which is acceptable during cleanup
+    }
   }
 }
 

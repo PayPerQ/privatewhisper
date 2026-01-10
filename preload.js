@@ -106,4 +106,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
     exposeListener("transcription-deleted", callback),
   onTranscriptionsCleared: (callback) =>
     exposeListener("transcriptions-cleared", callback),
+
+  // Settings sync - broadcast to all windows
+  updateHotkeyMode: (mode) => ipcRenderer.invoke("update-hotkey-mode", mode),
+  onHotkeyModeChanged: (callback) =>
+    exposeListener("hotkey-mode-changed", callback),
 });

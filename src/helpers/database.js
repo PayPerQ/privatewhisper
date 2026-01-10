@@ -133,16 +133,48 @@ class DatabaseManager {
     }
   }
 
+  close() {
+    if (!this.db) {
+      return;
+    }
+
+    try {
+      this.db.close();
+    } catch (error) {
+      debugLogger.error("database", "close-failed", {
+        error: error.message,
+      });
+    } finally {
+      this.db = null;
+    }
+  }
+
+  deleteDatabaseFiles() {
+    const dbPath = DbPathManager.getDbPath();
+    const relatedFiles = [
+      dbPath,
+      `${dbPath}-wal`,
+      `${dbPath}-shm`,
+      `${dbPath}-journal`,
+    ];
+
+    relatedFiles.forEach((filePath) => {
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+    });
+
+    return dbPath;
+  }
+
   cleanup() {
     debugLogger.logEvent("database", "cleanup-start");
     try {
-      const dbPath = DbPathManager.getDbPath();
-      if (fs.existsSync(dbPath)) {
-        fs.unlinkSync(dbPath);
-        debugLogger.logEvent("database", "cleanup-complete", {
-          dbPath,
-        });
-      }
+      this.close();
+      const dbPath = this.deleteDatabaseFiles();
+      debugLogger.logEvent("database", "cleanup-complete", {
+        dbPath,
+      });
     } catch (error) {
       debugLogger.error("database", "cleanup-failed", {
         error: error.message,

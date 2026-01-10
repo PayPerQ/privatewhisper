@@ -46,7 +46,6 @@
     "hardenedRuntime": true,
     "entitlements": "resources/mac/entitlements.mac.plist",
     "entitlementsInherit": "resources/mac/entitlements.mac.plist",
-    "identity": "HeroTools Inc. (9R85XFMH59)",
     "extendInfo": {
       "LSUIElement": false,
       "NSMicrophoneUsageDescription": "PPQ Voice needs microphone access for speech-to-text transcription.",

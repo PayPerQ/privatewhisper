@@ -9,6 +9,8 @@ class EnvironmentManager {
   }
 
   loadEnvironmentVariables() {
+    const dotenv = require("dotenv");
+
     // In production, try multiple locations for .env file
     const possibleEnvPaths = [
       // Development path (project root)
@@ -21,9 +23,10 @@ class EnvironmentManager {
     ];
 
     // Add user data directory path if app is available
+    let userDataEnvPath = null;
     if (app && app.getPath) {
       try {
-        possibleEnvPaths.push(path.join(app.getPath("userData"), ".env"));
+        userDataEnvPath = path.join(app.getPath("userData"), ".env");
       } catch (error) {
         // App not ready yet, skip user data path
       }
@@ -34,7 +37,7 @@ class EnvironmentManager {
     for (const envPath of possibleEnvPaths) {
       try {
         if (fs.existsSync(envPath)) {
-          const result = require("dotenv").config({ path: envPath });
+          const result = dotenv.config({ path: envPath });
           if (!result.error) {
             envLoaded = true;
             break;
@@ -42,6 +45,22 @@ class EnvironmentManager {
         }
       } catch (error) {
         // Continue to next path
+      }
+    }
+
+    if (userDataEnvPath) {
+      try {
+        if (fs.existsSync(userDataEnvPath)) {
+          const result = dotenv.config({
+            path: userDataEnvPath,
+            override: true,
+          });
+          if (!result.error) {
+            envLoaded = true;
+          }
+        }
+      } catch (error) {
+        // Continue without user data overrides
       }
     }
 
@@ -82,7 +101,7 @@ ${process.env.SUPABASE_URL ? `SUPABASE_URL=${process.env.SUPABASE_URL}\n` : ""}$
 
     fs.writeFileSync(envPath, envContent, "utf8");
 
-    require("dotenv").config({ path: envPath });
+    require("dotenv").config({ path: envPath, override: true });
 
     return { success: true, path: envPath };
   }
@@ -117,7 +136,7 @@ ${process.env.SUPABASE_URL ? `SUPABASE_URL=${process.env.SUPABASE_URL}\n` : ""}$
     fs.writeFileSync(envPath, envContent, "utf8");
 
     // Reload the env file
-    require("dotenv").config({ path: envPath });
+    require("dotenv").config({ path: envPath, override: true });
 
     return { success: true, path: envPath };
   }

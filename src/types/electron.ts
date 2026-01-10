@@ -130,6 +130,9 @@ declare global {
         callback: (event: any, progressObj: any) => void,
       ) => void;
       onUpdateError: (callback: (event: any, error: any) => void) => void;
+      onUpdateInstallTimeout?: (
+        callback: (event: any, info: { message?: string }) => void,
+      ) => void;
 
       // Settings management (used by OnboardingFlow but not in preload.js)
       saveSettings?: (settings: SaveSettings) => Promise<void>;

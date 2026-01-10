@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { Button } from "./ui/button";
 import { RefreshCw, Download, Mic, Shield, Keyboard } from "lucide-react";
 import ApiKeyInput from "./ui/ApiKeyInput";
@@ -105,7 +105,6 @@ export default function SettingsPage({
     !microphoneDevices.some(
       (device) => device.deviceId === preferredMicrophoneId,
     );
-  const installTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const subscribeToUpdates = useCallback(() => {
     if (!window.electronAPI) return;
@@ -165,6 +164,16 @@ export default function SettingsPage({
           typeof error?.message === "string"
             ? error.message
             : "The updater encountered a problem. Please try again or download the latest release manually.",
+      });
+    });
+
+    window.electronAPI.onUpdateInstallTimeout?.((_event, info) => {
+      setInstallInitiated(false);
+      showAlertDialog({
+        title: "Still Running",
+        description:
+          info?.message ||
+          "PPQ Voice didn't restart automatically. Please quit the app manually to finish installing the update.",
       });
     });
   }, [showAlertDialog]);
@@ -253,6 +262,7 @@ export default function SettingsPage({
         window.electronAPI.removeAllListeners?.("update-downloaded");
         window.electronAPI.removeAllListeners?.("update-error");
         window.electronAPI.removeAllListeners?.("update-download-progress");
+        window.electronAPI.removeAllListeners?.("update-install-timeout");
       }
     };
   }, [subscribeToUpdates]);
@@ -271,32 +281,6 @@ export default function SettingsPage({
     };
   }, [alwaysUseBuiltInMic, loadMicrophones]);
 
-  useEffect(() => {
-    if (installInitiated) {
-      if (installTimeoutRef.current) {
-        clearTimeout(installTimeoutRef.current);
-      }
-      installTimeoutRef.current = setTimeout(() => {
-        setInstallInitiated(false);
-        showAlertDialog({
-          title: "Still Running",
-          description:
-            "PPQ Voice didn't restart automatically. Please quit the app manually to finish installing the update.",
-        });
-      }, 10000);
-    } else if (installTimeoutRef.current) {
-      clearTimeout(installTimeoutRef.current);
-      installTimeoutRef.current = null;
-    }
-
-    return () => {
-      if (installTimeoutRef.current) {
-        clearTimeout(installTimeoutRef.current);
-        installTimeoutRef.current = null;
-      }
-    };
-  }, [installInitiated, showAlertDialog]);
-
   const saveApiKey = useCallback(async () => {
     try {
       const trimmed = ppqApiKey.trim();
@@ -309,7 +293,6 @@ export default function SettingsPage({
       }
 
       await window.electronAPI?.savePPQKey(trimmed);
-      await window.electronAPI?.createProductionEnvFile(trimmed);
       updateApiKeys({ ppqApiKey: trimmed });
 
       showAlertDialog({

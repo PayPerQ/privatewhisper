@@ -73,6 +73,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   onUpdateDownloadProgress: (callback) =>
     ipcRenderer.on("update-download-progress", callback),
   onUpdateError: (callback) => ipcRenderer.on("update-error", callback),
+  onUpdateInstallTimeout: (callback) =>
+    ipcRenderer.on("update-install-timeout", callback),
 
   // External link opener
   openExternal: (url) => ipcRenderer.invoke("open-external", url),

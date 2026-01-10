@@ -83,10 +83,21 @@ export default function ControlPanel() {
       setDownloadProgress(Math.round(progress.percent || 0));
     };
 
+    const handleInstallTimeout = (_event: any, info: any) => {
+      setIsInstalling(false);
+      showAlertDialog({
+        title: "Still Running",
+        description:
+          info?.message ||
+          "PPQ Voice didn't restart automatically. Please quit the app manually to finish installing the update.",
+      });
+    };
+
     window.electronAPI.onUpdateAvailable(handleUpdateAvailable);
     window.electronAPI.onUpdateDownloaded(handleUpdateDownloaded);
     window.electronAPI.onUpdateError(handleUpdateError);
     window.electronAPI.onUpdateDownloadProgress(handleDownloadProgress);
+    window.electronAPI.onUpdateInstallTimeout?.(handleInstallTimeout);
 
     // Cleanup listeners on unmount
     return () => {
@@ -94,8 +105,9 @@ export default function ControlPanel() {
       window.electronAPI.removeAllListeners?.("update-downloaded");
       window.electronAPI.removeAllListeners?.("update-error");
       window.electronAPI.removeAllListeners?.("update-download-progress");
+      window.electronAPI.removeAllListeners?.("update-install-timeout");
     };
-  }, []);
+  }, [showAlertDialog]);
 
   const copyToClipboard = async (text: string) => {
     try {
@@ -173,7 +185,17 @@ export default function ControlPanel() {
         onConfirm: async () => {
           try {
             setIsInstalling(true);
-            await window.electronAPI.installUpdate();
+            const result = await window.electronAPI.installUpdate();
+            if (!result?.success) {
+              setIsInstalling(false);
+              showAlertDialog({
+                title: "Install Failed",
+                description:
+                  result?.message ||
+                  "Failed to start the installer. Please try again.",
+              });
+              return;
+            }
           } catch (_error) {
             setIsInstalling(false);
             toast({

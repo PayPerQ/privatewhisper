@@ -1,5 +1,6 @@
 import { useCallback } from "react";
 import { useLocalStorage } from "./useLocalStorage";
+import apiKeyManager from "../utils/ApiKeyManager";
 export interface TranscriptionSettings {
   preferredLanguage: string;
 }
@@ -101,7 +102,10 @@ export function useSettings() {
 
   const updateApiKeys = useCallback(
     (keys: Partial<ApiKeySettings>) => {
-      if (keys.ppqApiKey !== undefined) setPpqApiKey(keys.ppqApiKey);
+      if (keys.ppqApiKey !== undefined) {
+        setPpqApiKey(keys.ppqApiKey);
+        apiKeyManager.clearCache();
+      }
     },
     [setPpqApiKey],
   );

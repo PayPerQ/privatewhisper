@@ -11,6 +11,7 @@ class UpdateManager {
     this.isInstalling = false;
     this.isDownloading = false;
     this.installTimeout = null;
+    this.installFallbackTimeout = null;
     this.ipcHandlers = [];
     this.eventListeners = [];
     this.autoUpdater = null;
@@ -23,6 +24,17 @@ class UpdateManager {
     });
 
     this.setupIPCHandlers();
+  }
+
+  clearInstallTimers() {
+    if (this.installTimeout) {
+      clearTimeout(this.installTimeout);
+      this.installTimeout = null;
+    }
+    if (this.installFallbackTimeout) {
+      clearTimeout(this.installFallbackTimeout);
+      this.installFallbackTimeout = null;
+    }
   }
 
   setWindows(mainWindow, controlPanelWindow) {
@@ -82,6 +94,8 @@ class UpdateManager {
           stack: err?.stack,
         });
         this.isDownloading = false;
+        this.isInstalling = false;
+        this.clearInstallTimers();
         this.notifyRenderers("update-error", err);
       },
       "download-progress": (progressObj) => {
@@ -245,29 +259,58 @@ class UpdateManager {
               };
             }
 
+            if (!this.autoUpdater) {
+              return {
+                success: false,
+                message: "Updater not initialized yet. Please try again.",
+              };
+            }
+
             this.isInstalling = true;
             debugLogger.logEvent("updater", "installing-update");
 
+            this.clearInstallTimers();
             this.installTimeout = setTimeout(() => {
-              debugLogger.logEvent("updater", "calling-quit-and-install", {
-                platform: process.platform,
-                updateDownloaded: this.updateDownloaded,
-              });
+              this.installTimeout = null;
+              try {
+                debugLogger.logEvent("updater", "calling-quit-and-install", {
+                  platform: process.platform,
+                  updateDownloaded: this.updateDownloaded,
+                });
 
-              const { app } = require("electron");
-              app.emit("before-quit");
-              this.autoUpdater.quitAndInstall(false, true);
+                const { app } = require("electron");
+                app.emit("before-quit");
+                this.autoUpdater.quitAndInstall(false, true);
 
-              debugLogger.logEvent("updater", "quit-and-install-called");
+                debugLogger.logEvent("updater", "quit-and-install-called");
+              } catch (error) {
+                this.isInstalling = false;
+                this.clearInstallTimers();
+                debugLogger.error("updater", "quit-and-install-failed", {
+                  error: error?.message || error,
+                  stack: error?.stack,
+                });
+                this.notifyRenderers("update-error", error);
+              }
             }, 100);
+
+            this.installFallbackTimeout = setTimeout(() => {
+              if (!this.isInstalling) return;
+              this.isInstalling = false;
+              this.installFallbackTimeout = null;
+              debugLogger.error("updater", "install-timeout", {
+                error: "Update installation timed out. Please try again.",
+              });
+              this.notifyRenderers("update-install-timeout", {
+                message:
+                  "PPQ Voice didn't restart automatically. Please quit the app manually to finish installing the update.",
+              });
+            }, 10000);
 
             return { success: true, message: "Update installation started" };
           } catch (error) {
             this.isInstalling = false;
-            if (this.installTimeout) {
-              clearTimeout(this.installTimeout);
-              this.installTimeout = null;
-            }
+            this.clearInstallTimers();
             debugLogger.error("updater", "installation-error", {
               error: error.message,
               stack: error.stack,
@@ -344,10 +387,7 @@ class UpdateManager {
   }
 
   cleanup() {
-    if (this.installTimeout) {
-      clearTimeout(this.installTimeout);
-      this.installTimeout = null;
-    }
+    this.clearInstallTimers();
 
     this.eventListeners.forEach(({ event, handler }) => {
       this.autoUpdater.removeListener(event, handler);

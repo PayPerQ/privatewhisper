@@ -6,9 +6,9 @@ import { ConfirmDialog, AlertDialog } from "./ui/dialog";
 import { useSettings } from "../hooks/useSettings";
 import { useDialogs } from "../hooks/useDialogs";
 import { usePermissions } from "../hooks/usePermissions";
+import { useHotkeyRegistration } from "../hooks/useHotkeyRegistration";
 import { formatHotkeyLabel } from "../utils/hotkeys";
 import LanguageSelector from "./ui/LanguageSelector";
-import { useToast } from "./ui/Toast";
 import HotkeyInput from "./ui/HotkeyInput";
 import { Toggle } from "./ui/toggle";
 import {
@@ -82,9 +82,11 @@ export default function SettingsPage({
   const [microphoneLoading, setMicrophoneLoading] = useState(false);
   const [microphoneError, setMicrophoneError] = useState("");
   const [platform, setPlatform] = useState<string>("");
-  const [isSavingHotkey, setIsSavingHotkey] = useState(false);
   const isMacOS = platform === "darwin";
-  const { toast } = useToast();
+  const { registerHotkey, isRegistering: isSavingHotkey } =
+    useHotkeyRegistration({
+      onSuccess: setDictationKey,
+    });
   const openApiDocs = useCallback(() => {
     window.electronAPI?.openExternal?.("https://ppq.ai/api-docs");
   }, []);
@@ -346,46 +348,6 @@ export default function SettingsPage({
     });
   };
 
-  const saveHotkey = useCallback(
-    async (newKey: string) => {
-      setIsSavingHotkey(true);
-      try {
-        const result = await window.electronAPI?.updateHotkey(newKey);
-
-        if (!result?.success) {
-          toast({
-            title: "Hotkey Not Registered",
-            description:
-              result?.message ||
-              "This key could not be registered. Please try a different key.",
-            variant: "destructive",
-          });
-          return false;
-        }
-
-        setDictationKey(newKey);
-        toast({
-          title: "Hotkey Saved",
-          description: `Now using ${formatHotkeyLabel(newKey)} for dictation`,
-          variant: "success",
-          duration: 2000,
-        });
-        return true;
-      } catch (error) {
-        console.error("Failed to update hotkey:", error);
-        toast({
-          title: "Error",
-          description: "Failed to register hotkey. Please try again.",
-          variant: "destructive",
-        });
-        return false;
-      } finally {
-        setIsSavingHotkey(false);
-      }
-    },
-    [setDictationKey, toast],
-  );
-
   const renderSectionContent = () => {
     switch (activeSection) {
       case "general":
@@ -625,7 +587,7 @@ export default function SettingsPage({
               <div className="space-y-4">
                 <HotkeyInput
                   value={dictationKey}
-                  onSave={saveHotkey}
+                  onSave={registerHotkey}
                   isSaving={isSavingHotkey}
                   showGlobeOption={isMacOS}
                 />

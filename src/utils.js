@@ -38,6 +38,8 @@ class AppUtils {
       sessions.add(session.defaultSession);
     }
 
+    // clearStorageData() clears localStorage, sessionStorage, IndexedDB, cookies, etc.
+    // No need for separate localStorage.clear() via executeJavaScript
     await Promise.all(
       Array.from(sessions).map(async (activeSession) => {
         try {
@@ -58,21 +60,6 @@ class AppUtils {
           });
         }
       }),
-    );
-
-    await Promise.all(
-      windows.map((windowInstance) =>
-        windowInstance.webContents
-          .executeJavaScript("localStorage.clear()")
-          .then(() => {
-            debugLogger.logEvent("cleanup", "local-storage-cleared");
-          })
-          .catch((error) => {
-            debugLogger.error("cleanup", "local-storage-error", {
-              error: error.message,
-            });
-          }),
-      ),
     );
 
     debugLogger.logEvent("cleanup", "permissions-reminder", {

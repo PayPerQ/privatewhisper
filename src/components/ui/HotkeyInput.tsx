@@ -39,59 +39,87 @@ const VALID_FUNCTION_KEYS = new Set([
   "F24",
 ]);
 
-// Keys that cannot be used as hotkeys
-const DISALLOWED_KEYS = new Set([
-  "Shift",
-  "Control",
-  "Alt",
-  "Meta",
+// Keys that cannot be used as hotkeys (by code)
+const DISALLOWED_CODES = new Set([
+  "ShiftLeft",
+  "ShiftRight",
+  "ControlLeft",
+  "ControlRight",
+  "AltLeft",
+  "AltRight",
+  "MetaLeft",
+  "MetaRight",
   "CapsLock",
   "Enter",
   "Backspace",
 ]);
 
-// Modifier keys for combinations
-const MODIFIER_KEYS = new Set(["Shift", "Control", "Alt", "Meta"]);
+// Map e.code to Electron accelerator key names (layout-independent)
+const CODE_TO_KEY: Record<string, string> = {
+  Backquote: "`",
+  Digit1: "1",
+  Digit2: "2",
+  Digit3: "3",
+  Digit4: "4",
+  Digit5: "5",
+  Digit6: "6",
+  Digit7: "7",
+  Digit8: "8",
+  Digit9: "9",
+  Digit0: "0",
+  Minus: "-",
+  Equal: "=",
+  BracketLeft: "[",
+  BracketRight: "]",
+  Backslash: "\\",
+  Semicolon: ";",
+  Quote: "'",
+  Comma: ",",
+  Period: ".",
+  Slash: "/",
+  Space: "Space",
+  Escape: "Esc",
+};
 
 /**
  * Maps a keyboard event to a hotkey string that Electron can register.
- * Supports modifier combinations like Ctrl+N, Shift+Space, etc.
+ * Uses e.code for layout-independent mapping (e.g., Shift+1 stays "Shift+1" not "Shift+!").
+ * Supports modifier combinations like Ctrl+N, Cmd+K, Shift+Space, etc.
  */
 export function mapKeyboardEventToHotkey(
   e: React.KeyboardEvent,
 ): string | null {
-  const key = e.key;
   const code = e.code;
 
-  // Build modifier prefix
-  const modifiers: string[] = [];
-  if (e.ctrlKey) modifiers.push("CommandOrControl");
-  if (e.altKey) modifiers.push("Alt");
-  if (e.shiftKey) modifiers.push("Shift");
-  // Note: e.metaKey is Cmd on Mac, but we use CommandOrControl for cross-platform
-
-  // If only modifier keys are pressed, don't register
-  if (MODIFIER_KEYS.has(key)) {
+  // Reject standalone modifier keys and disallowed keys
+  if (DISALLOWED_CODES.has(code)) {
     return null;
   }
 
-  // Map the main key
+  // Build modifier prefix
+  const modifiers: string[] = [];
+  // Use CommandOrControl for cross-platform (Cmd on Mac, Ctrl elsewhere)
+  // Include metaKey (Cmd on Mac) in CommandOrControl
+  if (e.ctrlKey || e.metaKey) modifiers.push("CommandOrControl");
+  if (e.altKey) modifiers.push("Alt");
+  if (e.shiftKey) modifiers.push("Shift");
+
+  // Map the main key using e.code for layout independence
   let mappedKey: string;
-  if (code === "Backquote" || key === "`") {
-    mappedKey = "`";
-  } else if (key === "Escape") {
-    mappedKey = "Esc";
-  } else if (key === " ") {
-    mappedKey = "Space";
-  } else if (key === "fn" || key === "Function") {
+
+  // Check code-to-key map first (handles symbols and special keys)
+  if (CODE_TO_KEY[code]) {
+    mappedKey = CODE_TO_KEY[code];
+  } else if (code.startsWith("Key") && code.length === 4) {
+    // Letter keys: KeyA -> A, KeyB -> B, etc.
+    mappedKey = code.charAt(3).toUpperCase();
+  } else if (VALID_FUNCTION_KEYS.has(e.key)) {
+    // Function keys use e.key directly (F1, F2, etc.)
+    mappedKey = e.key;
+  } else if (e.key === "fn" || e.key === "Function") {
     // Globe key can't have modifiers
     if (modifiers.length > 0) return null;
     mappedKey = "GLOBE";
-  } else if (key.length === 1) {
-    // Single character keys - uppercase for letters
-    mappedKey = /^[a-zA-Z]$/.test(key) ? key.toUpperCase() : key;
-  } else if (VALID_FUNCTION_KEYS.has(key)) {
-    mappedKey = key;
   } else {
     // Reject keys that won't work as Electron accelerators
     return null;
@@ -137,12 +165,13 @@ export default function HotkeyInput({
         return;
       }
 
-      // Check for disallowed standalone keys
+      // Check for disallowed standalone keys (modifier-only presses handled in mapKeyboardEventToHotkey)
       if (
-        DISALLOWED_KEYS.has(e.key) &&
+        DISALLOWED_CODES.has(e.code) &&
         !e.ctrlKey &&
         !e.altKey &&
-        !e.shiftKey
+        !e.shiftKey &&
+        !e.metaKey
       ) {
         return;
       }

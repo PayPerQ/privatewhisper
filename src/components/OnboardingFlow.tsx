@@ -22,9 +22,9 @@ import { useLocalStorage } from "../hooks/useLocalStorage";
 import { useDialogs } from "../hooks/useDialogs";
 import { usePermissions } from "../hooks/usePermissions";
 import { useSettings } from "../hooks/useSettings";
+import { useHotkeyRegistration } from "../hooks/useHotkeyRegistration";
 import { formatHotkeyLabel } from "../utils/hotkeys";
 import LanguageSelector from "./ui/LanguageSelector";
-import { useToast } from "./ui/Toast";
 import HotkeyInput from "./ui/HotkeyInput";
 
 interface OnboardingFlowProps {
@@ -54,13 +54,22 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
   const detectedPlatform = window.electronAPI?.getPlatform?.() || "";
   const defaultHotkey = detectedPlatform === "darwin" ? "GLOBE" : "`";
   const [hotkey, setHotkey] = useState(dictationKey || defaultHotkey);
-  const [isRegisteringHotkey, setIsRegisteringHotkey] = useState(false);
   const isMacOS = detectedPlatform === "darwin";
   const readableHotkey = formatHotkeyLabel(hotkey);
   const { alertDialog, showAlertDialog, hideAlertDialog } = useDialogs();
-  const { toast } = useToast();
+  const { registerHotkey, isRegistering: isRegisteringHotkey } =
+    useHotkeyRegistration({
+      onSuccess: (key) => {
+        // Mark that user has manually changed the hotkey - cancels any in-flight auto-register
+        userChangedHotkeyRef.current = true;
+        setHotkey(key);
+      },
+    });
   const practiceTextareaRef = useRef<HTMLTextAreaElement>(null);
-  const hotkeyRegistrationRef = useRef(false);
+  // Tracks whether auto-registration is in flight (prevents double-invoke in StrictMode)
+  const autoRegisterInFlightRef = useRef(false);
+  // Tracks whether user has manually changed the hotkey (cancels auto-register)
+  const userChangedHotkeyRef = useRef(false);
   const permissionsHook = usePermissions(showAlertDialog);
   const openApiDocs = useCallback(() => {
     window.electronAPI?.openExternal?.("https://ppq.ai/api-docs");
@@ -101,66 +110,53 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
   // Auto-register the default hotkey when entering step 3 (hotkey step)
   // This ensures the default Globe key (or any default) works immediately
   // without requiring the user to explicitly select it first
+  // Note: This is silent (no toast) - user can still manually change it
   useEffect(() => {
     if (currentStep !== 3) return;
     if (!window.electronAPI?.updateHotkey) return;
-    // Use ref to prevent concurrent registrations (React.StrictMode double-invokes effects)
-    if (hotkeyRegistrationRef.current) return;
+    // Prevent double-invoke in React.StrictMode
+    if (autoRegisterInFlightRef.current) return;
 
-    const registerDefaultHotkey = async () => {
-      hotkeyRegistrationRef.current = true;
-      setIsRegisteringHotkey(true);
+    // Capture the hotkey at effect start to detect if user changes it mid-flight
+    const hotkeyAtStart = hotkey;
+
+    const autoRegisterDefaultHotkey = async () => {
+      autoRegisterInFlightRef.current = true;
       try {
-        const result = await window.electronAPI.updateHotkey(hotkey);
+        // If user already changed the hotkey, skip auto-registration
+        if (userChangedHotkeyRef.current) {
+          return;
+        }
+        const result = await window.electronAPI.updateHotkey(hotkeyAtStart);
+        // After await: check again if user changed hotkey while we were waiting
+        // If so, don't log success/failure for the stale auto-register
+        if (userChangedHotkeyRef.current) {
+          return;
+        }
         if (!result?.success) {
-          // Silent failure for auto-registration - user can still manually select
           console.warn(
             "Auto-registration of default hotkey failed:",
             result?.message,
           );
         }
       } catch (error) {
-        console.warn("Failed to auto-register default hotkey:", error);
+        if (!userChangedHotkeyRef.current) {
+          console.warn("Failed to auto-register default hotkey:", error);
+        }
       } finally {
-        setIsRegisteringHotkey(false);
-        hotkeyRegistrationRef.current = false;
+        autoRegisterInFlightRef.current = false;
       }
     };
 
-    void registerDefaultHotkey();
+    void autoRegisterDefaultHotkey();
     // Only run when entering step 3, not when hotkey changes
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentStep]);
 
+  // Used by saveSettings to ensure hotkey is registered before completing onboarding
   const attemptHotkeyRegistration = useCallback(async () => {
-    if (!window.electronAPI?.updateHotkey) {
-      return true;
-    }
-    setIsRegisteringHotkey(true);
-    try {
-      const result = await window.electronAPI.updateHotkey(hotkey);
-      if (!result?.success) {
-        showAlertDialog({
-          title: "Hotkey Not Registered",
-          description:
-            result?.message ||
-            "We couldn't register that key. Please choose another hotkey.",
-        });
-        return false;
-      }
-      return true;
-    } catch (_error) {
-      console.error("Failed to register onboarding hotkey", _error);
-      showAlertDialog({
-        title: "Hotkey Error",
-        description:
-          "We couldn't register that key. Please choose another hotkey.",
-      });
-      return false;
-    } finally {
-      setIsRegisteringHotkey(false);
-    }
-  }, [hotkey, showAlertDialog]);
+    return registerHotkey(hotkey);
+  }, [hotkey, registerHotkey]);
 
   const saveSettings = useCallback(async () => {
     const hotkeyRegistered = await attemptHotkeyRegistration();
@@ -399,40 +395,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
             {/* Hotkey input using shared component */}
             <HotkeyInput
               value={hotkey}
-              onSave={async (newKey) => {
-                setIsRegisteringHotkey(true);
-                try {
-                  const result = await window.electronAPI?.updateHotkey(newKey);
-                  if (!result?.success) {
-                    toast({
-                      title: "Hotkey Not Registered",
-                      description:
-                        result?.message ||
-                        "This key could not be registered. Please try a different key.",
-                      variant: "destructive",
-                    });
-                    return false;
-                  }
-                  setHotkey(newKey);
-                  toast({
-                    title: "Hotkey Set",
-                    description: `Now using ${formatHotkeyLabel(newKey)} for dictation`,
-                    variant: "success",
-                    duration: 2000,
-                  });
-                  return true;
-                } catch (error) {
-                  console.error("Failed to register hotkey:", error);
-                  toast({
-                    title: "Error",
-                    description: "Failed to register hotkey. Please try again.",
-                    variant: "destructive",
-                  });
-                  return false;
-                } finally {
-                  setIsRegisteringHotkey(false);
-                }
-              }}
+              onSave={registerHotkey}
               isSaving={isRegisteringHotkey}
               showGlobeOption={isMacOS}
             />

@@ -46,6 +46,7 @@
     "hardenedRuntime": true,
     "entitlements": "resources/mac/entitlements.mac.plist",
     "entitlementsInherit": "resources/mac/entitlements.mac.plist",
+    "identity": "New Caird Technologies, Inc. (VA6H89CJ5R)",
     "extendInfo": {
       "LSUIElement": false,
       "NSMicrophoneUsageDescription": "PPQ Voice needs microphone access for speech-to-text transcription.",

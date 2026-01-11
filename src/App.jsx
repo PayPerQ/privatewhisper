@@ -827,15 +827,6 @@ export default function App() {
 
   return (
     <>
-      {/* Interim transcript display for streaming mode */}
-      {isStreamingMode && interimTranscript && (
-        <div className="fixed bottom-20 right-6 z-50 max-w-xs">
-          <div className="bg-neutral-900/95 text-white text-sm px-3 py-2 rounded-lg shadow-lg backdrop-blur-sm border border-white/10">
-            <p className="line-clamp-3 break-words">{interimTranscript}</p>
-          </div>
-        </div>
-      )}
-
       {/* Fixed bottom-right voice button */}
       <div className="fixed bottom-6 right-6 z-50">
         <div className="relative">

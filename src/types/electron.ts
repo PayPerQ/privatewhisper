@@ -178,6 +178,9 @@ declare global {
 
       // FFmpeg availability
       checkFFmpegAvailability: () => Promise<boolean>;
+
+      // Globe key detection for hotkey picker (macOS only)
+      onGlobeKeyDetected?: (callback: () => void) => () => void;
     };
 
     api?: {

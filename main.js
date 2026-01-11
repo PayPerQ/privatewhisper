@@ -144,6 +144,12 @@ async function startApp() {
 
   if (process.platform === "darwin") {
     globeKeyManager.on("globe-down", () => {
+      BrowserWindow.getAllWindows().forEach((win) => {
+        if (!win.isDestroyed()) {
+          win.webContents.send("globe-key-detected");
+        }
+      });
+
       if (
         hotkeyManager.getCurrentHotkey &&
         hotkeyManager.getCurrentHotkey() === "GLOBE"

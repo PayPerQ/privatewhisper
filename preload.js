@@ -113,4 +113,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   updateHotkeyMode: (mode) => ipcRenderer.invoke("update-hotkey-mode", mode),
   onHotkeyModeChanged: (callback) =>
     exposeListener("hotkey-mode-changed", callback),
+
+  // Globe key detection for hotkey picker (macOS only)
+  onGlobeKeyDetected: (callback) =>
+    exposeListener("globe-key-detected", callback),
 });

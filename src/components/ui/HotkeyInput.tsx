@@ -1,4 +1,4 @@
-import React, { useRef, useState, useCallback } from "react";
+import React, { useRef, useState, useCallback, useEffect } from "react";
 import { Keyboard, Loader2 } from "lucide-react";
 import { formatHotkeyLabel } from "../../utils/hotkeys";
 
@@ -143,13 +143,41 @@ export default function HotkeyInput({
   const inputRef = useRef<HTMLDivElement>(null);
   const [isListening, setIsListening] = useState(false);
   const [pendingKey, setPendingKey] = useState<string | null>(null);
+  const isListeningRef = useRef(isListening);
+  const isSavingRef = useRef(isSaving);
+  const disabledRef = useRef(disabled);
 
-  const handleGlobeSelect = useCallback(async () => {
-    if (isSaving || disabled) return;
-    setPendingKey("GLOBE");
-    await onSave("GLOBE");
-    setPendingKey(null);
-  }, [isSaving, disabled, onSave]);
+  // Keep refs in sync with state/props for use in IPC callback
+  useEffect(() => {
+    isListeningRef.current = isListening;
+    isSavingRef.current = isSaving;
+    disabledRef.current = disabled;
+  }, [isListening, isSaving, disabled]);
+
+  // Listen for globe key via IPC when in listening mode (macOS only)
+  useEffect(() => {
+    if (!showGlobeOption) return;
+
+    const handleGlobeKeyDetected = async () => {
+      // Only process if we're currently listening for hotkey input
+      if (!isListeningRef.current || isSavingRef.current || disabledRef.current)
+        return;
+
+      setPendingKey("GLOBE");
+      setIsListening(false);
+      inputRef.current?.blur();
+
+      await onSave("GLOBE");
+      setPendingKey(null);
+    };
+
+    const cleanup = window.electronAPI?.onGlobeKeyDetected?.(
+      handleGlobeKeyDetected,
+    );
+    return () => {
+      cleanup?.();
+    };
+  }, [showGlobeOption, onSave]);
 
   const handleKeyDown = useCallback(
     async (e: React.KeyboardEvent) => {
@@ -186,21 +214,15 @@ export default function HotkeyInput({
       setIsListening(false);
       inputRef.current?.blur();
 
-      // Try to save
-      const success = await onSave(mappedKey);
-      if (!success) {
-        // Reset to previous value on failure
-        setPendingKey(null);
-      } else {
-        setPendingKey(null);
-      }
+      // Try to save, then clear pending state regardless of outcome
+      await onSave(mappedKey);
+      setPendingKey(null);
     },
     [isListening, isSaving, disabled, onSave],
   );
 
   const displayKey = pendingKey || value;
   const isActive = isListening || isSaving;
-  const isGlobeSelected = displayKey === "GLOBE";
 
   return (
     <div className={`space-y-3 ${className}`}>
@@ -247,40 +269,22 @@ export default function HotkeyInput({
               {isSaving
                 ? "Registering..."
                 : isListening
-                  ? "Press any key or combination..."
+                  ? showGlobeOption
+                    ? "Press any key, combination, or Globe..."
+                    : "Press any key or combination..."
                   : "Current hotkey"}
             </p>
             {!isActive && (
               <p className="text-xs text-muted-foreground">
-                Click to change (supports Ctrl/Alt/Shift + key)
+                {showGlobeOption
+                  ? "Click to change (supports Globe, Ctrl/Alt/Shift + key)"
+                  : "Click to change (supports Ctrl/Alt/Shift + key)"}
               </p>
             )}
           </div>
         </div>
         {!isActive && <Keyboard className="w-5 h-5 text-muted-foreground" />}
       </div>
-
-      {/* Globe key option for macOS - can't be detected via keyboard events */}
-      {showGlobeOption && (
-        <button
-          type="button"
-          onClick={handleGlobeSelect}
-          disabled={isSaving || disabled}
-          className={`
-            w-full p-3 rounded-lg border transition-all duration-200
-            flex items-center justify-center gap-2 text-sm
-            ${disabled ? "cursor-not-allowed opacity-60" : ""}
-            ${
-              isGlobeSelected
-                ? "border-primary bg-primary/10 text-primary"
-                : "border-border bg-muted/30 text-muted-foreground hover:border-primary/50"
-            }
-          `}
-        >
-          <span className="text-lg">🌐</span>
-          <span>Use Globe key (fn)</span>
-        </button>
-      )}
     </div>
   );
 }

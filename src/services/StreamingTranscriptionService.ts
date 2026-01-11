@@ -164,8 +164,6 @@ class StreamingTranscriptionService {
     reject: (reason?: any) => void,
     connectionTimeout: ReturnType<typeof setTimeout>
   ): void {
-    void debugLogger.log("MESSAGE_RECEIVED", { type: msg.type });
-
     switch (msg.type) {
       case "auth_result":
         if (msg.success) {
@@ -211,17 +209,11 @@ class StreamingTranscriptionService {
             // Interim result - show accumulated + current interim
             const interimDisplay = this.accumulatedText + msg.text;
             this.callbacks.onInterimResult?.(interimDisplay);
-
-            void debugLogger.log("INTERIM_TRANSCRIPT", {
-              text: msg.text,
-              display: interimDisplay,
-            });
           }
         }
         break;
 
       case "speech_started":
-        void debugLogger.log("SPEECH_STARTED");
         if (this.state === "ready") {
           this.setState("streaming");
         }

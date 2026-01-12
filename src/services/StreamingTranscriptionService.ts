@@ -3,6 +3,10 @@ import createDebugLogger from "../utils/debugLoggerRenderer";
 
 const debugLogger = createDebugLogger("streaming-transcription");
 
+const CONNECTION_TIMEOUT_MS = 10000;
+
+const FINAL_RESULT_WAIT_MS = 500;
+
 export type StreamingState =
   | "disconnected"
   | "connecting"
@@ -106,7 +110,7 @@ class StreamingTranscriptionService {
           this.setState("error");
           reject(new Error("Connection timeout"));
         }
-      }, 10000);
+      }, CONNECTION_TIMEOUT_MS);
 
       this.ws.onopen = () => {
         this.setState("authenticating");
@@ -127,21 +131,28 @@ class StreamingTranscriptionService {
           const msg: ServerMessage = JSON.parse(event.data);
           this.handleMessage(msg, resolve, reject, connectionTimeout);
         } catch (error) {
-          void debugLogger.log("MESSAGE_PARSE_ERROR", { error, data: event.data });
+          void debugLogger.log("MESSAGE_PARSE_ERROR", {
+            error,
+            data: event.data,
+          });
         }
       };
 
       this.ws.onerror = (event: Event) => {
         void debugLogger.log("WEBSOCKET_ERROR", { event });
         clearTimeout(connectionTimeout);
-        this.setState("error");
-        this.callbacks.onError?.("WebSocket connection error");
 
-        if (
-          this.state === "connecting" ||
-          this.state === "authenticating"
-        ) {
+        const wasConnecting =
+          this.state === "connecting" || this.state === "authenticating";
+
+        this.setState("error");
+
+        // Only notify via callback if already connected (not during initial connection)
+        // During connection, we reject the promise instead to let the caller handle it
+        if (wasConnecting) {
           reject(new Error("WebSocket connection error"));
+        } else {
+          this.callbacks.onError?.("WebSocket connection error");
         }
       };
 
@@ -167,7 +178,7 @@ class StreamingTranscriptionService {
     msg: ServerMessage,
     resolve: (value: void | PromiseLike<void>) => void,
     reject: (reason?: any) => void,
-    connectionTimeout: ReturnType<typeof setTimeout>
+    connectionTimeout: ReturnType<typeof setTimeout>,
   ): void {
     switch (msg.type) {
       case "auth_result":
@@ -187,10 +198,9 @@ class StreamingTranscriptionService {
         this.setState("ready");
         this.reconnectAttempts = 0;
 
-        // Send config for language
         if (this.language !== "multi") {
           this.ws?.send(
-            JSON.stringify({ type: "config", language: this.language })
+            JSON.stringify({ type: "config", language: this.language }),
           );
         }
 
@@ -276,7 +286,7 @@ class StreamingTranscriptionService {
     this.finalize();
 
     // Wait briefly for final results to come through
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    await new Promise((resolve) => setTimeout(resolve, FINAL_RESULT_WAIT_MS));
 
     const finalText = this.accumulatedText.trim();
 

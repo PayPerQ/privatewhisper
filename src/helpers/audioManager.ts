@@ -138,7 +138,6 @@ class AudioManager {
   onStreamingStateChange: AudioManagerCallbacks["onStreamingStateChange"];
   metrics: PipelineMetrics | null;
   private streamingMode: boolean;
-  private streamingService: typeof StreamingTranscriptionService;
   private pcmCapture: PCMAudioCapture | null;
 
   constructor(settings: Partial<AudioSettings> = {}) {
@@ -149,7 +148,6 @@ class AudioManager {
     this.onStreamingStateChange = null;
     this.metrics = null;
     this.streamingMode = false;
-    this.streamingService = StreamingTranscriptionService;
     this.pcmCapture = null;
   }
 
@@ -605,7 +603,7 @@ class AudioManager {
     this.metrics.mark("streamingStart");
 
     // Set up streaming service callbacks
-    this.streamingService.setCallbacks({
+    StreamingTranscriptionService.setCallbacks({
       onInterimResult: (text: string) => {
         this.onInterimResult?.(text);
       },
@@ -631,13 +629,12 @@ class AudioManager {
     });
 
     // Set language for streaming
-    this.streamingService.setLanguage(this.settings.preferredLanguage);
+    StreamingTranscriptionService.setLanguage(this.settings.preferredLanguage);
 
     try {
-      await this.streamingService.connect(apiKey, "stt:ppq-voice");
+      await StreamingTranscriptionService.connect(apiKey, "stt:ppq-voice");
       this.streamingMode = true;
       this.metrics.mark("streamingConnected");
-
     } catch (error: any) {
       this.metrics?.setError(`streaming_connect_failed: ${error.message}`);
       void debugLogger.log("STREAMING_CONNECT_ERROR", {
@@ -668,7 +665,7 @@ class AudioManager {
       } else if (this.streamingMode) {
         await this.pcmCapture.start(stream, (pcmData: ArrayBuffer) => {
           // Send PCM data directly to the streaming service
-          this.streamingService.sendAudio(pcmData);
+          StreamingTranscriptionService.sendAudio(pcmData);
         });
         void debugLogger.log("PCM_CAPTURE_STREAMING_STARTED");
       } else {
@@ -699,7 +696,7 @@ class AudioManager {
     // Transition PCM capture to streaming mode and get buffered audio
     const bufferedChunks = this.pcmCapture.transitionToStreaming(
       (pcmData: ArrayBuffer) => {
-        this.streamingService.sendAudio(pcmData);
+        StreamingTranscriptionService.sendAudio(pcmData);
       },
     );
 
@@ -718,13 +715,10 @@ class AudioManager {
     void debugLogger.log("FLUSHING_BUFFER", { chunks: bufferedChunks.length });
 
     for (const chunk of bufferedChunks) {
-      this.streamingService.sendAudio(chunk);
+      StreamingTranscriptionService.sendAudio(chunk);
     }
   }
 
-  /**
-   * Clear the PCM capture buffer (used when cancelling recording).
-   */
   clearPCMBuffer(): void {
     if (this.pcmCapture) {
       this.pcmCapture.clearBuffer();
@@ -762,7 +756,7 @@ class AudioManager {
     this.metrics?.setFlag("transcriptionRequestStartedAtEpochMs", Date.now());
 
     try {
-      const finalText = await this.streamingService.close();
+      const finalText = await StreamingTranscriptionService.close();
       this.streamingMode = false;
       // Mark transcription text ready for STT processing time calculation
       this.metrics?.mark("transcriptionTextReady");
@@ -837,7 +831,7 @@ class AudioManager {
   cancelStreaming(): void {
     if (this.streamingMode) {
       this.stopPCMCapture();
-      this.streamingService.disconnect();
+      StreamingTranscriptionService.disconnect();
       this.streamingMode = false;
       this.metrics?.setFlag("streamingCancelled", true);
       void debugLogger.log("STREAMING_CANCELLED");

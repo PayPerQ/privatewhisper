@@ -295,7 +295,12 @@ export default function App() {
   }, [isCommandMenuOpen, isHovered, setWindowInteractivity]);
 
   const startRecording = async () => {
-    if (pendingStartRef.current || isRecording || isConnecting || isProcessing) {
+    if (
+      pendingStartRef.current ||
+      isRecording ||
+      isConnecting ||
+      isProcessing
+    ) {
       return false;
     }
     try {
@@ -844,7 +849,10 @@ export default function App() {
   const getMicButtonProps = () => {
     const baseClasses =
       "rounded-full w-10 h-10 flex items-center justify-center relative overflow-hidden border-2 border-white/70";
-    const isActive = micState === "connecting" || micState === "recording" || micState === "processing";
+    const isActive =
+      micState === "connecting" ||
+      micState === "recording" ||
+      micState === "processing";
 
     return {
       className: `${baseClasses} ${isActive ? "bg-primary" : "bg-black/50"}`,

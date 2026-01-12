@@ -72,9 +72,7 @@ const DEFAULT_PPQ_CHAT_BASE = computeBaseUrl(
 
 // WebSocket base URL for streaming services
 const DEFAULT_PPQ_WS_BASE = computeBaseUrl(
-  [
-    env.PPQVOICE_PPQ_WS_BASE_URL as string | undefined,
-  ],
+  [env.PPQVOICE_PPQ_WS_BASE_URL as string | undefined],
   "wss://horsepower.ppq.ai",
 );
 

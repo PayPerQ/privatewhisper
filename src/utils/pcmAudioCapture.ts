@@ -1,11 +1,7 @@
 import createDebugLogger from "./debugLoggerRenderer";
+import { TARGET_SAMPLE_RATE, resample, float32ToInt16 } from "./audioUtils";
 
 const debugLogger = createDebugLogger("pcm-capture");
-
-/**
- * Target sample rate for Deepgram streaming (16kHz)
- */
-const TARGET_SAMPLE_RATE = 16000;
 
 /**
  * Buffer size for audio processing (2048 samples at 16kHz = 128ms)
@@ -13,14 +9,19 @@ const TARGET_SAMPLE_RATE = 16000;
 const BUFFER_SIZE = 2048;
 
 /**
+ * Maximum duration of audio to buffer before WebSocket is ready (5 seconds)
+ */
+const MAX_BUFFER_DURATION_MS = 5000;
+
+/**
  * Callback for receiving PCM audio chunks
  */
 type OnAudioChunk = (pcmData: ArrayBuffer) => void;
 
 /**
- * PCM Audio Capture - captures raw PCM audio from microphone
+ * PCM Audio Capture - captures raw PCM audio from microphone.
  * Uses ScriptProcessorNode (deprecated but widely supported) as fallback
- * for AudioWorklet which requires HTTPS/localhost
+ * for AudioWorklet which requires HTTPS/localhost.
  */
 class PCMAudioCapture {
   private audioContext: AudioContext | null = null;
@@ -33,11 +34,10 @@ class PCMAudioCapture {
   // Buffering support for capturing audio before WebSocket is ready
   private audioBuffer: ArrayBuffer[] = [];
   private isBuffering = false;
-  private maxBufferDurationMs = 5000; // Max 5 seconds of buffered audio
   private bufferStartTime: number | null = null;
 
   /**
-   * Start capturing PCM audio from the given media stream
+   * Start capturing PCM audio from the given media stream.
    */
   async start(stream: MediaStream, onAudioChunk: OnAudioChunk): Promise<void> {
     if (this.isCapturing) {
@@ -55,7 +55,6 @@ class PCMAudioCapture {
       // If browser created context at different rate, we'll need to resample
       const actualSampleRate = this.audioContext.sampleRate;
 
-
       // Create source from media stream
       this.sourceNode = this.audioContext.createMediaStreamSource(stream);
 
@@ -64,7 +63,7 @@ class PCMAudioCapture {
       this.processorNode = this.audioContext.createScriptProcessor(
         BUFFER_SIZE,
         1, // mono input
-        1  // mono output
+        1, // mono output
       );
 
       // Process audio data
@@ -74,17 +73,18 @@ class PCMAudioCapture {
         const inputData = event.inputBuffer.getChannelData(0);
 
         // Resample if needed
-        const outputData = actualSampleRate !== TARGET_SAMPLE_RATE
-          ? this.resample(inputData, actualSampleRate, TARGET_SAMPLE_RATE)
-          : inputData;
+        const outputData =
+          actualSampleRate !== TARGET_SAMPLE_RATE
+            ? resample(inputData, actualSampleRate, TARGET_SAMPLE_RATE)
+            : inputData;
 
         // Convert Float32 to Int16 (linear16)
-        const pcmBuffer = this.float32ToInt16(outputData);
+        const pcmBuffer = float32ToInt16(outputData);
 
         // If buffering, store in buffer; otherwise send to callback
         if (this.isBuffering) {
           const elapsed = Date.now() - (this.bufferStartTime || Date.now());
-          if (elapsed < this.maxBufferDurationMs) {
+          if (elapsed < MAX_BUFFER_DURATION_MS) {
             // Clone the buffer since it may be reused
             this.audioBuffer.push(pcmBuffer.slice(0));
           }
@@ -108,7 +108,7 @@ class PCMAudioCapture {
   }
 
   /**
-   * Stop capturing audio
+   * Stop capturing audio.
    */
   stop(): void {
     this.isCapturing = false;
@@ -116,7 +116,7 @@ class PCMAudioCapture {
   }
 
   /**
-   * Check if currently capturing
+   * Check if currently capturing.
    */
   isActive(): boolean {
     return this.isCapturing;
@@ -151,7 +151,9 @@ class PCMAudioCapture {
 
     void debugLogger.log("PCM_BUFFER_TRANSITION", {
       bufferedChunks: bufferedAudio.length,
-      bufferDurationMs: this.bufferStartTime ? Date.now() - this.bufferStartTime : 0,
+      bufferDurationMs: this.bufferStartTime
+        ? Date.now() - this.bufferStartTime
+        : 0,
     });
 
     this.bufferStartTime = null;
@@ -201,47 +203,6 @@ class PCMAudioCapture {
     this.stream = null;
     this.onAudioChunk = null;
     this.clearBuffer();
-  }
-
-  /**
-   * Simple linear resampling
-   */
-  private resample(
-    data: Float32Array,
-    fromSampleRate: number,
-    toSampleRate: number
-  ): Float32Array {
-    const ratio = fromSampleRate / toSampleRate;
-    const newLength = Math.round(data.length / ratio);
-    const result = new Float32Array(newLength);
-
-    for (let i = 0; i < newLength; i++) {
-      const srcIndex = i * ratio;
-      const srcIndexFloor = Math.floor(srcIndex);
-      const srcIndexCeil = Math.min(srcIndexFloor + 1, data.length - 1);
-      const t = srcIndex - srcIndexFloor;
-
-      // Linear interpolation
-      result[i] = data[srcIndexFloor] * (1 - t) + data[srcIndexCeil] * t;
-    }
-
-    return result;
-  }
-
-  /**
-   * Convert Float32 audio samples to Int16 (linear16 PCM)
-   */
-  private float32ToInt16(float32Array: Float32Array): ArrayBuffer {
-    const int16Array = new Int16Array(float32Array.length);
-
-    for (let i = 0; i < float32Array.length; i++) {
-      // Clamp to [-1, 1] range
-      const sample = Math.max(-1, Math.min(1, float32Array[i]));
-      // Convert to Int16 range
-      int16Array[i] = sample < 0 ? sample * 0x8000 : sample * 0x7fff;
-    }
-
-    return int16Array.buffer;
   }
 }
 

@@ -1,20 +1,23 @@
 import createDebugLogger from "./debugLoggerRenderer";
+import {
+  TARGET_SAMPLE_RATE,
+  resample,
+  float32ToInt16,
+  mixDownToMono,
+} from "./audioUtils";
 
 const debugLogger = createDebugLogger("audio-conversion");
 
 /**
- * Target sample rate for Deepgram streaming (16kHz)
- */
-const TARGET_SAMPLE_RATE = 16000;
-
-/**
- * Converts audio data to linear16 PCM format suitable for Deepgram streaming.
+ * Converts audio data to linear16 PCM format suitable for streaming transcription.
  * Takes WebM/Opus audio chunks from MediaRecorder and converts to 16kHz mono PCM.
  *
  * @param webmData - ArrayBuffer containing WebM/Opus audio data
  * @returns Promise<ArrayBuffer> - Linear16 PCM audio data
  */
-export async function convertToPCM(webmData: ArrayBuffer): Promise<ArrayBuffer> {
+export async function convertToPCM(
+  webmData: ArrayBuffer,
+): Promise<ArrayBuffer> {
   try {
     const audioContext = new AudioContext({ sampleRate: TARGET_SAMPLE_RATE });
 
@@ -50,80 +53,35 @@ export async function convertToPCM(webmData: ArrayBuffer): Promise<ArrayBuffer> 
     void debugLogger.log(
       "PCM_CONVERSION_ERROR",
       { error: error instanceof Error ? error.message : String(error) },
-      "error"
+      "error",
     );
     throw error;
   }
 }
 
 /**
- * Mix stereo or multi-channel audio down to mono
+ * Helper to write a string into a DataView at a given offset.
  */
-function mixDownToMono(audioBuffer: AudioBuffer): Float32Array {
-  const numChannels = audioBuffer.numberOfChannels;
-  const length = audioBuffer.length;
-  const mixed = new Float32Array(length);
-
-  for (let i = 0; i < length; i++) {
-    let sum = 0;
-    for (let channel = 0; channel < numChannels; channel++) {
-      sum += audioBuffer.getChannelData(channel)[i];
-    }
-    mixed[i] = sum / numChannels;
+function writeString(view: DataView, offset: number, str: string): void {
+  for (let i = 0; i < str.length; i++) {
+    view.setUint8(offset + i, str.charCodeAt(i));
   }
-
-  return mixed;
 }
 
 /**
- * Simple linear resampling
- */
-function resample(
-  data: Float32Array,
-  fromSampleRate: number,
-  toSampleRate: number
-): Float32Array {
-  const ratio = fromSampleRate / toSampleRate;
-  const newLength = Math.round(data.length / ratio);
-  const result = new Float32Array(newLength);
-
-  for (let i = 0; i < newLength; i++) {
-    const srcIndex = i * ratio;
-    const srcIndexFloor = Math.floor(srcIndex);
-    const srcIndexCeil = Math.min(srcIndexFloor + 1, data.length - 1);
-    const t = srcIndex - srcIndexFloor;
-
-    // Linear interpolation
-    result[i] = data[srcIndexFloor] * (1 - t) + data[srcIndexCeil] * t;
-  }
-
-  return result;
-}
-
-/**
- * Convert Float32 audio samples to Int16 (linear16 PCM)
- */
-function float32ToInt16(float32Array: Float32Array): ArrayBuffer {
-  const int16Array = new Int16Array(float32Array.length);
-
-  for (let i = 0; i < float32Array.length; i++) {
-    // Clamp to [-1, 1] range
-    const sample = Math.max(-1, Math.min(1, float32Array[i]));
-    // Convert to Int16 range
-    int16Array[i] = sample < 0 ? sample * 0x8000 : sample * 0x7fff;
-  }
-
-  return int16Array.buffer;
-}
-
-/**
- * Creates a WAV header for PCM data (useful for debugging/playback)
+ * Creates a WAV header for PCM data (useful for debugging/playback).
+ *
+ * @param pcmDataLength - Length of PCM data in bytes
+ * @param sampleRate - Sample rate (default: 16000)
+ * @param numChannels - Number of channels (default: 1)
+ * @param bitsPerSample - Bits per sample (default: 16)
+ * @returns WAV header as ArrayBuffer
  */
 export function createWavHeader(
   pcmDataLength: number,
   sampleRate: number = TARGET_SAMPLE_RATE,
   numChannels: number = 1,
-  bitsPerSample: number = 16
+  bitsPerSample: number = 16,
 ): ArrayBuffer {
   const byteRate = (sampleRate * numChannels * bitsPerSample) / 8;
   const blockAlign = (numChannels * bitsPerSample) / 8;
@@ -155,14 +113,11 @@ export function createWavHeader(
   return buffer;
 }
 
-function writeString(view: DataView, offset: number, str: string): void {
-  for (let i = 0; i < str.length; i++) {
-    view.setUint8(offset + i, str.charCodeAt(i));
-  }
-}
-
 /**
- * Combine WAV header with PCM data to create a playable WAV file
+ * Combine WAV header with PCM data to create a playable WAV file.
+ *
+ * @param pcmData - Raw PCM audio data
+ * @returns Blob containing a complete WAV file
  */
 export function createWavBlob(pcmData: ArrayBuffer): Blob {
   const header = createWavHeader(pcmData.byteLength);

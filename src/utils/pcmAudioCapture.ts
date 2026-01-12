@@ -30,6 +30,12 @@ class PCMAudioCapture {
   private onAudioChunk: OnAudioChunk | null = null;
   private isCapturing = false;
 
+  // Buffering support for capturing audio before WebSocket is ready
+  private audioBuffer: ArrayBuffer[] = [];
+  private isBuffering = false;
+  private maxBufferDurationMs = 5000; // Max 5 seconds of buffered audio
+  private bufferStartTime: number | null = null;
+
   /**
    * Start capturing PCM audio from the given media stream
    */
@@ -63,7 +69,7 @@ class PCMAudioCapture {
 
       // Process audio data
       this.processorNode.onaudioprocess = (event) => {
-        if (!this.isCapturing || !this.onAudioChunk) return;
+        if (!this.isCapturing) return;
 
         const inputData = event.inputBuffer.getChannelData(0);
 
@@ -75,7 +81,16 @@ class PCMAudioCapture {
         // Convert Float32 to Int16 (linear16)
         const pcmBuffer = this.float32ToInt16(outputData);
 
-        this.onAudioChunk(pcmBuffer);
+        // If buffering, store in buffer; otherwise send to callback
+        if (this.isBuffering) {
+          const elapsed = Date.now() - (this.bufferStartTime || Date.now());
+          if (elapsed < this.maxBufferDurationMs) {
+            // Clone the buffer since it may be reused
+            this.audioBuffer.push(pcmBuffer.slice(0));
+          }
+        } else if (this.onAudioChunk) {
+          this.onAudioChunk(pcmBuffer);
+        }
       };
 
       // Connect: source -> processor -> destination (required for processor to work)
@@ -107,6 +122,65 @@ class PCMAudioCapture {
     return this.isCapturing;
   }
 
+  /**
+   * Start capturing audio into internal buffer (before WebSocket ready).
+   * Audio will be stored until transitionToStreaming() is called.
+   */
+  async startBuffering(stream: MediaStream): Promise<void> {
+    this.audioBuffer = [];
+    this.isBuffering = true;
+    this.bufferStartTime = Date.now();
+
+    // Start capture without a callback - audio goes to buffer
+    await this.start(stream, () => {
+      // This callback won't be used while buffering
+    });
+
+    void debugLogger.log("PCM_BUFFERING_STARTED");
+  }
+
+  /**
+   * Transition from buffering to streaming mode.
+   * Returns buffered audio and switches to direct streaming.
+   */
+  transitionToStreaming(onAudioChunk: OnAudioChunk): ArrayBuffer[] {
+    const bufferedAudio = [...this.audioBuffer];
+    this.audioBuffer = [];
+    this.isBuffering = false;
+    this.onAudioChunk = onAudioChunk;
+
+    void debugLogger.log("PCM_BUFFER_TRANSITION", {
+      bufferedChunks: bufferedAudio.length,
+      bufferDurationMs: this.bufferStartTime ? Date.now() - this.bufferStartTime : 0,
+    });
+
+    this.bufferStartTime = null;
+    return bufferedAudio;
+  }
+
+  /**
+   * Get current buffer contents without transitioning.
+   */
+  getBufferedAudio(): ArrayBuffer[] {
+    return [...this.audioBuffer];
+  }
+
+  /**
+   * Clear the buffer and reset buffering state.
+   */
+  clearBuffer(): void {
+    this.audioBuffer = [];
+    this.isBuffering = false;
+    this.bufferStartTime = null;
+  }
+
+  /**
+   * Check if currently in buffering mode.
+   */
+  isBufferingMode(): boolean {
+    return this.isBuffering;
+  }
+
   private cleanup(): void {
     if (this.processorNode) {
       this.processorNode.disconnect();
@@ -126,6 +200,7 @@ class PCMAudioCapture {
 
     this.stream = null;
     this.onAudioChunk = null;
+    this.clearBuffer();
   }
 
   /**

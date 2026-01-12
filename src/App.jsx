@@ -221,6 +221,7 @@ const Tooltip = ({ children, content, emoji }) => {
 
 export default function App() {
   const [isRecording, setIsRecording] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false); // Optimistic UI: show animation while connecting
   const [isProcessing, setIsProcessing] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [isCommandMenuOpen, setIsCommandMenuOpen] = useState(false);
@@ -294,12 +295,16 @@ export default function App() {
   }, [isCommandMenuOpen, isHovered, setWindowInteractivity]);
 
   const startRecording = async () => {
-    if (pendingStartRef.current || isRecording || isProcessing) {
+    if (pendingStartRef.current || isRecording || isConnecting || isProcessing) {
       return false;
     }
     try {
       cancelRecordingRef.current = false;
       pendingStartRef.current = true;
+
+      // OPTIMISTIC UI: Show animation immediately before async operations complete
+      setIsConnecting(true);
+      void playCue("start");
 
       // Create AudioManager for this recording session
       const audioManager = new AudioManager(audioSettings);
@@ -407,6 +412,7 @@ export default function App() {
         },
       });
 
+      // Start microphone acquisition - this is the first async bottleneck
       const stream = await getPreferredMicrophoneStream({
         alwaysUseBuiltInMic,
         preferredMicrophoneId,
@@ -416,24 +422,38 @@ export default function App() {
       if (cancelRecordingRef.current) {
         stream.getTracks().forEach((track) => track.stop());
         pendingStartRef.current = false;
+        setIsConnecting(false);
         setIsRecording(false);
         audioManagerRef.current = null;
         return false;
       }
 
-      // Try to start streaming mode
+      // Start PCM capture in buffer mode immediately to capture audio while WebSocket connects
+      // This ensures no audio is lost during the connection phase
       let streamingStarted = false;
+      let pcmBufferingStarted = false;
       try {
+        // Start buffering PCM audio immediately (before WebSocket is ready)
+        await audioManager.startPCMCapture(stream, true /* bufferMode */);
+        pcmBufferingStarted = true;
+
+        // Now connect WebSocket (audio is being buffered in the meantime)
         await audioManager.startStreaming();
-        // Start PCM capture directly from the stream (bypasses MediaRecorder encoding)
-        await audioManager.startPCMCapture(stream);
+
+        // WebSocket is ready - transition from buffering to streaming
+        // This flushes all buffered audio and switches to live streaming
+        audioManager.transitionToStreaming();
         streamingStarted = true;
         setIsStreamingMode(true);
       } catch (streamingError) {
         void pipelineLogger.log("STREAMING_FALLBACK_TO_BATCH", {
           error: streamingError.message,
         });
-        // Fall back to batch mode
+        // Clear buffer and fall back to batch mode
+        if (pcmBufferingStarted) {
+          audioManager.clearPCMBuffer();
+          audioManager.stopPCMCapture();
+        }
         setIsStreamingMode(false);
       }
 
@@ -451,9 +471,11 @@ export default function App() {
         if (!didStart) {
           didStart = true;
           recordingStartedAtRef.current = Date.now();
+          // Transition from connecting to recording state
+          setIsConnecting(false);
           setIsRecording(true);
           pendingStartRef.current = false;
-          void playCue("start");
+          // Audio cue already played at start of startRecording()
         }
       };
 
@@ -477,7 +499,9 @@ export default function App() {
           if (audioManagerRef.current?.isStreaming()) {
             audioManagerRef.current.cancelStreaming();
           }
+          audioManagerRef.current?.clearPCMBuffer();
           setIsProcessing(false);
+          setIsConnecting(false);
           setIsStreamingMode(false);
           pendingStartRef.current = false;
           recordingStartedAtRef.current = null;
@@ -532,15 +556,17 @@ export default function App() {
         variant: "destructive",
       });
       pendingStartRef.current = false;
+      setIsConnecting(false);
       audioManagerRef.current = null;
       setIsStreamingMode(false);
     }
   };
 
   const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
+    if (mediaRecorderRef.current && (isRecording || isConnecting)) {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
+      setIsConnecting(false);
       // Don't set processing immediately - let the onstop handler do it
     }
   };
@@ -604,17 +630,18 @@ export default function App() {
       if (pendingStartRef.current) {
         cancelRecordingRef.current = true;
         pendingStartRef.current = false;
+        setIsConnecting(false);
         setIsRecording(false);
         return;
       }
 
       if (hotkeyMode === "hold") {
-        if (!isRecording && !isProcessing) {
+        if (!isRecording && !isConnecting && !isProcessing) {
           hotkeyPressStartRef.current = Date.now();
           cancelRecordingRef.current = false;
           startRecording();
           setIsPushToTalk(true);
-        } else if (isRecording) {
+        } else if (isRecording || isConnecting) {
           setIsPushToTalk(false);
           hotkeyPressStartRef.current = null;
           stopRecording();
@@ -624,9 +651,9 @@ export default function App() {
 
       hotkeyPressStartRef.current = null;
       cancelRecordingRef.current = false;
-      if (!isRecording && !isProcessing) {
+      if (!isRecording && !isConnecting && !isProcessing) {
         startRecording();
-      } else if (isRecording) {
+      } else if (isRecording || isConnecting) {
         stopRecording();
       }
     };
@@ -638,7 +665,7 @@ export default function App() {
         unsubscribe();
       }
     };
-  }, [hotkeyMode, isRecording, isProcessing]);
+  }, [hotkeyMode, isRecording, isConnecting, isProcessing]);
 
   useEffect(() => {
     if (!window.electronAPI?.onDictationHotkeyUp) {
@@ -660,12 +687,13 @@ export default function App() {
 
       if (wasPendingStart) {
         // Stop immediately if we released before recording actually began
+        setIsConnecting(false);
         setIsRecording(false);
         pendingStartRef.current = false;
         return;
       }
 
-      if (isRecording) {
+      if (isRecording || isConnecting) {
         stopRecording();
       }
     };
@@ -677,19 +705,20 @@ export default function App() {
         unsubscribe();
       }
     };
-  }, [hotkeyMode, isRecording, isPushToTalk]);
+  }, [hotkeyMode, isRecording, isConnecting, isPushToTalk]);
 
   const toggleListening = () => {
     setIsCommandMenuOpen(false);
     if (pendingStartRef.current) {
       cancelRecordingRef.current = true;
       pendingStartRef.current = false;
+      setIsConnecting(false);
       setIsRecording(false);
       return;
     }
-    if (!isRecording && !isProcessing) {
+    if (!isRecording && !isConnecting && !isProcessing) {
       startRecording();
-    } else if (isRecording) {
+    } else if (isRecording || isConnecting) {
       stopRecording();
       setIsPushToTalk(false);
     }
@@ -711,10 +740,10 @@ export default function App() {
   }, [isCommandMenuOpen]);
 
   useEffect(() => {
-    if (!isRecording && !isProcessing) {
+    if (!isRecording && !isConnecting && !isProcessing) {
       setIsPushToTalk(false);
     }
-  }, [isRecording, isProcessing]);
+  }, [isRecording, isConnecting, isProcessing]);
 
   const playCue = React.useCallback(
     async (type) => {
@@ -799,6 +828,7 @@ export default function App() {
   );
 
   const getMicState = () => {
+    if (isConnecting) return "connecting";
     if (isRecording) return "recording";
     if (isProcessing) return "processing";
     if (isHovered) return "hover";
@@ -814,14 +844,16 @@ export default function App() {
   const getMicButtonProps = () => {
     const baseClasses =
       "rounded-full w-10 h-10 flex items-center justify-center relative overflow-hidden border-2 border-white/70";
-    const isActive = micState === "recording" || micState === "processing";
+    const isActive = micState === "connecting" || micState === "recording" || micState === "processing";
 
     return {
       className: `${baseClasses} ${isActive ? "bg-primary" : "bg-black/50"}`,
       tooltip: isActive
-        ? micState === "recording"
-          ? "Recording..."
-          : "Processing..."
+        ? micState === "connecting"
+          ? "Connecting..."
+          : micState === "recording"
+            ? "Recording..."
+            : "Processing..."
         : hotkeyTooltip,
     };
   };
@@ -912,6 +944,10 @@ export default function App() {
               {/* Dynamic content based on state */}
               {micState === "idle" || micState === "hover" ? (
                 <SoundWaveIcon size={micState === "idle" ? 12 : 14} />
+              ) : micState === "connecting" ? (
+                <div className="opacity-70">
+                  <LoadingDots />
+                </div>
               ) : micState === "recording" ? (
                 <LoadingDots />
               ) : micState === "processing" ? (

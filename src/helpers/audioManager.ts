@@ -651,26 +651,83 @@ class AudioManager {
   /**
    * Start capturing PCM audio directly from a media stream.
    * This bypasses MediaRecorder and captures raw PCM samples at 16kHz.
+   * @param stream - The media stream to capture from
+   * @param bufferMode - If true, buffer audio until transitionToStreaming() is called
    */
-  async startPCMCapture(stream: MediaStream): Promise<void> {
-    if (!this.streamingMode) {
-      void debugLogger.log("PCM_CAPTURE_NOT_STREAMING");
-      return;
-    }
-
+  async startPCMCapture(
+    stream: MediaStream,
+    bufferMode: boolean = false,
+  ): Promise<void> {
     this.pcmCapture = new PCMAudioCapture();
 
     try {
-      await this.pcmCapture.start(stream, (pcmData: ArrayBuffer) => {
-        // Send PCM data directly to the streaming service
-        this.streamingService.sendAudio(pcmData);
-      });
-
+      if (bufferMode) {
+        // Start buffering immediately - audio will be stored until WebSocket is ready
+        await this.pcmCapture.startBuffering(stream);
+        void debugLogger.log("PCM_CAPTURE_BUFFERING_STARTED");
+      } else if (this.streamingMode) {
+        await this.pcmCapture.start(stream, (pcmData: ArrayBuffer) => {
+          // Send PCM data directly to the streaming service
+          this.streamingService.sendAudio(pcmData);
+        });
+        void debugLogger.log("PCM_CAPTURE_STREAMING_STARTED");
+      } else {
+        void debugLogger.log("PCM_CAPTURE_NOT_STREAMING");
+        return;
+      }
     } catch (error: any) {
       void debugLogger.log("PCM_CAPTURE_START_ERROR", {
         error: error.message,
       });
       throw error;
+    }
+  }
+
+  /**
+   * Transition PCM capture from buffering to streaming mode.
+   * Flushes buffered audio to WebSocket and switches to live streaming.
+   */
+  transitionToStreaming(): void {
+    if (!this.pcmCapture || !this.streamingMode) {
+      void debugLogger.log("TRANSITION_TO_STREAMING_SKIPPED", {
+        hasPcmCapture: !!this.pcmCapture,
+        streamingMode: this.streamingMode,
+      });
+      return;
+    }
+
+    // Transition PCM capture to streaming mode and get buffered audio
+    const bufferedChunks = this.pcmCapture.transitionToStreaming(
+      (pcmData: ArrayBuffer) => {
+        this.streamingService.sendAudio(pcmData);
+      },
+    );
+
+    // Flush all buffered audio to the streaming service
+    this.flushBufferedAudio(bufferedChunks);
+  }
+
+  /**
+   * Flush buffered audio chunks to the streaming service.
+   */
+  private flushBufferedAudio(bufferedChunks: ArrayBuffer[]): void {
+    if (!this.streamingMode || bufferedChunks.length === 0) {
+      return;
+    }
+
+    void debugLogger.log("FLUSHING_BUFFER", { chunks: bufferedChunks.length });
+
+    for (const chunk of bufferedChunks) {
+      this.streamingService.sendAudio(chunk);
+    }
+  }
+
+  /**
+   * Clear the PCM capture buffer (used when cancelling recording).
+   */
+  clearPCMBuffer(): void {
+    if (this.pcmCapture) {
+      this.pcmCapture.clearBuffer();
     }
   }
 

@@ -720,6 +720,13 @@ class AudioManager {
       });
 
       if (!finalText) {
+        // Still notify completion even with empty text so UI state gets reset
+        this.onTranscriptionComplete?.({
+          success: true,
+          text: "",
+          source: "streaming",
+          metrics: this.metrics,
+        });
         return "";
       }
 

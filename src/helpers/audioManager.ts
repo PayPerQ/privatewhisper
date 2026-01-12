@@ -634,7 +634,7 @@ class AudioManager {
     this.streamingService.setLanguage(this.settings.preferredLanguage);
 
     try {
-      await this.streamingService.connect(apiKey);
+      await this.streamingService.connect(apiKey, "stt:ppq-voice");
       this.streamingMode = true;
       this.metrics.mark("streamingConnected");
 

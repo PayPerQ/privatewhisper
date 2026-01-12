@@ -70,7 +70,7 @@ class StreamingTranscriptionService {
     this.callbacks.onStateChange?.(newState);
   }
 
-  async connect(apiKey: string): Promise<void> {
+  async connect(apiKey: string, toolId?: string): Promise<void> {
     return new Promise((resolve, reject) => {
       if (this.ws?.readyState === WebSocket.OPEN) {
         void debugLogger.log("ALREADY_CONNECTED");
@@ -87,6 +87,7 @@ class StreamingTranscriptionService {
         url: wsUrl,
         hasApiKey: !!apiKey,
         apiKeyPrefix: apiKey ? `${apiKey.substring(0, 8)}...` : "none",
+        toolId,
       });
 
       try {
@@ -110,8 +111,15 @@ class StreamingTranscriptionService {
       this.ws.onopen = () => {
         this.setState("authenticating");
 
-        // Send authentication message
-        this.ws?.send(JSON.stringify({ type: "auth", api_key: apiKey }));
+        // Send authentication message with optional tool_id for creator payouts
+        const authMessage: { type: string; api_key: string; tool_id?: string } = {
+          type: "auth",
+          api_key: apiKey,
+        };
+        if (toolId) {
+          authMessage.tool_id = toolId;
+        }
+        this.ws?.send(JSON.stringify(authMessage));
       };
 
       this.ws.onmessage = (event: MessageEvent) => {

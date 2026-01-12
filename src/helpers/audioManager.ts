@@ -608,11 +608,8 @@ class AudioManager {
       onInterimResult: (text: string) => {
         this.onInterimResult?.(text);
       },
-      onFinalResult: (text: string) => {
-        void debugLogger.log("STREAMING_FINAL_RESULT", {
-          textLength: text.length,
-          textPreview: text.substring(0, 100) + (text.length > 100 ? "..." : ""),
-        });
+      onFinalResult: (_text: string) => {
+        // Final result received - accumulated text will be processed when streaming stops
       },
       onError: (error: string) => {
         this.metrics?.setError(`streaming_error: ${error}`);
@@ -622,7 +619,6 @@ class AudioManager {
         });
       },
       onStateChange: (state: StreamingState) => {
-        void debugLogger.log("STREAMING_STATE_CHANGE", { state });
         this.onStreamingStateChange?.(state);
       },
       onSpeechStarted: () => {
@@ -641,9 +637,6 @@ class AudioManager {
       this.streamingMode = true;
       this.metrics.mark("streamingConnected");
 
-      void debugLogger.log("STREAMING_STARTED", {
-        language: this.settings.preferredLanguage,
-      });
     } catch (error: any) {
       this.metrics?.setError(`streaming_connect_failed: ${error.message}`);
       void debugLogger.log("STREAMING_CONNECT_ERROR", {
@@ -672,7 +665,6 @@ class AudioManager {
         this.streamingService.sendAudio(pcmData);
       });
 
-      void debugLogger.log("PCM_CAPTURE_STARTED");
     } catch (error: any) {
       void debugLogger.log("PCM_CAPTURE_START_ERROR", {
         error: error.message,
@@ -688,7 +680,6 @@ class AudioManager {
     if (this.pcmCapture) {
       this.pcmCapture.stop();
       this.pcmCapture = null;
-      void debugLogger.log("PCM_CAPTURE_STOPPED");
     }
   }
 
@@ -709,7 +700,6 @@ class AudioManager {
 
     this.metrics?.mark("streamingStopRequested");
 
-    void debugLogger.log("STOPPING_STREAMING");
 
     try {
       const finalText = await this.streamingService.close();

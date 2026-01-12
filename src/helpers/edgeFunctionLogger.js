@@ -1,7 +1,7 @@
 const debugLogger = require("./debugLogger");
 
 const DEFAULT_FUNCTION_NAME = "voice-logs";
-const REQUEST_TIMEOUT_MS = 2000;
+const REQUEST_TIMEOUT_MS = 10000;
 
 class EdgeFunctionLogger {
   constructor(environmentManager, appVersion = "") {

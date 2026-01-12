@@ -316,8 +316,8 @@ export default function App() {
         onInterimResult: (text) => {
           setInterimTranscript(text);
         },
-        onStreamingStateChange: (state) => {
-          void pipelineLogger.log("STREAMING_STATE", { state });
+        onStreamingStateChange: (_state) => {
+          // Streaming state change handled by AudioManager
         },
         onTranscriptionComplete: async (result) => {
           const metrics = result.metrics;
@@ -425,7 +425,6 @@ export default function App() {
         await audioManager.startPCMCapture(stream);
         streamingStarted = true;
         setIsStreamingMode(true);
-        void pipelineLogger.log("STREAMING_MODE_STARTED");
       } catch (streamingError) {
         void pipelineLogger.log("STREAMING_FALLBACK_TO_BATCH", {
           error: streamingError.message,

@@ -68,8 +68,6 @@ class StreamingTranscriptionService {
   private setState(newState: StreamingState): void {
     this.state = newState;
     this.callbacks.onStateChange?.(newState);
-
-    void debugLogger.log("STATE_CHANGE", { newState });
   }
 
   async connect(apiKey: string): Promise<void> {
@@ -110,7 +108,6 @@ class StreamingTranscriptionService {
       }, 10000);
 
       this.ws.onopen = () => {
-        void debugLogger.log("WEBSOCKET_OPEN");
         this.setState("authenticating");
 
         // Send authentication message
@@ -167,7 +164,6 @@ class StreamingTranscriptionService {
     switch (msg.type) {
       case "auth_result":
         if (msg.success) {
-          void debugLogger.log("AUTH_SUCCESS");
           // Wait for 'ready' message before resolving
         } else {
           void debugLogger.log("AUTH_FAILED", { error: msg.error });
@@ -179,7 +175,6 @@ class StreamingTranscriptionService {
         break;
 
       case "ready":
-        void debugLogger.log("READY");
         clearTimeout(connectionTimeout);
         this.setState("ready");
         this.reconnectAttempts = 0;
@@ -199,12 +194,6 @@ class StreamingTranscriptionService {
           if (msg.is_final) {
             this.accumulatedText += msg.text + " ";
             this.callbacks.onFinalResult?.(this.accumulatedText.trim());
-
-            void debugLogger.log("FINAL_TRANSCRIPT", {
-              text: msg.text,
-              accumulated: this.accumulatedText.trim(),
-              confidence: msg.confidence,
-            });
           } else {
             // Interim result - show accumulated + current interim
             const interimDisplay = this.accumulatedText + msg.text;
@@ -236,7 +225,7 @@ class StreamingTranscriptionService {
         break;
 
       case "config_ack":
-        void debugLogger.log("CONFIG_ACKNOWLEDGED", { msg });
+        // Config acknowledged by server
         break;
 
       default:

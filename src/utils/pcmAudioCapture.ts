@@ -49,10 +49,6 @@ class PCMAudioCapture {
       // If browser created context at different rate, we'll need to resample
       const actualSampleRate = this.audioContext.sampleRate;
 
-      void debugLogger.log("AUDIO_CONTEXT_CREATED", {
-        requestedSampleRate: TARGET_SAMPLE_RATE,
-        actualSampleRate,
-      });
 
       // Create source from media stream
       this.sourceNode = this.audioContext.createMediaStreamSource(stream);
@@ -87,11 +83,6 @@ class PCMAudioCapture {
       this.processorNode.connect(this.audioContext.destination);
 
       this.isCapturing = true;
-
-      void debugLogger.log("PCM_CAPTURE_STARTED", {
-        sampleRate: actualSampleRate,
-        bufferSize: BUFFER_SIZE,
-      });
     } catch (error) {
       void debugLogger.log("PCM_CAPTURE_START_ERROR", {
         error: error instanceof Error ? error.message : String(error),
@@ -107,7 +98,6 @@ class PCMAudioCapture {
   stop(): void {
     this.isCapturing = false;
     this.cleanup();
-    void debugLogger.log("PCM_CAPTURE_STOPPED");
   }
 
   /**

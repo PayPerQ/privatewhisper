@@ -70,6 +70,12 @@ const DEFAULT_PPQ_CHAT_BASE = computeBaseUrl(
   "https://api.ppq.ai",
 );
 
+// WebSocket base URL for streaming services
+const DEFAULT_PPQ_WS_BASE = computeBaseUrl(
+  [env.PPQVOICE_PPQ_WS_BASE_URL as string | undefined],
+  "wss://horsepower.ppq.ai",
+);
+
 export const API_ENDPOINTS = {
   PPQ_BASE: DEFAULT_PPQ_CHAT_BASE,
   PPQ_CHAT: buildApiUrl(DEFAULT_PPQ_CHAT_BASE, "/chat/completions"),
@@ -78,6 +84,7 @@ export const API_ENDPOINTS = {
     DEFAULT_PPQ_TRANSCRIPTION_BASE,
     "/audio/transcriptions",
   ),
+  PPQ_STREAMING_TRANSCRIPTION_WS: `${DEFAULT_PPQ_WS_BASE}/ws/transcribe`,
 } as const;
 
 // Model Configuration

@@ -1,9 +1,13 @@
 import ReasoningService from "../services/ReasoningService";
+import StreamingTranscriptionService, {
+  StreamingState,
+} from "../services/StreamingTranscriptionService";
 import { API_ENDPOINTS } from "../config/constants";
 import createDebugLogger from "../utils/debugLoggerRenderer";
 import apiKeyManager from "../utils/ApiKeyManager";
 import { AUDIO_CONFIG } from "../config/audio";
 import { withRetry, createApiRetryStrategy } from "../utils/retry";
+import PCMAudioCapture from "../utils/pcmAudioCapture";
 
 const debugLogger = createDebugLogger("audio");
 const nowMs = () =>
@@ -116,6 +120,8 @@ type AudioManagerCallbacks = {
     source?: string;
     metrics?: PipelineMetrics | null;
   }) => void;
+  onInterimResult?: (text: string) => void;
+  onStreamingStateChange?: (state: StreamingState) => void;
 };
 
 const DEFAULT_SETTINGS: AudioSettings = {
@@ -128,22 +134,37 @@ class AudioManager {
   settings: AudioSettings;
   onError: AudioManagerCallbacks["onError"];
   onTranscriptionComplete: AudioManagerCallbacks["onTranscriptionComplete"];
+  onInterimResult: AudioManagerCallbacks["onInterimResult"];
+  onStreamingStateChange: AudioManagerCallbacks["onStreamingStateChange"];
   metrics: PipelineMetrics | null;
+  private streamingMode: boolean;
+  private pcmCapture: PCMAudioCapture | null;
 
   constructor(settings: Partial<AudioSettings> = {}) {
     this.settings = { ...DEFAULT_SETTINGS, ...settings };
     this.onError = null;
     this.onTranscriptionComplete = null;
+    this.onInterimResult = null;
+    this.onStreamingStateChange = null;
     this.metrics = null;
+    this.streamingMode = false;
+    this.pcmCapture = null;
   }
 
   updateSettings(settings: Partial<AudioSettings>) {
     this.settings = { ...this.settings, ...settings };
   }
 
-  setCallbacks({ onError, onTranscriptionComplete }: AudioManagerCallbacks) {
+  setCallbacks({
+    onError,
+    onTranscriptionComplete,
+    onInterimResult,
+    onStreamingStateChange,
+  }: AudioManagerCallbacks) {
     this.onError = onError;
     this.onTranscriptionComplete = onTranscriptionComplete;
+    this.onInterimResult = onInterimResult;
+    this.onStreamingStateChange = onStreamingStateChange;
   }
 
   async processAudio(audioBlob: Blob) {
@@ -505,6 +526,7 @@ class AudioManager {
           });
 
           metrics?.mark("transcriptionRequestStart");
+          metrics?.setFlag("transcriptionRequestStartedAtEpochMs", Date.now());
           response = await fetch(API_ENDPOINTS.PPQ_TRANSCRIPTION, {
             method: "POST",
             headers: requestHeaders,
@@ -569,6 +591,253 @@ class AudioManager {
     }
   }
 
+  // Streaming transcription methods
+  async startStreaming(): Promise<void> {
+    const apiKey = await this.getAPIKey();
+
+    this.metrics = new PipelineMetrics();
+    this.metrics.setFlag("preferredLanguage", this.settings.preferredLanguage);
+    this.metrics.setFlag("reasoningModel", this.settings.reasoningModel);
+    this.metrics.setFlag("useReasoningModel", this.settings.useReasoningModel);
+    this.metrics.setFlag("mode", "streaming");
+    this.metrics.mark("streamingStart");
+
+    // Set up streaming service callbacks
+    StreamingTranscriptionService.setCallbacks({
+      onInterimResult: (text: string) => {
+        this.onInterimResult?.(text);
+      },
+      onFinalResult: (_text: string) => {
+        // Final result received - accumulated text will be processed when streaming stops
+      },
+      onError: (error: string) => {
+        this.metrics?.setError(`streaming_error: ${error}`);
+        this.onError?.({
+          title: "Streaming Error",
+          description: error,
+        });
+      },
+      onStateChange: (state: StreamingState) => {
+        this.onStreamingStateChange?.(state);
+      },
+      onSpeechStarted: () => {
+        this.metrics?.mark("speechStarted");
+      },
+      onSpeechEnded: () => {
+        this.metrics?.mark("speechEnded");
+      },
+    });
+
+    // Set language for streaming
+    StreamingTranscriptionService.setLanguage(this.settings.preferredLanguage);
+
+    try {
+      await StreamingTranscriptionService.connect(apiKey, "stt:ppq-voice");
+      this.streamingMode = true;
+      this.metrics.mark("streamingConnected");
+    } catch (error: any) {
+      this.metrics?.setError(`streaming_connect_failed: ${error.message}`);
+      void debugLogger.log("STREAMING_CONNECT_ERROR", {
+        error: error.message,
+        stack: error.stack,
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Start capturing PCM audio directly from a media stream.
+   * This bypasses MediaRecorder and captures raw PCM samples at 16kHz.
+   * @param stream - The media stream to capture from
+   * @param bufferMode - If true, buffer audio until transitionToStreaming() is called
+   */
+  async startPCMCapture(
+    stream: MediaStream,
+    bufferMode: boolean = false,
+  ): Promise<void> {
+    this.pcmCapture = new PCMAudioCapture();
+
+    try {
+      if (bufferMode) {
+        // Start buffering immediately - audio will be stored until WebSocket is ready
+        await this.pcmCapture.startBuffering(stream);
+        void debugLogger.log("PCM_CAPTURE_BUFFERING_STARTED");
+      } else if (this.streamingMode) {
+        await this.pcmCapture.start(stream, (pcmData: ArrayBuffer) => {
+          // Send PCM data directly to the streaming service
+          StreamingTranscriptionService.sendAudio(pcmData);
+        });
+        void debugLogger.log("PCM_CAPTURE_STREAMING_STARTED");
+      } else {
+        void debugLogger.log("PCM_CAPTURE_NOT_STREAMING");
+        return;
+      }
+    } catch (error: any) {
+      void debugLogger.log("PCM_CAPTURE_START_ERROR", {
+        error: error.message,
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Transition PCM capture from buffering to streaming mode.
+   * Flushes buffered audio to WebSocket and switches to live streaming.
+   */
+  transitionToStreaming(): void {
+    if (!this.pcmCapture || !this.streamingMode) {
+      void debugLogger.log("TRANSITION_TO_STREAMING_SKIPPED", {
+        hasPcmCapture: !!this.pcmCapture,
+        streamingMode: this.streamingMode,
+      });
+      return;
+    }
+
+    // Transition PCM capture to streaming mode and get buffered audio
+    const bufferedChunks = this.pcmCapture.transitionToStreaming(
+      (pcmData: ArrayBuffer) => {
+        StreamingTranscriptionService.sendAudio(pcmData);
+      },
+    );
+
+    // Flush all buffered audio to the streaming service
+    this.flushBufferedAudio(bufferedChunks);
+  }
+
+  /**
+   * Flush buffered audio chunks to the streaming service.
+   */
+  private flushBufferedAudio(bufferedChunks: ArrayBuffer[]): void {
+    if (!this.streamingMode || bufferedChunks.length === 0) {
+      return;
+    }
+
+    void debugLogger.log("FLUSHING_BUFFER", { chunks: bufferedChunks.length });
+
+    for (const chunk of bufferedChunks) {
+      StreamingTranscriptionService.sendAudio(chunk);
+    }
+  }
+
+  clearPCMBuffer(): void {
+    if (this.pcmCapture) {
+      this.pcmCapture.clearBuffer();
+    }
+  }
+
+  /**
+   * Stop PCM audio capture.
+   */
+  stopPCMCapture(): void {
+    if (this.pcmCapture) {
+      this.pcmCapture.stop();
+      this.pcmCapture = null;
+    }
+  }
+
+  /**
+   * Check if PCM capture is active.
+   */
+  isPCMCaptureActive(): boolean {
+    return this.pcmCapture?.isActive() ?? false;
+  }
+
+  async stopStreaming(): Promise<string> {
+    if (!this.streamingMode) {
+      return "";
+    }
+
+    // Stop PCM capture first
+    this.stopPCMCapture();
+
+    this.metrics?.mark("streamingStopRequested");
+    // Mark transcription request start - for streaming, this is when we stop sending audio
+    this.metrics?.mark("transcriptionRequestStart");
+    this.metrics?.setFlag("transcriptionRequestStartedAtEpochMs", Date.now());
+
+    try {
+      const finalText = await StreamingTranscriptionService.close();
+      this.streamingMode = false;
+      // Mark transcription text ready for STT processing time calculation
+      this.metrics?.mark("transcriptionTextReady");
+      this.metrics?.setFlag("transcriptionTextReadyAtMs", Date.now());
+      this.metrics?.mark("streamingClosed");
+      this.metrics?.setFlag("streamingAccumulatedLength", finalText.length);
+
+      void debugLogger.log("STREAMING_STOPPED", {
+        textLength: finalText.length,
+        textPreview:
+          finalText.substring(0, 100) + (finalText.length > 100 ? "..." : ""),
+      });
+
+      if (!finalText) {
+        // Still notify completion even with empty text so UI state gets reset
+        this.onTranscriptionComplete?.({
+          success: true,
+          text: "",
+          source: "streaming",
+          metrics: this.metrics,
+        });
+        return "";
+      }
+
+      // Process through reasoning model if enabled
+      const processedText = await this.processTranscription(
+        finalText,
+        "streaming",
+      );
+
+      this.metrics?.mark("streamingComplete");
+
+      // Notify completion
+      const source = (await this.isReasoningAvailable())
+        ? "streaming-reasoned"
+        : "streaming";
+      this.onTranscriptionComplete?.({
+        success: true,
+        text: processedText,
+        source,
+        metrics: this.metrics,
+      });
+
+      return processedText;
+    } catch (error: any) {
+      this.metrics?.setError(`streaming_stop_failed: ${error.message}`);
+      this.streamingMode = false;
+
+      void debugLogger.log("STREAMING_STOP_ERROR", {
+        error: error.message,
+        stack: error.stack,
+      });
+
+      this.onError?.({
+        title: "Streaming Error",
+        description: `Failed to complete streaming: ${error.message}`,
+      });
+
+      this.onTranscriptionComplete?.({
+        success: false,
+        metrics: this.metrics,
+      });
+
+      return "";
+    }
+  }
+
+  isStreaming(): boolean {
+    return this.streamingMode;
+  }
+
+  cancelStreaming(): void {
+    if (this.streamingMode) {
+      this.stopPCMCapture();
+      StreamingTranscriptionService.disconnect();
+      this.streamingMode = false;
+      this.metrics?.setFlag("streamingCancelled", true);
+      void debugLogger.log("STREAMING_CANCELLED");
+    }
+  }
+
   async safePaste(text: string) {
     try {
       await window.electronAPI.pasteText(text);
@@ -593,8 +862,12 @@ class AudioManager {
   }
 
   cleanup() {
+    this.stopPCMCapture();
+    this.cancelStreaming();
     this.onError = null;
     this.onTranscriptionComplete = null;
+    this.onInterimResult = null;
+    this.onStreamingStateChange = null;
   }
 }
 

@@ -92,7 +92,6 @@ class ClipboardManager {
           this.safeLog("paste-success", { method: "system-events" });
           setTimeout(() => {
             clipboard.writeText(originalClipboard);
-            this.safeLog("clipboard-restored");
           }, TIMING_CONFIG.CLIPBOARD_RESTORE_DELAY);
           resolve();
         } else {

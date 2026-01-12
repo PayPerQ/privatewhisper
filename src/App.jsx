@@ -221,11 +221,15 @@ const Tooltip = ({ children, content, emoji }) => {
 
 export default function App() {
   const [isRecording, setIsRecording] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false); // Optimistic UI: show animation while connecting
   const [isProcessing, setIsProcessing] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [isCommandMenuOpen, setIsCommandMenuOpen] = useState(false);
+  const [interimTranscript, setInterimTranscript] = useState("");
+  const [isStreamingMode, setIsStreamingMode] = useState(false);
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
+  const audioManagerRef = useRef(null);
   const commandMenuRef = useRef(null);
   const buttonRef = useRef(null);
   const { toast } = useToast();
@@ -291,97 +295,26 @@ export default function App() {
   }, [isCommandMenuOpen, isHovered, setWindowInteractivity]);
 
   const startRecording = async () => {
-    if (pendingStartRef.current || isRecording || isProcessing) {
+    if (
+      pendingStartRef.current ||
+      isRecording ||
+      isConnecting ||
+      isProcessing
+    ) {
       return false;
     }
     try {
       cancelRecordingRef.current = false;
       pendingStartRef.current = true;
-      const stream = await getPreferredMicrophoneStream({
-        alwaysUseBuiltInMic,
-        preferredMicrophoneId,
-      });
 
-      // If user released before the stream was ready, abort quietly
-      if (cancelRecordingRef.current) {
-        stream.getTracks().forEach((track) => track.stop());
-        pendingStartRef.current = false;
-        setIsRecording(false);
-        return false;
-      }
+      // OPTIMISTIC UI: Show animation immediately before async operations complete
+      setIsConnecting(true);
+      void playCue("start");
 
-      mediaRecorderRef.current = new window.MediaRecorder(stream);
-      audioChunksRef.current = [];
-      let didStart = false;
-
-      mediaRecorderRef.current.onstart = () => {
-        if (cancelRecordingRef.current) {
-          mediaRecorderRef.current?.stop();
-          return;
-        }
-        if (!didStart) {
-          didStart = true;
-          recordingStartedAtRef.current = Date.now();
-          setIsRecording(true);
-          pendingStartRef.current = false;
-          void playCue("start");
-        }
-      };
-
-      mediaRecorderRef.current.ondataavailable = (event) => {
-        audioChunksRef.current.push(event.data);
-      };
-
-      mediaRecorderRef.current.onstop = async () => {
-        const wasCancelled = cancelRecordingRef.current;
-        cancelRecordingRef.current = false;
-
-        if (wasCancelled) {
-          stream.getTracks().forEach((track) => track.stop());
-          setIsProcessing(false);
-          pendingStartRef.current = false;
-          recordingStartedAtRef.current = null;
-          lastAudioDurationMsRef.current = null;
-          return;
-        }
-
-        setIsProcessing(true);
-        void playCue("stop");
-        const recordingDurationMs = recordingStartedAtRef.current
-          ? Math.max(0, Date.now() - recordingStartedAtRef.current)
-          : null;
-        lastAudioDurationMsRef.current = recordingDurationMs;
-        const audioBlob = new Blob(audioChunksRef.current, {
-          type: "audio/wav",
-        });
-        // Start processing immediately without waiting
-        processAudio(audioBlob);
-        stream.getTracks().forEach((track) => track.stop());
-      };
-
-      mediaRecorderRef.current.start();
-    } catch (err) {
-      console.error("Recording error:", err);
-      toast({
-        title: "Recording Error",
-        description: "Failed to access microphone: " + err.message,
-        variant: "destructive",
-      });
-      pendingStartRef.current = false;
-    }
-  };
-
-  const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
-      // Don't set processing immediately - let the onstop handler do it
-    }
-  };
-
-  const processAudio = async (audioBlob) => {
-    try {
+      // Create AudioManager for this recording session
       const audioManager = new AudioManager(audioSettings);
+      audioManagerRef.current = audioManager;
+
       audioManager.setCallbacks({
         onError: (error) => {
           toast({
@@ -389,6 +322,12 @@ export default function App() {
             description: error.description,
             variant: "destructive",
           });
+        },
+        onInterimResult: (text) => {
+          setInterimTranscript(text);
+        },
+        onStreamingStateChange: (_state) => {
+          // Streaming state change handled by AudioManager
         },
         onTranscriptionComplete: async (result) => {
           const metrics = result.metrics;
@@ -415,9 +354,11 @@ export default function App() {
           if (summary) {
             summary.textLength = result.text?.length ?? 0;
             summary.source = result.source;
-            void pipelineLogger.log("PIPELINE_TIMING_SUMMARY", summary);
 
-            const requestStartedAtMs = summary.startedAtEpochMs || Date.now();
+            const requestStartedAtMs =
+              metrics?.flags?.transcriptionRequestStartedAtEpochMs ||
+              summary.startedAtEpochMs ||
+              Date.now();
             const responseReceivedAtMs =
               metrics?.flags?.finalTextReadyAtMs || Date.now();
             const sttProcessingMs = metrics?.duration?.(
@@ -462,16 +403,196 @@ export default function App() {
               error_message: metrics?.errorMessage ?? null,
             };
 
+            void pipelineLogger.log("LOG_PAYLOAD", logPayload);
+
             if (window.electronAPI?.logPipelineMetrics) {
               scheduleBackgroundTask(() => {
                 void window.electronAPI.logPipelineMetrics(logPayload);
               });
             }
           }
+
+          setIsProcessing(false);
+          setInterimTranscript("");
         },
       });
 
-      // Process the audio using our enhanced AudioManager
+      // Start microphone acquisition - this is the first async bottleneck
+      const stream = await getPreferredMicrophoneStream({
+        alwaysUseBuiltInMic,
+        preferredMicrophoneId,
+      });
+
+      // If user released before the stream was ready, abort quietly
+      if (cancelRecordingRef.current) {
+        stream.getTracks().forEach((track) => track.stop());
+        pendingStartRef.current = false;
+        setIsConnecting(false);
+        setIsRecording(false);
+        audioManagerRef.current = null;
+        return false;
+      }
+
+      // Start PCM capture in buffer mode immediately to capture audio while WebSocket connects
+      // This ensures no audio is lost during the connection phase
+      let streamingStarted = false;
+      let pcmBufferingStarted = false;
+      try {
+        // Start buffering PCM audio immediately (before WebSocket is ready)
+        await audioManager.startPCMCapture(stream, true /* bufferMode */);
+        pcmBufferingStarted = true;
+
+        // Now connect WebSocket (audio is being buffered in the meantime)
+        await audioManager.startStreaming();
+
+        // WebSocket is ready - transition from buffering to streaming
+        // This flushes all buffered audio and switches to live streaming
+        audioManager.transitionToStreaming();
+        streamingStarted = true;
+        setIsStreamingMode(true);
+      } catch (streamingError) {
+        void pipelineLogger.log("STREAMING_FALLBACK_TO_BATCH", {
+          error: streamingError.message,
+        });
+        // Clear buffer and fall back to batch mode
+        if (pcmBufferingStarted) {
+          audioManager.clearPCMBuffer();
+          audioManager.stopPCMCapture();
+        }
+        setIsStreamingMode(false);
+      }
+
+      mediaRecorderRef.current = new window.MediaRecorder(stream, {
+        mimeType: "audio/webm;codecs=opus",
+      });
+      audioChunksRef.current = [];
+      let didStart = false;
+
+      mediaRecorderRef.current.onstart = () => {
+        if (cancelRecordingRef.current) {
+          mediaRecorderRef.current?.stop();
+          return;
+        }
+        if (!didStart) {
+          didStart = true;
+          recordingStartedAtRef.current = Date.now();
+          // Transition from connecting to recording state
+          setIsConnecting(false);
+          setIsRecording(true);
+          pendingStartRef.current = false;
+          // Audio cue already played at start of startRecording()
+        }
+      };
+
+      mediaRecorderRef.current.ondataavailable = async (event) => {
+        if (event.data.size > 0) {
+          // In streaming mode, PCM capture handles audio directly from the stream.
+          // We only accumulate chunks for batch mode fallback.
+          if (!streamingStarted || !audioManagerRef.current?.isStreaming()) {
+            // Batch mode: accumulate chunks
+            audioChunksRef.current.push(event.data);
+          }
+        }
+      };
+
+      mediaRecorderRef.current.onstop = async () => {
+        const wasCancelled = cancelRecordingRef.current;
+        cancelRecordingRef.current = false;
+
+        if (wasCancelled) {
+          stream.getTracks().forEach((track) => track.stop());
+          if (audioManagerRef.current?.isStreaming()) {
+            audioManagerRef.current.cancelStreaming();
+          }
+          audioManagerRef.current?.clearPCMBuffer();
+          setIsProcessing(false);
+          setIsConnecting(false);
+          setIsStreamingMode(false);
+          pendingStartRef.current = false;
+          recordingStartedAtRef.current = null;
+          lastAudioDurationMsRef.current = null;
+          audioManagerRef.current = null;
+          setInterimTranscript("");
+          return;
+        }
+
+        setIsProcessing(true);
+        void playCue("stop");
+        const recordingDurationMs = recordingStartedAtRef.current
+          ? Math.max(0, Date.now() - recordingStartedAtRef.current)
+          : null;
+        lastAudioDurationMsRef.current = recordingDurationMs;
+
+        if (streamingStarted && audioManagerRef.current?.isStreaming()) {
+          // Streaming mode: finalize and get result
+          try {
+            await audioManagerRef.current.stopStreaming();
+            // onTranscriptionComplete callback handles the rest
+          } catch (err) {
+            toast({
+              title: "Transcription Error",
+              description: "Streaming transcription failed: " + err.message,
+              variant: "destructive",
+            });
+            setIsProcessing(false);
+          }
+        } else {
+          // Batch mode: process accumulated audio
+          const audioBlob = new Blob(audioChunksRef.current, {
+            type: "audio/webm",
+          });
+          processAudio(audioBlob);
+        }
+
+        stream.getTracks().forEach((track) => track.stop());
+        setIsStreamingMode(false);
+        audioManagerRef.current = null;
+      };
+
+      // Start MediaRecorder - in streaming mode PCM capture handles audio directly,
+      // but we still need MediaRecorder for its lifecycle events (onstart/onstop)
+      // and batch mode fallback
+      mediaRecorderRef.current.start();
+    } catch (err) {
+      console.error("Recording error:", err);
+      toast({
+        title: "Recording Error",
+        description: "Failed to access microphone: " + err.message,
+        variant: "destructive",
+      });
+      pendingStartRef.current = false;
+      setIsConnecting(false);
+      audioManagerRef.current = null;
+      setIsStreamingMode(false);
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && (isRecording || isConnecting)) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+      setIsConnecting(false);
+      // Don't set processing immediately - let the onstop handler do it
+    }
+  };
+
+  const processAudio = async (audioBlob) => {
+    // Use the audioManager from startRecording if available (batch mode fallback)
+    const audioManager = audioManagerRef.current;
+    if (!audioManager) {
+      // This shouldn't happen, but handle gracefully
+      toast({
+        title: "Transcription Error",
+        description: "Audio manager not initialized",
+        variant: "destructive",
+      });
+      setIsProcessing(false);
+      return;
+    }
+
+    try {
+      // Process the audio using the pre-configured AudioManager
+      // Callbacks were already set up in startRecording
       await audioManager.processAudio(audioBlob);
     } catch (err) {
       toast({
@@ -479,7 +600,6 @@ export default function App() {
         description: "Transcription failed: " + err.message,
         variant: "destructive",
       });
-    } finally {
       setIsProcessing(false);
     }
   };
@@ -515,17 +635,18 @@ export default function App() {
       if (pendingStartRef.current) {
         cancelRecordingRef.current = true;
         pendingStartRef.current = false;
+        setIsConnecting(false);
         setIsRecording(false);
         return;
       }
 
       if (hotkeyMode === "hold") {
-        if (!isRecording && !isProcessing) {
+        if (!isRecording && !isConnecting && !isProcessing) {
           hotkeyPressStartRef.current = Date.now();
           cancelRecordingRef.current = false;
           startRecording();
           setIsPushToTalk(true);
-        } else if (isRecording) {
+        } else if (isRecording || isConnecting) {
           setIsPushToTalk(false);
           hotkeyPressStartRef.current = null;
           stopRecording();
@@ -535,9 +656,9 @@ export default function App() {
 
       hotkeyPressStartRef.current = null;
       cancelRecordingRef.current = false;
-      if (!isRecording && !isProcessing) {
+      if (!isRecording && !isConnecting && !isProcessing) {
         startRecording();
-      } else if (isRecording) {
+      } else if (isRecording || isConnecting) {
         stopRecording();
       }
     };
@@ -549,7 +670,7 @@ export default function App() {
         unsubscribe();
       }
     };
-  }, [hotkeyMode, isRecording, isProcessing]);
+  }, [hotkeyMode, isRecording, isConnecting, isProcessing]);
 
   useEffect(() => {
     if (!window.electronAPI?.onDictationHotkeyUp) {
@@ -571,12 +692,13 @@ export default function App() {
 
       if (wasPendingStart) {
         // Stop immediately if we released before recording actually began
+        setIsConnecting(false);
         setIsRecording(false);
         pendingStartRef.current = false;
         return;
       }
 
-      if (isRecording) {
+      if (isRecording || isConnecting) {
         stopRecording();
       }
     };
@@ -588,19 +710,20 @@ export default function App() {
         unsubscribe();
       }
     };
-  }, [hotkeyMode, isRecording, isPushToTalk]);
+  }, [hotkeyMode, isRecording, isConnecting, isPushToTalk]);
 
   const toggleListening = () => {
     setIsCommandMenuOpen(false);
     if (pendingStartRef.current) {
       cancelRecordingRef.current = true;
       pendingStartRef.current = false;
+      setIsConnecting(false);
       setIsRecording(false);
       return;
     }
-    if (!isRecording && !isProcessing) {
+    if (!isRecording && !isConnecting && !isProcessing) {
       startRecording();
-    } else if (isRecording) {
+    } else if (isRecording || isConnecting) {
       stopRecording();
       setIsPushToTalk(false);
     }
@@ -622,10 +745,10 @@ export default function App() {
   }, [isCommandMenuOpen]);
 
   useEffect(() => {
-    if (!isRecording && !isProcessing) {
+    if (!isRecording && !isConnecting && !isProcessing) {
       setIsPushToTalk(false);
     }
-  }, [isRecording, isProcessing]);
+  }, [isRecording, isConnecting, isProcessing]);
 
   const playCue = React.useCallback(
     async (type) => {
@@ -710,6 +833,7 @@ export default function App() {
   );
 
   const getMicState = () => {
+    if (isConnecting) return "connecting";
     if (isRecording) return "recording";
     if (isProcessing) return "processing";
     if (isHovered) return "hover";
@@ -725,14 +849,19 @@ export default function App() {
   const getMicButtonProps = () => {
     const baseClasses =
       "rounded-full w-10 h-10 flex items-center justify-center relative overflow-hidden border-2 border-white/70";
-    const isActive = micState === "recording" || micState === "processing";
+    const isActive =
+      micState === "connecting" ||
+      micState === "recording" ||
+      micState === "processing";
 
     return {
       className: `${baseClasses} ${isActive ? "bg-primary" : "bg-black/50"}`,
       tooltip: isActive
-        ? micState === "recording"
-          ? "Recording..."
-          : "Processing..."
+        ? micState === "connecting"
+          ? "Connecting..."
+          : micState === "recording"
+            ? "Recording..."
+            : "Processing..."
         : hotkeyTooltip,
     };
   };
@@ -823,6 +952,10 @@ export default function App() {
               {/* Dynamic content based on state */}
               {micState === "idle" || micState === "hover" ? (
                 <SoundWaveIcon size={micState === "idle" ? 12 : 14} />
+              ) : micState === "connecting" ? (
+                <div className="opacity-70">
+                  <LoadingDots />
+                </div>
               ) : micState === "recording" ? (
                 <LoadingDots />
               ) : micState === "processing" ? (

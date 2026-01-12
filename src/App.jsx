@@ -344,9 +344,11 @@ export default function App() {
           if (summary) {
             summary.textLength = result.text?.length ?? 0;
             summary.source = result.source;
-            void pipelineLogger.log("PIPELINE_TIMING_SUMMARY", summary);
 
-            const requestStartedAtMs = summary.startedAtEpochMs || Date.now();
+            const requestStartedAtMs =
+              metrics?.flags?.transcriptionRequestStartedAtEpochMs ||
+              summary.startedAtEpochMs ||
+              Date.now();
             const responseReceivedAtMs =
               metrics?.flags?.finalTextReadyAtMs || Date.now();
             const sttProcessingMs = metrics?.duration?.(
@@ -390,6 +392,8 @@ export default function App() {
               provider_used: providerUsed ?? null,
               error_message: metrics?.errorMessage ?? null,
             };
+
+            void pipelineLogger.log("LOG_PAYLOAD", logPayload);
 
             if (window.electronAPI?.logPipelineMetrics) {
               scheduleBackgroundTask(() => {

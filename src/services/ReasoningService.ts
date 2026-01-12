@@ -189,12 +189,12 @@ Output: Only the corrected text. No explanations, comments, or formatting.`;
           body: JSON.stringify(requestBody),
         });
 
-        void debugLogger.log("PPQ_REASONING_RESPONSE", {
-          status: res.status,
-          statusText: res.statusText,
-          ok: res.ok,
-          headers: Object.fromEntries(res.headers.entries()),
-        });
+        // void debugLogger.log("PPQ_REASONING_RESPONSE", {
+        //   status: res.status,
+        //   statusText: res.statusText,
+        //   ok: res.ok,
+        //   headers: Object.fromEntries(res.headers.entries()),
+        // });
 
         if (!res.ok) {
           const errorText = await res.text().catch(() => "");

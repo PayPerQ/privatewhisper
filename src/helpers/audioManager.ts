@@ -528,6 +528,7 @@ class AudioManager {
           });
 
           metrics?.mark("transcriptionRequestStart");
+          metrics?.setFlag("transcriptionRequestStartedAtEpochMs", Date.now());
           response = await fetch(API_ENDPOINTS.PPQ_TRANSCRIPTION, {
             method: "POST",
             headers: requestHeaders,
@@ -699,11 +700,16 @@ class AudioManager {
     this.stopPCMCapture();
 
     this.metrics?.mark("streamingStopRequested");
-
+    // Mark transcription request start - for streaming, this is when we stop sending audio
+    this.metrics?.mark("transcriptionRequestStart");
+    this.metrics?.setFlag("transcriptionRequestStartedAtEpochMs", Date.now());
 
     try {
       const finalText = await this.streamingService.close();
       this.streamingMode = false;
+      // Mark transcription text ready for STT processing time calculation
+      this.metrics?.mark("transcriptionTextReady");
+      this.metrics?.setFlag("transcriptionTextReadyAtMs", Date.now());
       this.metrics?.mark("streamingClosed");
       this.metrics?.setFlag("streamingAccumulatedLength", finalText.length);
 

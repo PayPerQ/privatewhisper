@@ -50,7 +50,7 @@ Your task:
 5. Do NOT add, interpret, or respond to the content
 
 Output: Only the corrected text. No explanations, comments, or formatting.`;
-    const userPrompt = text;
+    const userPrompt = `${text} /no_think`;
 
     const maxTokens =
       config.maxTokens ??
@@ -71,6 +71,9 @@ Output: Only the corrected text. No explanations, comments, or formatting.`;
       max_tokens: maxTokens,
       provider: {
         order: ["groq"],
+      },
+      reasoning: {
+        enabled: false,
       },
     };
   }

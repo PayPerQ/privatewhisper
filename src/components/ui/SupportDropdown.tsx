@@ -1,6 +1,6 @@
 import React from "react";
 import { Button } from "./button";
-import { HelpCircle, Mail, Bug } from "lucide-react";
+import { HelpCircle, Mail } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,30 +16,17 @@ export default function SupportDropdown({ className }: SupportDropdownProps) {
   const handleContactSupport = async () => {
     try {
       const result = await window.electronAPI?.openExternal(
-        "mailto:support@ppqvoice.com",
+        "mailto:matt@ppq.ai",
       );
       if (result && !result.success) {
         console.error("Failed to open email client:", result.error);
         // Fallback: try opening the email as a web URL
         await window.electronAPI?.openExternal(
-          "https://mail.google.com/mail/?view=cm&to=support@ppqvoice.com",
+          "https://mail.google.com/mail/?view=cm&to=matt@ppq.ai",
         );
       }
     } catch (error) {
       console.error("Error opening email client:", error);
-    }
-  };
-
-  const handleSubmitBug = async () => {
-    try {
-      const result = await window.electronAPI?.openExternal(
-        "https://github.com/PayPerQ/ppq-voice-private/issues",
-      );
-      if (result && !result.success) {
-        console.error("Failed to open GitHub issues:", result.error);
-      }
-    } catch (error) {
-      console.error("Error opening GitHub issues:", error);
     }
   };
 
@@ -60,13 +47,6 @@ export default function SupportDropdown({ className }: SupportDropdownProps) {
         >
           <Mail className="mr-2 h-4 w-4" />
           Contact Support
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          onClick={handleSubmitBug}
-          className="cursor-pointer hover:bg-gray-50 focus:bg-gray-50"
-        >
-          <Bug className="mr-2 h-4 w-4" />
-          Submit Bug
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

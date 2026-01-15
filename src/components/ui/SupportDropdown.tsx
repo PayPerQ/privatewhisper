@@ -15,9 +15,8 @@ interface SupportDropdownProps {
 export default function SupportDropdown({ className }: SupportDropdownProps) {
   const handleContactSupport = async () => {
     try {
-      const result = await window.electronAPI?.openExternal(
-        "mailto:matt@ppq.ai",
-      );
+      const result =
+        await window.electronAPI?.openExternal("mailto:matt@ppq.ai");
       if (result && !result.success) {
         console.error("Failed to open email client:", result.error);
         // Fallback: try opening the email as a web URL

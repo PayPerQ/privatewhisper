@@ -55,6 +55,8 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
   const defaultHotkey = detectedPlatform === "darwin" ? "GLOBE" : "`";
   const [hotkey, setHotkey] = useState(dictationKey || defaultHotkey);
   const isMacOS = detectedPlatform === "darwin";
+  // Accessibility permissions are only required on macOS - auto-granted on Windows/Linux
+  const requiresAccessibilityPermission = isMacOS;
   const readableHotkey = formatHotkeyLabel(hotkey);
   const { alertDialog, showAlertDialog, hideAlertDialog } = useDialogs();
   const { registerHotkey, isRegistering: isRegisteringHotkey } =
@@ -350,7 +352,11 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
                 Grant Permissions
               </h2>
               <p className="text-gray-600">
-                PPQ Voice needs a couple of permissions to work properly
+                PPQ Voice needs{" "}
+                {requiresAccessibilityPermission
+                  ? "a couple of permissions"
+                  : "microphone access"}{" "}
+                to work properly
               </p>
             </div>
 
@@ -364,14 +370,17 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
                 buttonText="Grant Access"
               />
 
-              <PermissionCard
-                icon={Shield}
-                title="Accessibility Permission"
-                description="Required to paste text automatically"
-                granted={permissionsHook.accessibilityPermissionGranted}
-                onRequest={permissionsHook.testAccessibilityPermission}
-                buttonText="Test & Grant"
-              />
+              {/* Accessibility permission is only required on macOS */}
+              {requiresAccessibilityPermission && (
+                <PermissionCard
+                  icon={Shield}
+                  title="Accessibility Permission"
+                  description="Required to paste text automatically"
+                  granted={permissionsHook.accessibilityPermissionGranted}
+                  onRequest={permissionsHook.testAccessibilityPermission}
+                  buttonText="Test & Grant"
+                />
+              )}
             </div>
           </div>
         );
@@ -457,9 +466,12 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
         canAdvance = apiKey.trim().length > 0;
         break;
       case 2:
-        canAdvance =
-          permissionsHook.micPermissionGranted &&
-          permissionsHook.accessibilityPermissionGranted;
+        // On macOS, both mic and accessibility permissions are required
+        // On Windows/Linux, only mic permission is needed (accessibility is auto-granted)
+        canAdvance = requiresAccessibilityPermission
+          ? permissionsHook.micPermissionGranted &&
+            permissionsHook.accessibilityPermissionGranted
+          : permissionsHook.micPermissionGranted;
         break;
       case 3:
         // Combined hotkey + practice step - just need a valid hotkey

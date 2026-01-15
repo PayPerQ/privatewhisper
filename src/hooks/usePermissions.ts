@@ -15,12 +15,17 @@ export interface UsePermissionsProps {
   showAlertDialog: (dialog: { title: string; description?: string }) => void;
 }
 
+// Platform is constant for the lifetime of the app - compute once
+const isMacOS = (window.electronAPI?.getPlatform?.() || "") === "darwin";
+
 export const usePermissions = (
   showAlertDialog?: UsePermissionsProps["showAlertDialog"],
 ): UsePermissionsReturn => {
   const [micPermissionGranted, setMicPermissionGranted] = useState(false);
+  // Accessibility permissions are only required on macOS
+  // On Windows/Linux, pasting works without special permissions - auto-grant
   const [accessibilityPermissionGranted, setAccessibilityPermissionGranted] =
-    useState(false);
+    useState(!isMacOS);
 
   const requestMicPermission = useCallback(async () => {
     try {

@@ -280,45 +280,53 @@ Would you like to open System Settings now?`;
   }
 
   openSystemSettings() {
-    const settingsCommands = [
-      [
-        "open",
-        [
-          "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility",
-        ],
-      ],
-      ["open", ["-b", "com.apple.systempreferences"]],
-      ["open", ["/System/Library/PreferencePanes/Security.prefPane"]],
-    ];
+    // Use AppleScript to open System Settings directly to Accessibility pane
+    // This is more reliable across macOS versions than URL schemes
+    const script = `
+      tell application "System Settings"
+        activate
+        delay 0.5
+        reveal anchor "Privacy_Accessibility" of pane id "com.apple.settings.PrivacySecurity.extension"
+      end tell
+    `;
 
-    let commandIndex = 0;
-    const tryNextCommand = () => {
-      if (commandIndex < settingsCommands.length) {
-        const [cmd, args] = settingsCommands[commandIndex];
-        const settingsProcess = spawn(cmd, args);
+    const appleScriptProcess = spawn("osascript", ["-e", script]);
 
-        settingsProcess.on("error", (error) => {
-          commandIndex++;
-          tryNextCommand();
-        });
+    appleScriptProcess.on("close", (code) => {
+      if (code !== 0) {
+        // Fallback for older macOS versions (pre-Ventura) using System Preferences
+        const legacyScript = `
+          tell application "System Preferences"
+            activate
+            set current pane to pane "com.apple.preference.security"
+            reveal anchor "Privacy_Accessibility" of pane id "com.apple.preference.security"
+          end tell
+        `;
 
-        settingsProcess.on("close", (settingsCode) => {
-          if (settingsCode !== 0) {
-            commandIndex++;
-            tryNextCommand();
+        const legacyProcess = spawn("osascript", ["-e", legacyScript]);
+
+        legacyProcess.on("close", (legacyCode) => {
+          if (legacyCode !== 0) {
+            // Final fallback: try URL scheme
+            spawn("open", [
+              "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility",
+            ]).on("error", () => {
+              // Last resort: just open System Settings/Preferences
+              spawn("open", ["-a", "System Settings"]).on("error", () => {
+                spawn("open", ["-a", "System Preferences"]);
+              });
+            });
           }
         });
-      } else {
-        // All settings commands failed, try fallback
-        spawn("open", ["-a", "System Preferences"]).on("error", () => {
-          spawn("open", ["-a", "System Settings"]).on("error", () => {
-            // Could not open settings app
-          });
-        });
       }
-    };
+    });
 
-    tryNextCommand();
+    appleScriptProcess.on("error", () => {
+      // If osascript fails entirely, try URL scheme directly
+      spawn("open", [
+        "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility",
+      ]);
+    });
   }
 
   async readClipboard() {

@@ -116,10 +116,11 @@ class StreamingTranscriptionService {
         this.setState("authenticating");
 
         // Send authentication message with optional tool_id for creator payouts
-        const authMessage: { type: string; api_key: string; tool_id?: string } = {
-          type: "auth",
-          api_key: apiKey,
-        };
+        const authMessage: { type: string; api_key: string; tool_id?: string } =
+          {
+            type: "auth",
+            api_key: apiKey,
+          };
         if (toolId) {
           authMessage.tool_id = toolId;
         }

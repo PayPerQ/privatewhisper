@@ -792,8 +792,8 @@ export default function SettingsPage({
                   Permissions
                 </h3>
                 <p className="text-sm text-gray-600 mb-6">
-                  Test and manage app permissions for microphone and
-                  accessibility.
+                  Test and manage app permissions for microphone
+                  {isMacOS ? " and accessibility" : ""}.
                 </p>
               </div>
               <div className="space-y-3">
@@ -805,22 +805,27 @@ export default function SettingsPage({
                   <Mic className="mr-2 h-4 w-4" />
                   Test Microphone Permission
                 </Button>
-                <Button
-                  onClick={permissionsHook.testAccessibilityPermission}
-                  variant="outline"
-                  className="w-full"
-                >
-                  <Shield className="mr-2 h-4 w-4" />
-                  Test Accessibility Permission
-                </Button>
-                <Button
-                  onClick={resetAccessibilityPermissions}
-                  variant="secondary"
-                  className="w-full"
-                >
-                  <span className="mr-2">⚙️</span>
-                  Fix Permission Issues
-                </Button>
+                {/* Accessibility permissions are only relevant on macOS */}
+                {isMacOS && (
+                  <>
+                    <Button
+                      onClick={permissionsHook.testAccessibilityPermission}
+                      variant="outline"
+                      className="w-full"
+                    >
+                      <Shield className="mr-2 h-4 w-4" />
+                      Test Accessibility Permission
+                    </Button>
+                    <Button
+                      onClick={resetAccessibilityPermissions}
+                      variant="secondary"
+                      className="w-full"
+                    >
+                      <span className="mr-2">⚙️</span>
+                      Fix Permission Issues
+                    </Button>
+                  </>
+                )}
               </div>
             </div>
 

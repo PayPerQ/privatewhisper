@@ -206,6 +206,15 @@ class IPCHandlers {
         return { success: false, error: error.message };
       }
     });
+
+    // Set hotkey listening mode - suppresses dictation trigger during hotkey selection
+    ipcMain.handle("set-hotkey-listening-mode", async (_event, isListening) => {
+      // Update the global flag in main.js via a callback
+      if (this.onHotkeyListeningModeChange) {
+        this.onHotkeyListeningModeChange(Boolean(isListening));
+      }
+      return { success: true };
+    });
   }
 
   broadcastToAllWindows(channel, payload) {

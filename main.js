@@ -44,6 +44,7 @@ let globeKeyManager;
 let edgeFunctionLogger;
 let ipcHandlers;
 let globeKeyAlertShown = false;
+let hotkeyListeningMode = false; // Suppresses dictation trigger when user is selecting a hotkey
 
 // Bypass certificate verification in development
 if (process.env.NODE_ENV === "development") {
@@ -98,6 +99,11 @@ async function startApp() {
     edgeFunctionLogger,
   });
 
+  // Set up callback for hotkey listening mode changes
+  ipcHandlers.onHotkeyListeningModeChange = (isListening) => {
+    hotkeyListeningMode = isListening;
+  };
+
   // In development, add a small delay to let Vite start properly
   if (process.env.NODE_ENV === "development") {
     await new Promise((resolve) => setTimeout(resolve, 2000));
@@ -144,13 +150,16 @@ async function startApp() {
 
   if (process.platform === "darwin") {
     globeKeyManager.on("globe-down", () => {
+      // Always broadcast globe-key-detected for hotkey picker
       BrowserWindow.getAllWindows().forEach((win) => {
         if (!win.isDestroyed()) {
           win.webContents.send("globe-key-detected");
         }
       });
 
+      // Only trigger dictation if not in hotkey listening mode
       if (
+        !hotkeyListeningMode &&
         hotkeyManager.getCurrentHotkey &&
         hotkeyManager.getCurrentHotkey() === "GLOBE"
       ) {
@@ -165,7 +174,9 @@ async function startApp() {
     });
 
     globeKeyManager.on("globe-up", () => {
+      // Only send hotkey-up if not in hotkey listening mode
       if (
+        !hotkeyListeningMode &&
         hotkeyManager.getCurrentHotkey &&
         hotkeyManager.getCurrentHotkey() === "GLOBE" &&
         windowManager.mainWindow &&

@@ -154,6 +154,18 @@ export default function HotkeyInput({
     disabledRef.current = disabled;
   }, [isListening, isSaving, disabled]);
 
+  // Notify main process when entering/exiting listening mode
+  // This suppresses dictation triggering while user is selecting a hotkey
+  useEffect(() => {
+    window.electronAPI?.setHotkeyListeningMode?.(isListening);
+    return () => {
+      // Ensure we exit listening mode when component unmounts
+      if (isListening) {
+        window.electronAPI?.setHotkeyListeningMode?.(false);
+      }
+    };
+  }, [isListening]);
+
   // Listen for globe key via IPC when in listening mode (macOS only)
   useEffect(() => {
     if (!showGlobeOption) return;

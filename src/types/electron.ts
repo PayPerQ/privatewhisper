@@ -187,6 +187,11 @@ declare global {
         success: boolean;
         error?: string;
       }>;
+
+      // Set hotkey listening mode - suppresses dictation trigger during hotkey selection
+      setHotkeyListeningMode?: (isListening: boolean) => Promise<{
+        success: boolean;
+      }>;
     };
 
     api?: {

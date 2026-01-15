@@ -66,8 +66,15 @@ class HotkeyManager {
 
   async loadSavedHotkey(mainWindow, callback) {
     try {
+      // Get the saved hotkey from localStorage, or use platform-appropriate default
+      // On macOS, default to GLOBE; on other platforms, default to backtick
       const savedHotkey = await mainWindow.webContents.executeJavaScript(`
-        localStorage.getItem("dictationKey") || "\`"
+        (function() {
+          const saved = localStorage.getItem("dictationKey");
+          if (saved) return saved;
+          // Match the renderer's default: GLOBE on macOS, backtick elsewhere
+          return window.electronAPI?.getPlatform?.() === "darwin" ? "GLOBE" : "\`";
+        })()
       `);
 
       if (savedHotkey && savedHotkey !== "`") {

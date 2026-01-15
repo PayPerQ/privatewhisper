@@ -62,11 +62,14 @@ export const usePermissions = (
       }
     } catch (err) {
       console.error("Accessibility permission test failed:", err);
+      if (isMacOS && window.electronAPI?.openAccessibilitySettings) {
+        window.electronAPI.openAccessibilitySettings();
+      }
       if (showAlertDialog) {
         showAlertDialog({
           title: "❌ Accessibility Permissions Needed",
           description:
-            "Please grant accessibility permissions in System Settings to enable automatic text pasting.",
+            "Opening System Settings... Please add PPQ Voice to the Accessibility list and enable it, then try again.",
         });
       } else {
         alert(

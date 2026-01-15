@@ -117,4 +117,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   // Globe key detection for hotkey picker (macOS only)
   onGlobeKeyDetected: (callback) =>
     exposeListener("globe-key-detected", callback),
+
+  // Open macOS accessibility settings (macOS only)
+  openAccessibilitySettings: () =>
+    ipcRenderer.invoke("open-accessibility-settings"),
 });

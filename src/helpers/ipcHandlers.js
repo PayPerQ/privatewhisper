@@ -193,6 +193,19 @@ class IPCHandlers {
       this.broadcastToAllWindows("hotkey-mode-changed", mode);
       return { success: true };
     });
+
+    // Open macOS accessibility settings (macOS only)
+    ipcMain.handle("open-accessibility-settings", async () => {
+      if (process.platform !== "darwin") {
+        return { success: false, error: "Only available on macOS" };
+      }
+      try {
+        this.clipboardManager.openSystemSettings();
+        return { success: true };
+      } catch (error) {
+        return { success: false, error: error.message };
+      }
+    });
   }
 
   broadcastToAllWindows(channel, payload) {

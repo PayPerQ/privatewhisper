@@ -181,6 +181,12 @@ declare global {
 
       // Globe key detection for hotkey picker (macOS only)
       onGlobeKeyDetected?: (callback: () => void) => () => void;
+
+      // Open macOS accessibility settings (macOS only)
+      openAccessibilitySettings?: () => Promise<{
+        success: boolean;
+        error?: string;
+      }>;
     };
 
     api?: {

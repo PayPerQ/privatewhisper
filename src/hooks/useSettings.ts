@@ -22,6 +22,10 @@ export interface AudioSettings {
   preferredMicrophoneId: string;
 }
 
+export interface AppearanceSettings {
+  showIconOnlyWhenActive: boolean;
+}
+
 // Default hotkey: Globe key on Mac, backtick on other platforms
 const DEFAULT_HOTKEY =
   typeof window !== "undefined" &&
@@ -90,6 +94,15 @@ export function useSettings() {
     },
   );
 
+  const [showIconOnlyWhenActive, setShowIconOnlyWhenActive] = useLocalStorage(
+    "showIconOnlyWhenActive",
+    false,
+    {
+      serialize: String,
+      deserialize: (value) => value === "true",
+    },
+  );
+
   // Batch operations
   const updateTranscriptionSettings = useCallback(
     (settings: Partial<TranscriptionSettings>) => {
@@ -137,6 +150,15 @@ export function useSettings() {
     [setAudioCuesEnabled, setAlwaysUseBuiltInMic, setPreferredMicrophoneId],
   );
 
+  const updateAppearanceSettings = useCallback(
+    (settings: Partial<AppearanceSettings>) => {
+      if (settings.showIconOnlyWhenActive !== undefined) {
+        setShowIconOnlyWhenActive(settings.showIconOnlyWhenActive);
+      }
+    },
+    [setShowIconOnlyWhenActive],
+  );
+
   return {
     preferredLanguage,
     ppqApiKey,
@@ -145,6 +167,7 @@ export function useSettings() {
     audioCuesEnabled,
     alwaysUseBuiltInMic,
     preferredMicrophoneId,
+    showIconOnlyWhenActive,
     setPreferredLanguage,
     setPpqApiKey,
     setDictationKey,
@@ -152,9 +175,11 @@ export function useSettings() {
     setAudioCuesEnabled,
     setAlwaysUseBuiltInMic,
     setPreferredMicrophoneId,
+    setShowIconOnlyWhenActive,
     updateTranscriptionSettings,
     updateApiKeys,
     updateHotkeySettings,
     updateAudioSettings,
+    updateAppearanceSettings,
   };
 }

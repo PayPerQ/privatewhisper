@@ -163,7 +163,7 @@ class UpdateManager {
             debugLogger.logEvent("updater", "checking-for-updates");
             const result = await this.autoUpdater.checkForUpdates();
 
-            if (result && result.updateInfo) {
+            if (result?.isUpdateAvailable && result?.updateInfo) {
               debugLogger.logEvent("updater", "update-available", {
                 version: result.updateInfo.version,
                 files: result.updateInfo.files

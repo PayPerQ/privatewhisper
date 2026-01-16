@@ -68,8 +68,15 @@ function macKeyCodeFromHotkey(hotkey) {
   const trimmed = hotkey.trim();
   if (!trimmed) return null;
 
-  const upper =
-    trimmed.length === 1 ? trimmed.toUpperCase() : trimmed.toUpperCase();
+  // For compound hotkeys like "Shift+K" or "CommandOrControl+Shift+Space",
+  // extract the base key (the last part after all modifiers)
+  let baseKey = trimmed;
+  if (trimmed.includes("+")) {
+    const parts = trimmed.split("+");
+    baseKey = parts[parts.length - 1];
+  }
+
+  const upper = baseKey.toUpperCase();
 
   if (LETTER_KEYCODES[upper] !== undefined) return LETTER_KEYCODES[upper];
   if (NUMBER_KEYCODES[upper] !== undefined) return NUMBER_KEYCODES[upper];

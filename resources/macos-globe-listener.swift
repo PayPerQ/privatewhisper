@@ -35,10 +35,14 @@ func eventTapCallback(proxy: CGEventTapProxy, type: CGEventType, event: CGEvent,
                 fnIsDown = true
                 FileHandle.standardOutput.write("FN_DOWN\n".data(using: .utf8)!)
                 fflush(stdout)
+                // Block the event to prevent emoji picker from appearing
+                return nil
             } else if !containsFn && fnIsDown {
                 fnIsDown = false
                 FileHandle.standardOutput.write("FN_UP\n".data(using: .utf8)!)
                 fflush(stdout)
+                // Block the event to prevent emoji picker from appearing
+                return nil
             }
         }
     }
@@ -48,7 +52,7 @@ func eventTapCallback(proxy: CGEventTapProxy, type: CGEventType, event: CGEvent,
 
 guard let createdTap = CGEvent.tapCreate(tap: .cgSessionEventTap,
                                          place: .headInsertEventTap,
-                                         options: .listenOnly,
+                                         options: .defaultTap,
                                          eventsOfInterest: mask,
                                          callback: eventTapCallback,
                                          userInfo: nil) else {

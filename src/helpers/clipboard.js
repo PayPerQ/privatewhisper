@@ -75,12 +75,7 @@ class ClipboardManager {
         'tell application "System Events" to keystroke "v" using command down',
       ]);
 
-      let errorOutput = "";
       let hasTimedOut = false;
-
-      pasteProcess.stderr.on("data", (data) => {
-        errorOutput += data.toString();
-      });
 
       pasteProcess.on("close", (code) => {
         if (hasTimedOut) return;
@@ -186,19 +181,12 @@ class ClipboardManager {
     if (!PlatformDetector.isMacOS()) return true;
 
     return new Promise((resolve) => {
-      // Check accessibility permissions
-
       const testProcess = spawn("osascript", [
         "-e",
         'tell application "System Events" to get name of first process',
       ]);
 
-      let testOutput = "";
       let testError = "";
-
-      testProcess.stdout.on("data", (data) => {
-        testOutput += data.toString();
-      });
 
       testProcess.stderr.on("data", (data) => {
         testError += data.toString();
@@ -213,7 +201,7 @@ class ClipboardManager {
         }
       });
 
-      testProcess.on("error", (error) => {
+      testProcess.on("error", () => {
         resolve(false);
       });
     });
@@ -274,7 +262,7 @@ Would you like to open System Settings now?`;
       }
     });
 
-    permissionDialog.on("error", (error) => {
+    permissionDialog.on("error", () => {
       // Permission dialog error - user will need to manually grant permissions
     });
   }
@@ -329,22 +317,13 @@ Would you like to open System Settings now?`;
     });
   }
 
-  async readClipboard() {
-    try {
-      const text = clipboard.readText();
-      return text;
-    } catch (error) {
-      throw error;
-    }
+  readClipboard() {
+    return clipboard.readText();
   }
 
-  async writeClipboard(text) {
-    try {
-      clipboard.writeText(text);
-      return { success: true };
-    } catch (error) {
-      throw error;
-    }
+  writeClipboard(text) {
+    clipboard.writeText(text);
+    return { success: true };
   }
 }
 

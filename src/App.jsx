@@ -207,12 +207,12 @@ const Tooltip = ({ children, content, emoji }) => {
       </div>
       {isVisible && (
         <div
-          className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-1 py-1 text-white bg-gradient-to-r from-neutral-800 to-neutral-700 rounded-md whitespace-nowrap z-10 transition-opacity duration-150"
-          style={{ fontSize: "9.7px" }}
+          className="absolute bottom-full right-0 mb-2 px-2 py-1 text-white bg-gradient-to-r from-neutral-800 to-neutral-700 rounded-md z-10 transition-opacity duration-150 text-center"
+          style={{ fontSize: "9.7px", maxWidth: "180px" }}
         >
           {emoji && <span className="mr-1">{emoji}</span>}
           {content}
-          <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-2 border-r-2 border-t-2 border-transparent border-t-neutral-800"></div>
+          <div className="absolute top-full right-4 w-0 h-0 border-l-2 border-r-2 border-t-2 border-transparent border-t-neutral-800"></div>
         </div>
       )}
     </div>

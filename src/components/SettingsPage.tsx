@@ -49,6 +49,7 @@ export default function SettingsPage({
     audioCuesEnabled,
     alwaysUseBuiltInMic,
     preferredMicrophoneId,
+    showIconOnlyWhenActive,
     setPreferredLanguage,
     setPpqApiKey,
     setDictationKey,
@@ -56,6 +57,7 @@ export default function SettingsPage({
     setAudioCuesEnabled,
     setAlwaysUseBuiltInMic,
     setPreferredMicrophoneId,
+    setShowIconOnlyWhenActive,
     updateTranscriptionSettings,
     updateApiKeys,
   } = useSettings();
@@ -780,6 +782,32 @@ export default function SettingsPage({
                   <Toggle
                     checked={audioCuesEnabled}
                     onChange={(checked) => setAudioCuesEnabled(checked)}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Appearance Section */}
+            <div className="border-t pt-8">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  Appearance
+                </h3>
+                <p className="text-sm text-gray-600 mb-4">
+                  Customize how the voice icon appears on your screen.
+                </p>
+                <div className="flex items-center justify-between p-4 bg-neutral-50 rounded-lg">
+                  <div>
+                    <p className="text-sm font-medium text-neutral-800">
+                      Show Icon Only When Active
+                    </p>
+                    <p className="text-xs text-neutral-600">
+                      Hide the icon unless the hotkey is pressed.
+                    </p>
+                  </div>
+                  <Toggle
+                    checked={showIconOnlyWhenActive}
+                    onChange={(checked) => setShowIconOnlyWhenActive(checked)}
                   />
                 </div>
               </div>

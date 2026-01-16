@@ -244,6 +244,8 @@ export default function App() {
   const audioContextRef = useRef(null);
   const recordingStartedAtRef = useRef(null);
   const lastAudioDurationMsRef = useRef(null);
+  const [shouldShowIconDelayed, setShouldShowIconDelayed] = useState(false);
+  const showIconTimeoutRef = useRef(null);
   const {
     preferredLanguage,
     hotkeyMode: rawHotkeyMode,
@@ -251,6 +253,7 @@ export default function App() {
     audioCuesEnabled,
     alwaysUseBuiltInMic,
     preferredMicrophoneId,
+    showIconOnlyWhenActive,
   } = useSettings();
 
   // Hold-to-talk only works on macOS (requires native key-up detection)
@@ -750,6 +753,32 @@ export default function App() {
     }
   }, [isRecording, isConnecting, isProcessing]);
 
+  // Handle delayed icon visibility when showIconOnlyWhenActive is enabled
+  useEffect(() => {
+    const isActive = isRecording || isConnecting || isProcessing;
+
+    if (isActive) {
+      // Show icon after 500ms delay
+      showIconTimeoutRef.current = setTimeout(() => {
+        setShouldShowIconDelayed(true);
+      }, 300);
+    } else {
+      // Hide immediately when no longer active
+      if (showIconTimeoutRef.current) {
+        clearTimeout(showIconTimeoutRef.current);
+        showIconTimeoutRef.current = null;
+      }
+      setShouldShowIconDelayed(false);
+    }
+
+    return () => {
+      if (showIconTimeoutRef.current) {
+        clearTimeout(showIconTimeoutRef.current);
+        showIconTimeoutRef.current = null;
+      }
+    };
+  }, [isRecording, isConnecting, isProcessing]);
+
   const playCue = React.useCallback(
     async (type) => {
       try {
@@ -868,9 +897,13 @@ export default function App() {
 
   const micProps = getMicButtonProps();
 
+  // Determine if the icon should be visible
+  const shouldShowIcon = !showIconOnlyWhenActive || shouldShowIconDelayed;
+
   return (
     <>
       {/* Fixed bottom-right voice button */}
+      {shouldShowIcon && (
       <div className="fixed bottom-6 right-6 z-50">
         <div className="relative">
           <Tooltip content={micProps.tooltip}>
@@ -1009,6 +1042,7 @@ export default function App() {
           )}
         </div>
       </div>
+      )}
     </>
   );
 }

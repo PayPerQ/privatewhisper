@@ -45,6 +45,8 @@ let edgeFunctionLogger;
 let ipcHandlers;
 let globeKeyAlertShown = false;
 let hotkeyListeningMode = false; // Suppresses dictation trigger when user is selecting a hotkey
+let globeKeyIsDown = false;
+const FN_KEY_CODE = 63;
 
 // Bypass certificate verification in development
 if (process.env.NODE_ENV === "development") {
@@ -149,7 +151,10 @@ async function startApp() {
   updateManager.checkForUpdatesOnStartup();
 
   if (process.platform === "darwin") {
-    globeKeyManager.on("globe-down", () => {
+    const handleGlobeDown = () => {
+      if (globeKeyIsDown) return;
+      globeKeyIsDown = true;
+
       // Always broadcast globe-key-detected for hotkey picker
       BrowserWindow.getAllWindows().forEach((win) => {
         if (!win.isDestroyed()) {
@@ -171,9 +176,12 @@ async function startApp() {
           windowManager.mainWindow.webContents.send("toggle-dictation");
         }
       }
-    });
+    };
 
-    globeKeyManager.on("globe-up", () => {
+    const handleGlobeUp = () => {
+      if (!globeKeyIsDown) return;
+      globeKeyIsDown = false;
+
       // Only send hotkey-up if not in hotkey listening mode
       if (
         !hotkeyListeningMode &&
@@ -184,9 +192,23 @@ async function startApp() {
       ) {
         windowManager.mainWindow.webContents.send("dictation-hotkey-up");
       }
+    };
+
+    globeKeyManager.on("globe-down", handleGlobeDown);
+    globeKeyManager.on("globe-up", handleGlobeUp);
+
+    globeKeyManager.on("key-down", (keyCode) => {
+      if (Number(keyCode) === FN_KEY_CODE) {
+        handleGlobeDown();
+      }
     });
 
     globeKeyManager.on("key-up", (keyCode) => {
+      if (Number(keyCode) === FN_KEY_CODE) {
+        handleGlobeUp();
+        return;
+      }
+
       const activeHotkey =
         typeof hotkeyManager.getCurrentHotkey === "function"
           ? hotkeyManager.getCurrentHotkey()

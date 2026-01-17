@@ -1,6 +1,6 @@
 {
   "name": "ppq-voice",
-  "version": "0.1.11",
+  "version": "0.1.12",
   "description": "PPQ Voice — a cloud-powered desktop dictation app with instant clean-up",
   "main": "main.js",
   "private": true,

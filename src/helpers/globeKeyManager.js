@@ -114,48 +114,33 @@ class GlobeKeyManager extends EventEmitter {
   }
 
   resolveListenerBinary() {
-    const candidates = new Set([
-      path.join(
-        __dirname,
-        "..",
-        "..",
-        "resources",
-        "bin",
-        "macos-globe-listener",
-      ),
-      path.join(__dirname, "..", "..", "resources", "macos-globe-listener"),
-    ]);
+    // Build candidate paths in priority order
+    const candidates = [];
 
+    // Packaged app paths (check these first as they're most common in production)
     if (process.resourcesPath) {
-      [
-        path.join(process.resourcesPath, "macos-globe-listener"),
+      candidates.push(
+        // Primary location after electron-builder extraResources fix
         path.join(process.resourcesPath, "bin", "macos-globe-listener"),
-        path.join(process.resourcesPath, "resources", "macos-globe-listener"),
+        // Legacy location (resources/bin nested path)
         path.join(
           process.resourcesPath,
           "resources",
           "bin",
           "macos-globe-listener",
         ),
-        path.join(
-          process.resourcesPath,
-          "app.asar.unpacked",
-          "resources",
-          "macos-globe-listener",
-        ),
-        path.join(
-          process.resourcesPath,
-          "app.asar.unpacked",
-          "resources",
-          "bin",
-          "macos-globe-listener",
-        ),
-      ].forEach((candidate) => candidates.add(candidate));
+        // Direct in resources
+        path.join(process.resourcesPath, "macos-globe-listener"),
+      );
     }
 
-    const candidatePaths = [...candidates];
+    // Development paths (relative to this file in src/helpers)
+    candidates.push(
+      path.join(__dirname, "..", "..", "resources", "bin", "macos-globe-listener"),
+      path.join(__dirname, "..", "..", "resources", "macos-globe-listener"),
+    );
 
-    for (const candidate of candidatePaths) {
+    for (const candidate of candidates) {
       try {
         const stats = fs.statSync(candidate);
         if (stats.isFile()) {

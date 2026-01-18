@@ -99,6 +99,7 @@ async function startApp() {
     clipboardManager,
     windowManager,
     edgeFunctionLogger,
+    globeKeyManager,
   });
 
   // Set up callback for hotkey listening mode changes

@@ -9,12 +9,21 @@ class GlobeKeyManager extends EventEmitter {
     this.process = null;
     this.isSupported = process.platform === "darwin";
     this.hasReportedError = false;
+    this.globeOnly = true; // Default to globe-only mode (no Input Monitoring required)
   }
 
-  start() {
+  /**
+   * Start the globe key listener.
+   * @param {Object} options
+   * @param {boolean} options.globeOnly - If true, only listen for Globe/Fn key (no Input Monitoring needed).
+   *                                      If false, also listen for all keyDown/keyUp events (requires Input Monitoring).
+   */
+  start(options = {}) {
     if (!this.isSupported || this.process) {
       return;
     }
+
+    this.globeOnly = options.globeOnly !== false; // Default to true
 
     const listenerPath = this.resolveListenerBinary();
     if (!listenerPath) {
@@ -36,7 +45,10 @@ class GlobeKeyManager extends EventEmitter {
     }
 
     this.hasReportedError = false;
-    this.process = spawn(listenerPath);
+
+    // Build spawn arguments - add --globe-only flag if in globe-only mode
+    const spawnArgs = this.globeOnly ? ["--globe-only"] : [];
+    this.process = spawn(listenerPath, spawnArgs);
 
     this.process.stdout.setEncoding("utf8");
     this.process.stdout.on("data", (chunk) => {
@@ -95,6 +107,27 @@ class GlobeKeyManager extends EventEmitter {
     }
   }
 
+  /**
+   * Restart the listener with new options.
+   * Useful when settings change (e.g., switching between Globe key and other hotkeys).
+   * @param {Object} options
+   * @param {boolean} options.globeOnly - If true, only listen for Globe/Fn key.
+   */
+  restart(options = {}) {
+    this.stop();
+    this.hasReportedError = false;
+    this.start(options);
+  }
+
+  /**
+   * Check if currently running in globe-only mode.
+   * Returns the current mode setting (true if not running).
+   * @returns {boolean}
+   */
+  isGlobeOnlyMode() {
+    return this.globeOnly;
+  }
+
   reportError(error) {
     if (this.hasReportedError) {
       return;
@@ -116,10 +149,22 @@ class GlobeKeyManager extends EventEmitter {
   resolveListenerBinary() {
     // Build candidate paths in priority order
     const candidates = [];
+    const archSuffix =
+      process.arch === "arm64"
+        ? "arm64"
+        : process.arch === "x64"
+          ? "x86_64"
+          : process.arch;
 
     // Packaged app paths (check these first as they're most common in production)
     if (process.resourcesPath) {
       candidates.push(
+        // Architecture-specific build (preferred when present)
+        path.join(
+          process.resourcesPath,
+          "bin",
+          `macos-globe-listener-${archSuffix}`,
+        ),
         // Primary location after electron-builder extraResources fix
         path.join(process.resourcesPath, "bin", "macos-globe-listener"),
         // Legacy location (resources/bin nested path)
@@ -136,6 +181,14 @@ class GlobeKeyManager extends EventEmitter {
 
     // Development paths (relative to this file in src/helpers)
     candidates.push(
+      path.join(
+        __dirname,
+        "..",
+        "..",
+        "resources",
+        "bin",
+        `macos-globe-listener-${archSuffix}`,
+      ),
       path.join(__dirname, "..", "..", "resources", "bin", "macos-globe-listener"),
       path.join(__dirname, "..", "..", "resources", "macos-globe-listener"),
     );

@@ -14,6 +14,8 @@
     "src/dist/**/*",
     "src/helpers/**/*",
     "src/hooks/**/*",
+    "src/services/**/*",
+    "src/stores/**/*",
     "src/config/**/*",
     "src/types/**/*",
     "src/utils.js",
@@ -28,8 +30,9 @@
     "src/assets/**/*",
     "resources/macos-globe-listener.swift",
     {
-      "from": "resources/bin/macos-globe-listener",
-      "to": "bin/macos-globe-listener"
+      "from": "resources/bin",
+      "to": "bin",
+      "filter": ["macos-globe-listener*"]
     }
   ],
   "mac": {

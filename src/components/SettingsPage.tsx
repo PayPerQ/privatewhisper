@@ -216,6 +216,21 @@ export default function SettingsPage({
     setPlatform(detectedPlatform);
   }, []);
 
+  // Update globe key listener mode when hotkey or hotkeyMode changes (macOS only)
+  // This determines whether we need Input Monitoring permission
+  useEffect(() => {
+    if (platform !== "darwin") return;
+
+    // Only need full keyboard monitoring if:
+    // - Hotkey is NOT Globe AND
+    // - Mode is "hold" (push-to-talk)
+    window.electronAPI?.updateGlobeListenerMode?.(dictationKey, hotkeyMode);
+  }, [platform, dictationKey, hotkeyMode]);
+
+  // Check if current settings require Input Monitoring permission
+  const needsInputMonitoring =
+    isMacOS && dictationKey !== "GLOBE" && hotkeyMode === "hold";
+
   // Local state for provider selection (overrides computed value)
   useEffect(() => {
     let mounted = true;
@@ -639,6 +654,25 @@ export default function SettingsPage({
                         </div>
                       </button>
                     </div>
+
+                    {/* Warning for non-Globe + hold mode requiring Input Monitoring */}
+                    {needsInputMonitoring && (
+                      <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                        <div className="font-medium mb-1">
+                          Input Monitoring Required
+                        </div>
+                        <p className="text-xs">
+                          "Hold to talk" with non-Globe keys requires Input
+                          Monitoring permission to detect key release. Go to
+                          System Settings → Privacy & Security → Input
+                          Monitoring and enable PPQ Voice.
+                        </p>
+                        <p className="text-xs mt-2">
+                          <strong>Tip:</strong> Use the Globe key (🌐) for
+                          hold-to-talk without this extra permission.
+                        </p>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

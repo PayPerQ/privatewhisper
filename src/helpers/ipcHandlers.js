@@ -9,6 +9,7 @@ class IPCHandlers {
     this.clipboardManager = managers.clipboardManager;
     this.windowManager = managers.windowManager;
     this.edgeFunctionLogger = managers.edgeFunctionLogger;
+    this.globeKeyManager = managers.globeKeyManager;
     this.setupHandlers();
   }
 
@@ -193,6 +194,32 @@ class IPCHandlers {
       this.broadcastToAllWindows("hotkey-mode-changed", mode);
       return { success: true };
     });
+
+    // Update globe key listener mode based on hotkey and mode settings
+    // globeOnly = true: Only listen for Globe/Fn key (no Input Monitoring required)
+    // globeOnly = false: Also listen for keyDown/keyUp events (requires Input Monitoring)
+    ipcMain.handle(
+      "update-globe-listener-mode",
+      async (_event, { hotkey, hotkeyMode }) => {
+        if (!this.globeKeyManager || process.platform !== "darwin") {
+          return { success: true, globeOnly: true };
+        }
+
+        // Only need full keyboard monitoring if:
+        // - Hotkey is NOT Globe AND
+        // - Mode is "hold" (push-to-talk)
+        const needsFullMonitoring =
+          hotkey !== "GLOBE" && hotkeyMode === "hold";
+        const globeOnly = !needsFullMonitoring;
+
+        // Restart with new mode if different from current
+        if (globeOnly !== this.globeKeyManager.isGlobeOnlyMode()) {
+          this.globeKeyManager.restart({ globeOnly });
+        }
+
+        return { success: true, globeOnly };
+      },
+    );
 
     // Open macOS accessibility settings (macOS only)
     ipcMain.handle("open-accessibility-settings", async () => {

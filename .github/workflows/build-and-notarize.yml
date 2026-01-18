@@ -70,6 +70,7 @@ jobs:
         run: ${{ matrix.build_cmd }} -- --publish never
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          PPQ_GLOBE_LISTENER_REQUIRE_UNIVERSAL: "true"
           # Enable signing only for macOS non-PR builds
           CSC_IDENTITY_AUTO_DISCOVERY: ${{ matrix.os == 'macos-latest' && github.event_name != 'pull_request' && 'true' || 'false' }}
           # Notarization credentials (electron-builder standard)

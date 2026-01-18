@@ -77,6 +77,7 @@ jobs:
         run: ${{ matrix.build_cmd }} -- --publish always
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          PPQ_GLOBE_LISTENER_REQUIRE_UNIVERSAL: "true"
           # Enable signing only for macOS
           CSC_IDENTITY_AUTO_DISCOVERY: ${{ matrix.os == 'macos-latest' && 'true' || 'false' }}
           # Certificate password for signing

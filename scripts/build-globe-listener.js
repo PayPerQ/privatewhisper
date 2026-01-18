@@ -19,6 +19,9 @@ const outputDir = path.join(projectRoot, "resources", "bin");
 const outputBinary = path.join(outputDir, "macos-globe-listener");
 const moduleCacheBaseDir = path.join(outputDir, ".swift-module-cache");
 const requiredArchitectures = ["arm64", "x86_64"];
+const requireUniversal =
+  process.env.PPQ_GLOBE_LISTENER_REQUIRE_UNIVERSAL === "true" ||
+  process.env.CI === "true";
 
 function log(message) {
   console.log(`[globe-listener] ${message}`);
@@ -103,6 +106,7 @@ const buildTargets = [
 ];
 
 const builtBinaries = [];
+const builtArchitectures = new Set();
 
 for (const target of buildTargets) {
   const moduleCacheDir = `${moduleCacheBaseDir}-${target.arch}`;
@@ -141,11 +145,25 @@ for (const target of buildTargets) {
   }
 
   builtBinaries.push(archOutputBinary);
+  builtArchitectures.add(target.arch);
 }
 
 if (builtBinaries.length === 0) {
   console.error(
     "[globe-listener] Failed to compile macOS Globe listener binary.",
+  );
+  process.exit(1);
+}
+
+if (
+  requireUniversal &&
+  requiredArchitectures.some((arch) => !builtArchitectures.has(arch))
+) {
+  const missing = requiredArchitectures.filter(
+    (arch) => !builtArchitectures.has(arch),
+  );
+  console.error(
+    `[globe-listener] Missing required architectures: ${missing.join(", ")}`,
   );
   process.exit(1);
 }

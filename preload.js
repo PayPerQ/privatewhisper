@@ -114,6 +114,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
   onHotkeyModeChanged: (callback) =>
     exposeListener("hotkey-mode-changed", callback),
 
+  // Update globe key listener mode based on current hotkey and mode settings
+  // Returns { success: boolean, globeOnly: boolean }
+  updateGlobeListenerMode: (hotkey, hotkeyMode) =>
+    ipcRenderer.invoke("update-globe-listener-mode", { hotkey, hotkeyMode }),
+
   // Globe key detection for hotkey picker (macOS only)
   onGlobeKeyDetected: (callback) =>
     exposeListener("globe-key-detected", callback),

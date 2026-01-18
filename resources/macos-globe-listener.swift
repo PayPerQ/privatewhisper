@@ -2,9 +2,16 @@ import Cocoa
 import Foundation
 import Darwin
 
-let mask = CGEventMask(1 << CGEventType.flagsChanged.rawValue) |
-           CGEventMask(1 << CGEventType.keyDown.rawValue) |
-           CGEventMask(1 << CGEventType.keyUp.rawValue)
+// Check for --globe-only flag to limit monitoring to Globe/Fn key only
+// This avoids requiring Input Monitoring permission when only Globe key PTT is needed
+let globeOnly = CommandLine.arguments.contains("--globe-only")
+
+let mask: CGEventMask = globeOnly
+    ? CGEventMask(1 << CGEventType.flagsChanged.rawValue)
+    : CGEventMask(1 << CGEventType.flagsChanged.rawValue) |
+      CGEventMask(1 << CGEventType.keyDown.rawValue) |
+      CGEventMask(1 << CGEventType.keyUp.rawValue)
+
 var fnIsDown = false
 var eventTap: CFMachPort?
 let fnKeyCode: Int64 = 63
@@ -17,7 +24,7 @@ func eventTapCallback(proxy: CGEventTapProxy, type: CGEventType, event: CGEvent,
         return Unmanaged.passUnretained(event)
     }
 
-    if type == .keyDown || type == .keyUp {
+    if !globeOnly && (type == .keyDown || type == .keyUp) {
         let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
         let prefix = (type == .keyDown) ? "KEY_DOWN:" : "KEY_UP:"
         if let data = "\(prefix)\(keyCode)\n".data(using: .utf8) {

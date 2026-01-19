@@ -235,13 +235,14 @@ class IPCHandlers {
     });
 
     // Check if accessibility permissions are granted (macOS only)
+    // Uses silent mode to avoid showing dialogs - this is for UI state only
     ipcMain.handle("check-accessibility-permissions", async () => {
       if (process.platform !== "darwin") {
         // Non-macOS platforms don't need accessibility permissions
         return { granted: true };
       }
       try {
-        const granted = await this.clipboardManager.checkAccessibilityPermissions();
+        const granted = await this.clipboardManager.checkAccessibilityPermissions({ silent: true });
         return { granted };
       } catch (error) {
         return { granted: false, error: error.message };

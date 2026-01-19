@@ -177,7 +177,8 @@ class ClipboardManager {
     });
   }
 
-  async checkAccessibilityPermissions() {
+  async checkAccessibilityPermissions(options = {}) {
+    const { silent = false } = options;
     if (!PlatformDetector.isMacOS()) return true;
 
     return new Promise((resolve) => {
@@ -196,7 +197,9 @@ class ClipboardManager {
         if (code === 0) {
           resolve(true);
         } else {
-          this.showAccessibilityDialog(testError);
+          if (!silent) {
+            this.showAccessibilityDialog(testError);
+          }
           resolve(false);
         }
       });

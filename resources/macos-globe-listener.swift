@@ -42,10 +42,18 @@ func eventTapCallback(proxy: CGEventTapProxy, type: CGEventType, event: CGEvent,
                 fnIsDown = true
                 FileHandle.standardOutput.write("FN_DOWN\n".data(using: .utf8)!)
                 fflush(stdout)
+                // Suppress globe key event when in globe-only mode to prevent emoji picker
+                if globeOnly {
+                    return nil
+                }
             } else if !containsFn && fnIsDown {
                 fnIsDown = false
                 FileHandle.standardOutput.write("FN_UP\n".data(using: .utf8)!)
                 fflush(stdout)
+                // Suppress globe key event when in globe-only mode to prevent emoji picker
+                if globeOnly {
+                    return nil
+                }
             }
         }
     }
@@ -55,7 +63,7 @@ func eventTapCallback(proxy: CGEventTapProxy, type: CGEventType, event: CGEvent,
 
 guard let createdTap = CGEvent.tapCreate(tap: .cgSessionEventTap,
                                          place: .headInsertEventTap,
-                                         options: .listenOnly,
+                                         options: globeOnly ? .defaultTap : .listenOnly,
                                          eventsOfInterest: mask,
                                          callback: eventTapCallback,
                                          userInfo: nil) else {

@@ -127,6 +127,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
   openAccessibilitySettings: () =>
     ipcRenderer.invoke("open-accessibility-settings"),
 
+  // Check if accessibility permissions are granted (macOS only)
+  // Returns { granted: boolean, error?: string }
+  checkAccessibilityPermissions: () =>
+    ipcRenderer.invoke("check-accessibility-permissions"),
+
   // Set hotkey listening mode - suppresses dictation trigger during hotkey selection
   setHotkeyListeningMode: (isListening) =>
     ipcRenderer.invoke("set-hotkey-listening-mode", isListening),

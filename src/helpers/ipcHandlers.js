@@ -234,6 +234,20 @@ class IPCHandlers {
       }
     });
 
+    // Check if accessibility permissions are granted (macOS only)
+    ipcMain.handle("check-accessibility-permissions", async () => {
+      if (process.platform !== "darwin") {
+        // Non-macOS platforms don't need accessibility permissions
+        return { granted: true };
+      }
+      try {
+        const granted = await this.clipboardManager.checkAccessibilityPermissions();
+        return { granted };
+      } catch (error) {
+        return { granted: false, error: error.message };
+      }
+    });
+
     // Set hotkey listening mode - suppresses dictation trigger during hotkey selection
     ipcMain.handle("set-hotkey-listening-mode", async (_event, isListening) => {
       // Update the global flag in main.js via a callback

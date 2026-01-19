@@ -188,6 +188,12 @@ declare global {
         error?: string;
       }>;
 
+      // Check if accessibility permissions are granted (macOS only)
+      checkAccessibilityPermissions?: () => Promise<{
+        granted: boolean;
+        error?: string;
+      }>;
+
       // Set hotkey listening mode - suppresses dictation trigger during hotkey selection
       setHotkeyListeningMode?: (isListening: boolean) => Promise<{
         success: boolean;

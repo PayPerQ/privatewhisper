@@ -38,6 +38,7 @@ jobs:
       # Note: Only PUBLIC config values are bundled (Supabase URL/publishable key, WS URL)
       # User API keys (PPQ_API_KEY) are NOT bundled - users enter them at runtime
       - name: Create production .env
+        shell: bash
         run: |
           cat > .env << EOF
           SUPABASE_URL=${{ secrets.SUPABASE_URL }}

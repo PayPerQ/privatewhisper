@@ -34,6 +34,17 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Create production .env file with app configuration
+      # Note: Only PUBLIC config values are bundled (Supabase URL/publishable key, WS URL)
+      # User API keys (PPQ_API_KEY) are NOT bundled - users enter them at runtime
+      - name: Create production .env
+        run: |
+          cat > .env << EOF
+          SUPABASE_URL=${{ secrets.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY=${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+          PPQVOICE_PPQ_WS_BASE_URL=${{ secrets.PPQVOICE_PPQ_WS_BASE_URL }}
+          EOF
+
       # macOS code signing setup - industry standard approach
       - name: Setup macOS Code Signing
         if: matrix.os == 'macos-latest' && github.event_name != 'pull_request'

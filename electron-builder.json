@@ -27,6 +27,7 @@
   ],
   "asarUnpack": ["**/node_modules/better-sqlite3/**/*"],
   "extraResources": [
+    ".env",
     "src/assets/**/*",
     "resources/macos-globe-listener.swift",
     {

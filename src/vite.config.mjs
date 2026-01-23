@@ -12,6 +12,7 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   base: "./", // Use relative paths for file:// protocol in Electron
   envPrefix: ["VITE_", "PPQVOICE_"], // Expose PPQVOICE_ prefixed env vars
+  envDir: path.resolve(__dirname, ".."), // Look for .env files in parent directory (root)
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "."),

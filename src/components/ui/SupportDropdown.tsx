@@ -1,53 +1,30 @@
 import React from "react";
 import { Button } from "./button";
-import { HelpCircle, Mail } from "lucide-react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "./dropdown-menu";
+import { HelpCircle, MessageCircle } from "lucide-react";
 
 interface SupportDropdownProps {
   className?: string;
 }
 
 export default function SupportDropdown({ className }: SupportDropdownProps) {
-  const handleContactSupport = async () => {
-    try {
-      const result =
-        await window.electronAPI?.openExternal("mailto:matt@ppq.ai");
-      if (result && !result.success) {
-        console.error("Failed to open email client:", result.error);
-        // Fallback: try opening the email as a web URL
-        await window.electronAPI?.openExternal(
-          "https://mail.google.com/mail/?view=cm&to=matt@ppq.ai",
-        );
-      }
-    } catch (error) {
-      console.error("Error opening email client:", error);
+  const handleContactSupport = () => {
+    // Open Chatwoot widget
+    if ((window as any).$chatwoot) {
+      (window as any).$chatwoot.toggle();
+    } else {
+      console.warn("Chatwoot widget not loaded yet");
     }
   };
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className={className}>
-          <HelpCircle size={16} />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align="end"
-        className="bg-white border border-gray-200 shadow-lg"
-      >
-        <DropdownMenuItem
-          onClick={handleContactSupport}
-          className="cursor-pointer hover:bg-gray-50 focus:bg-gray-50"
-        >
-          <Mail className="mr-2 h-4 w-4" />
-          Contact Support
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <Button
+      variant="ghost"
+      size="icon"
+      className={className}
+      onClick={handleContactSupport}
+      title="Contact Support"
+    >
+      <HelpCircle size={16} />
+    </Button>
   );
 }

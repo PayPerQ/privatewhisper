@@ -40,6 +40,13 @@ export const buildApiUrl = (base: string, path: string): string => {
 const env =
   (typeof import.meta !== "undefined" && (import.meta as any).env) || {};
 
+// Debug: Log environment variables
+console.log("[constants.ts] import.meta.env:", (import.meta as any).env);
+console.log(
+  "[constants.ts] PPQVOICE_PPQ_WS_BASE_URL:",
+  env.PPQVOICE_PPQ_WS_BASE_URL,
+);
+
 const computeBaseUrl = (
   candidates: Array<string | undefined>,
   fallback: string,
@@ -73,8 +80,14 @@ const DEFAULT_PPQ_CHAT_BASE = computeBaseUrl(
 // WebSocket base URL for streaming services
 const DEFAULT_PPQ_WS_BASE = computeBaseUrl(
   [env.PPQVOICE_PPQ_WS_BASE_URL as string | undefined],
-  "wss://api.ppq.ai",
+  "",
 );
+
+if (!DEFAULT_PPQ_WS_BASE) {
+  throw new Error(
+    "PPQVOICE_PPQ_WS_BASE_URL environment variable is required but not set",
+  );
+}
 
 export const API_ENDPOINTS = {
   PPQ_BASE: DEFAULT_PPQ_CHAT_BASE,

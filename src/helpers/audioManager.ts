@@ -126,7 +126,7 @@ type AudioManagerCallbacks = {
 
 const DEFAULT_SETTINGS: AudioSettings = {
   useReasoningModel: true,
-  reasoningModel: "qwen/qwen3-32b",
+  reasoningModel: "openai/gpt-oss-120b",
   preferredLanguage: "en",
 };
 

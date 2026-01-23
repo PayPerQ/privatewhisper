@@ -40,13 +40,6 @@ export const buildApiUrl = (base: string, path: string): string => {
 const env =
   (typeof import.meta !== "undefined" && (import.meta as any).env) || {};
 
-// Debug: Log environment variables
-console.log("[constants.ts] import.meta.env:", (import.meta as any).env);
-console.log(
-  "[constants.ts] PPQVOICE_PPQ_WS_BASE_URL:",
-  env.PPQVOICE_PPQ_WS_BASE_URL,
-);
-
 const computeBaseUrl = (
   candidates: Array<string | undefined>,
   fallback: string,

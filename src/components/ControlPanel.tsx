@@ -19,6 +19,7 @@ import { useDialogs } from "../hooks/useDialogs";
 import { useHotkey } from "../hooks/useHotkey";
 import { useToast } from "./ui/Toast";
 import { useTranscriptionStore } from "../stores/transcriptionStore";
+import ChatwootWidget from "./ChatwootWidget";
 
 export default function ControlPanel() {
   const { items: history, isLoading } = useTranscriptionStore();
@@ -224,6 +225,7 @@ export default function ControlPanel() {
 
   return (
     <div className="min-h-screen bg-white">
+      <ChatwootWidget />
       <ConfirmDialog
         open={confirmDialog.open}
         onOpenChange={hideConfirmDialog}

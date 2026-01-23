@@ -40,7 +40,8 @@ export const usePermissions = (
 
     setIsCheckingPermissions(true);
     try {
-      const result = await window.electronAPI?.checkAccessibilityPermissions?.();
+      const result =
+        await window.electronAPI?.checkAccessibilityPermissions?.();
       if (result?.granted) {
         setAccessibilityPermissionGranted(true);
       }
@@ -65,17 +66,20 @@ export const usePermissions = (
     } catch (err) {
       console.error("Microphone permission denied:", err);
       const error = err as Error & { name?: string };
-      let description = "Please grant microphone permissions to use voice dictation.";
+      let description =
+        "Please grant microphone permissions to use voice dictation.";
 
       // Provide specific guidance based on error type
       if (error.name === "NotFoundError") {
-        description = "No microphone was detected. Please connect a microphone and try again.";
+        description =
+          "No microphone was detected. Please connect a microphone and try again.";
       } else if (error.name === "NotAllowedError") {
         description = isMacOS
           ? "Microphone permission was denied. Please go to System Settings > Privacy & Security > Microphone and enable access for PPQ Voice."
           : "Microphone permission was denied. Please allow microphone access in your browser or system settings.";
       } else if (error.name === "NotReadableError") {
-        description = "Could not access the microphone. It may be in use by another application.";
+        description =
+          "Could not access the microphone. It may be in use by another application.";
       }
 
       if (showAlertDialog) {

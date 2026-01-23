@@ -189,20 +189,28 @@ class WindowManager {
     // Allow Chatwoot widget to load by removing blocking headers from all chatwoot requests
     // Use the default session to ensure it applies to iframes as well
     session.defaultSession.webRequest.onHeadersReceived(
-      { urls: ["*://app.chatwoot.com/*", "*://*.chatwoot.com/*", "https://app.chatwoot.com/*"] },
+      {
+        urls: [
+          "*://app.chatwoot.com/*",
+          "*://*.chatwoot.com/*",
+          "https://app.chatwoot.com/*",
+        ],
+      },
       (details, callback) => {
         const responseHeaders = { ...details.responseHeaders };
         // Remove headers that block iframe embedding (check all case variants)
-        Object.keys(responseHeaders).forEach(key => {
+        Object.keys(responseHeaders).forEach((key) => {
           const lowerKey = key.toLowerCase();
-          if (lowerKey === "x-frame-options" ||
-              lowerKey === "content-security-policy" ||
-              lowerKey === "x-content-security-policy") {
+          if (
+            lowerKey === "x-frame-options" ||
+            lowerKey === "content-security-policy" ||
+            lowerKey === "x-content-security-policy"
+          ) {
             delete responseHeaders[key];
           }
         });
         callback({ responseHeaders });
-      }
+      },
     );
 
     this.controlPanelWindow.once("ready-to-show", () => {

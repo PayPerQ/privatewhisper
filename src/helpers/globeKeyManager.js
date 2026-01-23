@@ -189,7 +189,14 @@ class GlobeKeyManager extends EventEmitter {
         "bin",
         `macos-globe-listener-${archSuffix}`,
       ),
-      path.join(__dirname, "..", "..", "resources", "bin", "macos-globe-listener"),
+      path.join(
+        __dirname,
+        "..",
+        "..",
+        "resources",
+        "bin",
+        "macos-globe-listener",
+      ),
       path.join(__dirname, "..", "..", "resources", "macos-globe-listener"),
     );
 

@@ -5,15 +5,18 @@ declare global {
     };
     chatwootSettings: {
       hideMessageBubble?: boolean;
-      position?: 'left' | 'right';
+      position?: "left" | "right";
       locale?: string;
-      type?: 'standard' | 'expanded_bubble';
+      type?: "standard" | "expanded_bubble";
     };
     $chatwoot: {
       toggle: () => void;
       show: () => void;
       hide: () => void;
-      setUser: (id: string, userData: { email?: string; name?: string }) => void;
+      setUser: (
+        id: string,
+        userData: { email?: string; name?: string },
+      ) => void;
     };
   }
 }

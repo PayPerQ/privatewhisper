@@ -138,9 +138,7 @@ for (const target of buildTargets) {
   }
 
   if (result.status !== 0) {
-    console.error(
-      `[globe-listener] Failed to compile ${target.arch} binary.`,
-    );
+    console.error(`[globe-listener] Failed to compile ${target.arch} binary.`);
     continue;
   }
 

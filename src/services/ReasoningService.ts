@@ -132,9 +132,7 @@ OUTPUT RULES - THESE ARE ABSOLUTE:
 You are processing transcribed speech, so expect imperfect input. Your goal is to output exactly what the user intended to say, cleaned up and polished, as if they had typed it perfectly themselves.`;
 
     // Sanitize text: escape any XML-like tags to prevent delimiter escape attacks
-    const sanitizedText = text
-      .replace(/</g, "＜")
-      .replace(/>/g, "＞");
+    const sanitizedText = text.replace(/</g, "＜").replace(/>/g, "＞");
 
     // Wrap user text in XML tags to clearly delineate data from instructions
     const userPrompt = `<transcription>${sanitizedText}</transcription>`;
@@ -259,7 +257,7 @@ You are processing transcribed speech, so expect imperfect input. Your goal is t
       /\bAPI[- ]?key\b/i,
       /\bpassword\b/i,
       /\bsecret\b/i,
-      /<\/?transcription>/i, 
+      /<\/?transcription>/i,
     ];
 
     for (const pattern of suspiciousPatterns) {

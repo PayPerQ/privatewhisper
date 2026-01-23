@@ -208,8 +208,7 @@ class IPCHandlers {
         // Only need full keyboard monitoring if:
         // - Hotkey is NOT Globe AND
         // - Mode is "hold" (push-to-talk)
-        const needsFullMonitoring =
-          hotkey !== "GLOBE" && hotkeyMode === "hold";
+        const needsFullMonitoring = hotkey !== "GLOBE" && hotkeyMode === "hold";
         const globeOnly = !needsFullMonitoring;
 
         // Restart with new mode if different from current
@@ -242,7 +241,10 @@ class IPCHandlers {
         return { granted: true };
       }
       try {
-        const granted = await this.clipboardManager.checkAccessibilityPermissions({ silent: true });
+        const granted =
+          await this.clipboardManager.checkAccessibilityPermissions({
+            silent: true,
+          });
         return { granted };
       } catch (error) {
         return { granted: false, error: error.message };

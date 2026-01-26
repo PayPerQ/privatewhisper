@@ -51,6 +51,7 @@ jobs:
           SUPABASE_URL=${{ secrets.SUPABASE_URL }}
           SUPABASE_PUBLISHABLE_KEY=${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
           PPQVOICE_PPQ_WS_BASE_URL=${{ secrets.PPQVOICE_PPQ_WS_BASE_URL }}
+          VITE_CHATWOOT_TOKEN=${{ secrets.VITE_CHATWOOT_TOKEN }}
           EOF
 
       # macOS code signing setup (same as build workflow)

@@ -1,7 +1,8 @@
 const TIMING_CONFIG = {
   CLIPBOARD_PASTE_DELAY: 0,
   CLIPBOARD_RESTORE_DELAY: 100,
-  PASTE_TIMEOUT: 3000,
+  // Increased timeout for Bluetooth devices (AirPods) which have higher latency
+  PASTE_TIMEOUT: 7000,
   HOTKEY_LOAD_DELAY: 1000,
   DEV_SERVER_RETRY_DELAY: 1000,
   DEV_SERVER_MAX_ATTEMPTS: 30,

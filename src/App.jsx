@@ -63,23 +63,52 @@ const registerBuiltInMicCacheListener = () => {
   builtInMicListenerRegistered = true;
 };
 
+/**
+ * Audio constraints optimized for dictation.
+ * Disabling echo cancellation, noise suppression, and auto gain control
+ * can help prevent Bluetooth profile switching on some devices,
+ * and gives us more control over the raw audio.
+ */
+const DICTATION_AUDIO_CONSTRAINTS = {
+  echoCancellation: false,
+  noiseSuppression: false,
+  autoGainControl: false,
+  // Prefer 16kHz sample rate to match transcription service
+  sampleRate: { ideal: 16000 },
+  channelCount: { ideal: 1 },
+};
+
+/**
+ * Get audio stream with fallback for device compatibility.
+ * Tries strict constraints first for quality, falls back to basic if device can't comply.
+ */
+async function getUserMediaWithFallback(constraints) {
+  try {
+    return await navigator.mediaDevices.getUserMedia({ audio: constraints });
+  } catch (e) {
+    console.warn("[Audio] Strict constraints failed, trying basic:", e.message);
+    return navigator.mediaDevices.getUserMedia({ audio: true });
+  }
+}
+
 async function getBuiltInMicrophoneStream() {
   registerBuiltInMicCacheListener();
   loadBuiltInMicCacheFromStorage();
 
   if (builtInMicCache.valid && builtInMicCache.deviceId) {
     try {
-      return await navigator.mediaDevices.getUserMedia({
-        audio: { deviceId: { exact: builtInMicCache.deviceId } },
+      return await getUserMediaWithFallback({
+        deviceId: { exact: builtInMicCache.deviceId },
+        ...DICTATION_AUDIO_CONSTRAINTS,
       });
     } catch {
       invalidateBuiltInMicCache({ clearStorage: true });
     }
   }
 
-  const initialStream = await navigator.mediaDevices.getUserMedia({
-    audio: true,
-  });
+  const initialStream = await getUserMediaWithFallback(
+    DICTATION_AUDIO_CONSTRAINTS,
+  );
 
   if (!navigator.mediaDevices?.enumerateDevices) {
     return initialStream;
@@ -115,8 +144,9 @@ async function getBuiltInMicrophoneStream() {
   }
 
   try {
-    const builtInStream = await navigator.mediaDevices.getUserMedia({
-      audio: { deviceId: { exact: builtInDevice.deviceId } },
+    const builtInStream = await getUserMediaWithFallback({
+      deviceId: { exact: builtInDevice.deviceId },
+      ...DICTATION_AUDIO_CONSTRAINTS,
     });
     initialStream.getTracks().forEach((track) => track.stop());
     return builtInStream;
@@ -129,21 +159,25 @@ async function getPreferredMicrophoneStream({
   alwaysUseBuiltInMic,
   preferredMicrophoneId,
 }) {
+  // Using built-in mic avoids Bluetooth profile switch entirely
+  // (music keeps playing in high-quality A2DP while recording uses built-in mic)
   if (alwaysUseBuiltInMic) {
     return getBuiltInMicrophoneStream();
   }
 
   if (preferredMicrophoneId) {
     try {
-      return await navigator.mediaDevices.getUserMedia({
-        audio: { deviceId: { exact: preferredMicrophoneId } },
+      return await getUserMediaWithFallback({
+        deviceId: { exact: preferredMicrophoneId },
+        ...DICTATION_AUDIO_CONSTRAINTS,
       });
     } catch {
-      return navigator.mediaDevices.getUserMedia({ audio: true });
+      // Fallback without exact device constraint
+      return getUserMediaWithFallback(DICTATION_AUDIO_CONSTRAINTS);
     }
   }
 
-  return navigator.mediaDevices.getUserMedia({ audio: true });
+  return getUserMediaWithFallback(DICTATION_AUDIO_CONSTRAINTS);
 }
 
 const scheduleBackgroundTask = (task) => {
@@ -249,6 +283,7 @@ export default function App() {
   const showIconTimeoutRef = useRef(null);
   const {
     preferredLanguage,
+    dictationKey,
     hotkeyMode: rawHotkeyMode,
     setHotkeyMode,
     audioCuesEnabled,
@@ -260,6 +295,14 @@ export default function App() {
   // Hold-to-talk only works on macOS (requires native key-up detection)
   const isMacOS = window.electronAPI?.getPlatform?.() === "darwin";
   const hotkeyMode = isMacOS ? rawHotkeyMode : "toggle";
+
+  // Update globe key listener mode when hotkey or mode changes (macOS only)
+  // This ensures the native listener suppresses the correct key to prevent default system actions
+  // (e.g., backtick triggering the emoji picker)
+  useEffect(() => {
+    if (!isMacOS) return;
+    window.electronAPI?.updateGlobeListenerMode?.(dictationKey, hotkeyMode);
+  }, [isMacOS, dictationKey, hotkeyMode]);
 
   // Listen for hotkey mode changes from other windows (e.g., Settings)
   useEffect(() => {
@@ -298,6 +341,39 @@ export default function App() {
     }
   }, [isCommandMenuOpen, isHovered, setWindowInteractivity]);
 
+  // Monitor for audio device changes (Bluetooth connect/disconnect, etc.)
+  // This helps handle AirPods disconnection gracefully during recording
+  useEffect(() => {
+    if (!navigator.mediaDevices?.addEventListener) return;
+
+    const handleDeviceChange = async () => {
+      // If we're currently recording and the device changes, the track will end
+      // The track 'ended' event handler in pcmAudioCapture will handle this
+      // Here we just invalidate the built-in mic cache so next recording uses correct device
+      invalidateBuiltInMicCache();
+
+      // Log device change for debugging Bluetooth issues
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const audioInputs = devices.filter((d) => d.kind === "audioinput");
+        console.log(
+          "[Audio] Device change detected. Available inputs:",
+          audioInputs.map((d) => d.label || d.deviceId).join(", "),
+        );
+      } catch {
+        // Enumeration may fail if permissions not granted
+      }
+    };
+
+    navigator.mediaDevices.addEventListener("devicechange", handleDeviceChange);
+    return () => {
+      navigator.mediaDevices.removeEventListener(
+        "devicechange",
+        handleDeviceChange,
+      );
+    };
+  }, []);
+
   const startRecording = async () => {
     if (
       pendingStartRef.current ||
@@ -313,6 +389,12 @@ export default function App() {
 
       // OPTIMISTIC UI: Show animation immediately before async operations complete
       setIsConnecting(true);
+
+      // Play audio cue BEFORE mic request - this ensures the cue plays through
+      // the current audio output before any Bluetooth profile switch occurs.
+      // Note: If using Bluetooth mic, the mic request below will cause a profile
+      // switch from A2DP (high-quality stereo) to HFP (mono). To avoid interrupting
+      // music playback, users should enable "Always use built-in microphone" in settings.
       void playCue("start");
 
       // Create AudioManager for this recording session

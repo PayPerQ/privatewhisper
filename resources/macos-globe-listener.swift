@@ -6,6 +6,21 @@ import Darwin
 // This avoids requiring Input Monitoring permission when only Globe key PTT is needed
 let globeOnly = CommandLine.arguments.contains("--globe-only")
 
+// Check for --suppress-keycode=XX to suppress a specific keycode (prevents default system action)
+var suppressKeycode: Int64? = nil
+for arg in CommandLine.arguments {
+    if arg.hasPrefix("--suppress-keycode=") {
+        let value = arg.replacingOccurrences(of: "--suppress-keycode=", with: "")
+        suppressKeycode = Int64(value)
+    }
+}
+
+// Determine if we need to intercept (modify/suppress) events or just listen
+// We need defaultTap (intercept mode) if:
+// 1. globeOnly mode (to suppress globe key)
+// 2. OR we have a keycode to suppress
+let needsIntercept = globeOnly || suppressKeycode != nil
+
 let mask: CGEventMask = globeOnly
     ? CGEventMask(1 << CGEventType.flagsChanged.rawValue)
     : CGEventMask(1 << CGEventType.flagsChanged.rawValue) |
@@ -30,6 +45,11 @@ func eventTapCallback(proxy: CGEventTapProxy, type: CGEventType, event: CGEvent,
         if let data = "\(prefix)\(keyCode)\n".data(using: .utf8) {
             FileHandle.standardOutput.write(data)
             fflush(stdout)
+        }
+        // Suppress the key event if it matches the configured suppress keycode
+        // This prevents the default system action (e.g., emoji picker for backtick)
+        if let suppress = suppressKeycode, keyCode == suppress {
+            return nil
         }
     }
 
@@ -63,7 +83,7 @@ func eventTapCallback(proxy: CGEventTapProxy, type: CGEventType, event: CGEvent,
 
 guard let createdTap = CGEvent.tapCreate(tap: .cgSessionEventTap,
                                          place: .headInsertEventTap,
-                                         options: globeOnly ? .defaultTap : .listenOnly,
+                                         options: needsIntercept ? .defaultTap : .listenOnly,
                                          eventsOfInterest: mask,
                                          callback: eventTapCallback,
                                          userInfo: nil) else {

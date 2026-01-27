@@ -198,6 +198,7 @@ class IPCHandlers {
     // Update globe key listener mode based on hotkey and mode settings
     // globeOnly = true: Only listen for Globe/Fn key (no Input Monitoring required)
     // globeOnly = false: Also listen for keyDown/keyUp events (requires Input Monitoring)
+    // suppressKey: When set, prevents the default system action for that key (e.g., emoji picker for backtick)
     ipcMain.handle(
       "update-globe-listener-mode",
       async (_event, { hotkey, hotkeyMode }) => {
@@ -205,18 +206,36 @@ class IPCHandlers {
           return { success: true, globeOnly: true };
         }
 
-        // Only need full keyboard monitoring if:
-        // - Hotkey is NOT Globe AND
-        // - Mode is "hold" (push-to-talk)
-        const needsFullMonitoring = hotkey !== "GLOBE" && hotkeyMode === "hold";
-        const globeOnly = !needsFullMonitoring;
+        // Globe key: always use globeOnly mode (suppresses emoji picker natively)
+        // Other keys: need full monitoring for hold mode, plus key suppression
+        const isGlobeKey = hotkey === "GLOBE";
+        const needsFullMonitoring = !isGlobeKey && hotkeyMode === "hold";
+        const globeOnly = isGlobeKey;
 
-        // Restart with new mode if different from current
-        if (globeOnly !== this.globeKeyManager.isGlobeOnlyMode()) {
-          this.globeKeyManager.restart({ globeOnly });
+        // For non-GLOBE hotkeys, suppress the key to prevent default actions
+        const suppressKey = isGlobeKey ? null : hotkey;
+
+        // Check if we need to restart the listener
+        const currentGlobeOnly = this.globeKeyManager.isGlobeOnlyMode();
+        const currentSuppressKeycode =
+          this.globeKeyManager.getSuppressKeycode();
+        const GlobeKeyManager = require("./globeKeyManager");
+        const newSuppressKeycode = suppressKey
+          ? GlobeKeyManager.keyToKeycode(suppressKey)
+          : null;
+
+        const needsRestart =
+          globeOnly !== currentGlobeOnly ||
+          newSuppressKeycode !== currentSuppressKeycode;
+
+        if (needsRestart) {
+          console.log(
+            `[GlobeKeyManager] Restarting: globeOnly=${globeOnly}, suppressKey=${suppressKey}`,
+          );
+          this.globeKeyManager.restart({ globeOnly, suppressKey });
         }
 
-        return { success: true, globeOnly };
+        return { success: true, globeOnly, suppressKey, needsFullMonitoring };
       },
     );
 

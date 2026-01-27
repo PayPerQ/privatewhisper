@@ -3,7 +3,8 @@ import createDebugLogger from "../utils/debugLoggerRenderer";
 
 const debugLogger = createDebugLogger("streaming-transcription");
 
-const CONNECTION_TIMEOUT_MS = 10000;
+// Increased timeout for Bluetooth devices (AirPods) which have higher connection latency
+const CONNECTION_TIMEOUT_MS = 20000;
 
 const FINAL_RESULT_WAIT_MS = 500;
 
@@ -254,11 +255,17 @@ class StreamingTranscriptionService {
 
   sendAudio(chunk: ArrayBuffer): void {
     if (this.ws?.readyState === WebSocket.OPEN) {
-      // Convert ArrayBuffer to base64
+      // Convert ArrayBuffer to base64 efficiently using chunked approach
+      // This avoids stack overflow on large buffers and is faster than string concatenation
       const uint8Array = new Uint8Array(chunk);
+      const CHUNK_SIZE = 32768; // Process 32KB at a time to avoid call stack issues
       let binary = "";
-      for (let i = 0; i < uint8Array.length; i++) {
-        binary += String.fromCharCode(uint8Array[i]);
+      for (let i = 0; i < uint8Array.length; i += CHUNK_SIZE) {
+        const slice = uint8Array.subarray(
+          i,
+          Math.min(i + CHUNK_SIZE, uint8Array.length),
+        );
+        binary += String.fromCharCode.apply(null, Array.from(slice));
       }
       const base64 = btoa(binary);
 

@@ -198,6 +198,17 @@ declare global {
       setHotkeyListeningMode?: (isListening: boolean) => Promise<{
         success: boolean;
       }>;
+
+      // Update globe key listener mode based on current hotkey and mode settings (macOS only)
+      // This configures the native listener to suppress the hotkey's default system action
+      updateGlobeListenerMode?: (
+        hotkey: string,
+        hotkeyMode: "toggle" | "hold",
+      ) => Promise<{
+        success: boolean;
+        globeOnly: boolean;
+        suppressKey?: string | null;
+      }>;
     };
 
     api?: {

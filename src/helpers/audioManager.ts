@@ -657,6 +657,17 @@ class AudioManager {
   ): Promise<void> {
     this.pcmCapture = new PCMAudioCapture();
 
+    // Handle audio device disconnection (AirPods, Bluetooth, etc.)
+    this.pcmCapture.setOnTrackEnded(() => {
+      void debugLogger.log("AUDIO_DEVICE_DISCONNECTED");
+      this.stopPCMCapture();
+      this.onError?.({
+        title: "Audio Device Disconnected",
+        description: "Your microphone was disconnected.",
+      });
+      if (this.streamingMode) this.cancelStreaming();
+    });
+
     try {
       if (bufferMode) {
         // Start buffering immediately - audio will be stored until WebSocket is ready
@@ -839,17 +850,40 @@ class AudioManager {
   }
 
   async safePaste(text: string) {
-    try {
-      await window.electronAPI.pasteText(text);
-      return true;
-    } catch (_error) {
-      this.onError?.({
-        title: "Paste Error",
-        description:
-          "Failed to paste text. Please check accessibility permissions.",
-      });
-      return false;
+    const MAX_RETRIES = 3;
+    const INITIAL_DELAY_MS = 200;
+
+    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+      try {
+        await window.electronAPI.pasteText(text);
+        return true;
+      } catch (error) {
+        const isLastAttempt = attempt === MAX_RETRIES - 1;
+
+        if (isLastAttempt) {
+          void debugLogger.log("PASTE_FAILED_ALL_RETRIES", {
+            attempts: MAX_RETRIES,
+            error: error instanceof Error ? error.message : String(error),
+          });
+          this.onError?.({
+            title: "Paste Error",
+            description:
+              "Failed to paste text. Please check accessibility permissions.",
+          });
+          return false;
+        }
+
+        // Exponential backoff: 200ms, 400ms, 800ms...
+        const delay = INITIAL_DELAY_MS * Math.pow(2, attempt);
+        void debugLogger.log("PASTE_RETRY", {
+          attempt: attempt + 1,
+          delayMs: delay,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
     }
+    return false;
   }
 
   async saveTranscription(text: string) {

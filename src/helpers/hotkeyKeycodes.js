@@ -63,6 +63,21 @@ const NAMED_KEYCODES = {
   ESC: 53,
 };
 
+const FUNCTION_KEYCODES = {
+  F1: 122,
+  F2: 120,
+  F3: 99,
+  F4: 118,
+  F5: 96,
+  F6: 97,
+  F7: 98,
+  F8: 100,
+  F9: 101,
+  F10: 109,
+  F11: 103,
+  F12: 111,
+};
+
 function macKeyCodeFromHotkey(hotkey) {
   if (!hotkey || typeof hotkey !== "string") return null;
   const trimmed = hotkey.trim();
@@ -82,6 +97,7 @@ function macKeyCodeFromHotkey(hotkey) {
   if (NUMBER_KEYCODES[upper] !== undefined) return NUMBER_KEYCODES[upper];
   if (SYMBOL_KEYCODES[upper] !== undefined) return SYMBOL_KEYCODES[upper];
   if (NAMED_KEYCODES[upper] !== undefined) return NAMED_KEYCODES[upper];
+  if (FUNCTION_KEYCODES[upper] !== undefined) return FUNCTION_KEYCODES[upper];
 
   return null;
 }

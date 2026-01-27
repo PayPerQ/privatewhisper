@@ -2,6 +2,7 @@ const { spawn } = require("child_process");
 const path = require("path");
 const EventEmitter = require("events");
 const fs = require("fs");
+const { macKeyCodeFromHotkey } = require("./hotkeyKeycodes");
 
 class GlobeKeyManager extends EventEmitter {
   constructor() {
@@ -10,6 +11,17 @@ class GlobeKeyManager extends EventEmitter {
     this.isSupported = process.platform === "darwin";
     this.hasReportedError = false;
     this.globeOnly = true; // Default to globe-only mode (no Input Monitoring required)
+    this.suppressKeycode = null; // Keycode to suppress (prevent default system action)
+  }
+
+  /**
+   * Convert an Electron accelerator key to a macOS keycode.
+   * Handles both simple keys ("A", "F1") and compound accelerators ("Ctrl+K").
+   * @param {string} key - The key (e.g., "`", "A", "F1", "Shift+Space")
+   * @returns {number|null} - The macOS keycode or null if not found
+   */
+  static keyToKeycode(key) {
+    return macKeyCodeFromHotkey(key);
   }
 
   /**
@@ -17,6 +29,8 @@ class GlobeKeyManager extends EventEmitter {
    * @param {Object} options
    * @param {boolean} options.globeOnly - If true, only listen for Globe/Fn key (no Input Monitoring needed).
    *                                      If false, also listen for all keyDown/keyUp events (requires Input Monitoring).
+   * @param {string} options.suppressKey - An Electron accelerator key to suppress (e.g., "`" for backtick).
+   *                                       When set, the key's default system action will be prevented.
    */
   start(options = {}) {
     if (!this.isSupported || this.process) {
@@ -24,6 +38,9 @@ class GlobeKeyManager extends EventEmitter {
     }
 
     this.globeOnly = options.globeOnly !== false; // Default to true
+    this.suppressKeycode = options.suppressKey
+      ? GlobeKeyManager.keyToKeycode(options.suppressKey)
+      : null;
 
     const listenerPath = this.resolveListenerBinary();
     if (!listenerPath) {
@@ -46,8 +63,16 @@ class GlobeKeyManager extends EventEmitter {
 
     this.hasReportedError = false;
 
-    // Build spawn arguments - add --globe-only flag if in globe-only mode
-    const spawnArgs = this.globeOnly ? ["--globe-only"] : [];
+    // Build spawn arguments
+    const spawnArgs = [];
+    if (this.globeOnly && !this.suppressKeycode) {
+      // Globe-only mode: only listen for Globe/Fn key, no Input Monitoring needed
+      spawnArgs.push("--globe-only");
+    }
+    if (this.suppressKeycode) {
+      // Add suppress keycode argument to prevent default system action
+      spawnArgs.push(`--suppress-keycode=${this.suppressKeycode}`);
+    }
     this.process = spawn(listenerPath, spawnArgs);
 
     this.process.stdout.setEncoding("utf8");
@@ -112,6 +137,7 @@ class GlobeKeyManager extends EventEmitter {
    * Useful when settings change (e.g., switching between Globe key and other hotkeys).
    * @param {Object} options
    * @param {boolean} options.globeOnly - If true, only listen for Globe/Fn key.
+   * @param {string} options.suppressKey - An Electron accelerator key to suppress.
    */
   restart(options = {}) {
     this.stop();
@@ -126,6 +152,14 @@ class GlobeKeyManager extends EventEmitter {
    */
   isGlobeOnlyMode() {
     return this.globeOnly;
+  }
+
+  /**
+   * Get the current suppress keycode.
+   * @returns {number|null}
+   */
+  getSuppressKeycode() {
+    return this.suppressKeycode;
   }
 
   reportError(error) {

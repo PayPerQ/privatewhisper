@@ -23,6 +23,11 @@ type OnAudioChunk = (pcmData: ArrayBuffer) => void;
  * Uses ScriptProcessorNode (deprecated but widely supported) as fallback
  * for AudioWorklet which requires HTTPS/localhost.
  */
+/**
+ * Maximum buffer size in bytes (5MB) to prevent memory issues with Bluetooth devices
+ */
+const MAX_BUFFER_SIZE_BYTES = 5 * 1024 * 1024;
+
 class PCMAudioCapture {
   private audioContext: AudioContext | null = null;
   private sourceNode: MediaStreamAudioSourceNode | null = null;
@@ -30,11 +35,20 @@ class PCMAudioCapture {
   private stream: MediaStream | null = null;
   private onAudioChunk: OnAudioChunk | null = null;
   private isCapturing = false;
+  private onTrackEnded: (() => void) | null = null;
 
   // Buffering support for capturing audio before WebSocket is ready
   private audioBuffer: ArrayBuffer[] = [];
+  private audioBufferSize = 0; // Track total buffer size for backpressure
   private isBuffering = false;
   private bufferStartTime: number | null = null;
+
+  /**
+   * Set callback for when audio track ends (device disconnected, e.g., AirPods)
+   */
+  setOnTrackEnded(callback: () => void): void {
+    this.onTrackEnded = callback;
+  }
 
   /**
    * Start capturing PCM audio from the given media stream.
@@ -47,6 +61,20 @@ class PCMAudioCapture {
 
     this.stream = stream;
     this.onAudioChunk = onAudioChunk;
+
+    // Monitor for device disconnection (important for Bluetooth devices like AirPods)
+    const tracks = stream.getAudioTracks();
+    tracks.forEach((track) => {
+      track.addEventListener("ended", () => {
+        void debugLogger.log("AUDIO_TRACK_ENDED", {
+          trackId: track.id,
+          label: track.label,
+        });
+        if (this.onTrackEnded) {
+          this.onTrackEnded();
+        }
+      });
+    });
 
     try {
       // Create AudioContext at target sample rate
@@ -84,9 +112,20 @@ class PCMAudioCapture {
         // If buffering, store in buffer; otherwise send to callback
         if (this.isBuffering) {
           const elapsed = Date.now() - (this.bufferStartTime || Date.now());
-          if (elapsed < MAX_BUFFER_DURATION_MS) {
+          // Drop new audio if buffer limits exceeded (prevents memory issues)
+          if (
+            elapsed < MAX_BUFFER_DURATION_MS &&
+            this.audioBufferSize < MAX_BUFFER_SIZE_BYTES
+          ) {
             // Clone the buffer since it may be reused
-            this.audioBuffer.push(pcmBuffer.slice(0));
+            const clonedBuffer = pcmBuffer.slice(0);
+            this.audioBuffer.push(clonedBuffer);
+            this.audioBufferSize += clonedBuffer.byteLength;
+          } else if (this.audioBufferSize >= MAX_BUFFER_SIZE_BYTES) {
+            void debugLogger.log("PCM_BUFFER_SIZE_LIMIT_REACHED", {
+              bufferSize: this.audioBufferSize,
+              maxSize: MAX_BUFFER_SIZE_BYTES,
+            });
           }
         } else if (this.onAudioChunk) {
           this.onAudioChunk(pcmBuffer);
@@ -146,6 +185,7 @@ class PCMAudioCapture {
   transitionToStreaming(onAudioChunk: OnAudioChunk): ArrayBuffer[] {
     const bufferedAudio = [...this.audioBuffer];
     this.audioBuffer = [];
+    this.audioBufferSize = 0;
     this.isBuffering = false;
     this.onAudioChunk = onAudioChunk;
 
@@ -172,6 +212,7 @@ class PCMAudioCapture {
    */
   clearBuffer(): void {
     this.audioBuffer = [];
+    this.audioBufferSize = 0;
     this.isBuffering = false;
     this.bufferStartTime = null;
   }
@@ -200,8 +241,21 @@ class PCMAudioCapture {
       this.audioContext = null;
     }
 
-    this.stream = null;
+    // Stop all stream tracks to release the audio device (important for Bluetooth)
+    // This prevents "device in use" errors on next recording
+    if (this.stream) {
+      this.stream.getTracks().forEach((track) => {
+        try {
+          track.stop();
+        } catch {
+          // Track may already be stopped
+        }
+      });
+      this.stream = null;
+    }
+
     this.onAudioChunk = null;
+    this.onTrackEnded = null;
     this.clearBuffer();
   }
 }

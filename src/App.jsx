@@ -279,6 +279,8 @@ export default function App() {
   const audioContextRef = useRef(null);
   const recordingStartedAtRef = useRef(null);
   const lastAudioDurationMsRef = useRef(null);
+  const cachedStreamRef = useRef(null);
+  const streamCacheTimerRef = useRef(null);
   const [shouldShowIconDelayed, setShouldShowIconDelayed] = useState(false);
   const showIconTimeoutRef = useRef(null);
   const {
@@ -351,6 +353,7 @@ export default function App() {
       // The track 'ended' event handler in pcmAudioCapture will handle this
       // Here we just invalidate the built-in mic cache so next recording uses correct device
       invalidateBuiltInMicCache();
+      releaseCachedStream();
 
       // Log device change for debugging Bluetooth issues
       try {
@@ -373,6 +376,93 @@ export default function App() {
       );
     };
   }, []);
+
+  // --- Mic stream caching for faster recording start ---
+  const STREAM_CACHE_TTL_MS = 30000; // release cached stream after 30s of inactivity
+
+  // Release cached stream on unmount to avoid leaking mic access
+  useEffect(() => {
+    return () => {
+      if (streamCacheTimerRef.current) {
+        clearTimeout(streamCacheTimerRef.current);
+        streamCacheTimerRef.current = null;
+      }
+      if (cachedStreamRef.current) {
+        cachedStreamRef.current.getTracks().forEach((t) => {
+          try {
+            t.stop();
+          } catch {
+            /* already stopped */
+          }
+        });
+        cachedStreamRef.current = null;
+      }
+    };
+  }, []);
+
+  const releaseCachedStream = () => {
+    if (streamCacheTimerRef.current) {
+      clearTimeout(streamCacheTimerRef.current);
+      streamCacheTimerRef.current = null;
+    }
+    if (cachedStreamRef.current) {
+      cachedStreamRef.current.getTracks().forEach((t) => {
+        try {
+          t.stop();
+        } catch {
+          /* already stopped */
+        }
+      });
+      cachedStreamRef.current = null;
+    }
+  };
+
+  const cacheStream = (stream) => {
+    // Replace any previous cached stream
+    if (cachedStreamRef.current && cachedStreamRef.current !== stream) {
+      cachedStreamRef.current.getTracks().forEach((t) => {
+        try {
+          t.stop();
+        } catch {
+          /* already stopped */
+        }
+      });
+    }
+    cachedStreamRef.current = stream;
+
+    // Auto-release after TTL
+    if (streamCacheTimerRef.current) clearTimeout(streamCacheTimerRef.current);
+    streamCacheTimerRef.current = setTimeout(
+      releaseCachedStream,
+      STREAM_CACHE_TTL_MS,
+    );
+  };
+
+  const getCachedOrNewStream = async () => {
+    // Check if cached stream is still alive
+    if (cachedStreamRef.current) {
+      const tracks = cachedStreamRef.current.getAudioTracks();
+      const allAlive =
+        tracks.length > 0 && tracks.every((t) => t.readyState === "live");
+      if (allAlive) {
+        // Reset the cache TTL timer
+        if (streamCacheTimerRef.current)
+          clearTimeout(streamCacheTimerRef.current);
+        streamCacheTimerRef.current = setTimeout(
+          releaseCachedStream,
+          STREAM_CACHE_TTL_MS,
+        );
+        return cachedStreamRef.current;
+      }
+      // Cached stream is dead, release it
+      releaseCachedStream();
+    }
+    // Acquire a new stream
+    return getPreferredMicrophoneStream({
+      alwaysUseBuiltInMic,
+      preferredMicrophoneId,
+    });
+  };
 
   const startRecording = async () => {
     if (
@@ -503,15 +593,12 @@ export default function App() {
         },
       });
 
-      // Start microphone acquisition - this is the first async bottleneck
-      const stream = await getPreferredMicrophoneStream({
-        alwaysUseBuiltInMic,
-        preferredMicrophoneId,
-      });
+      // Use cached stream if available, otherwise acquire a new one
+      const stream = await getCachedOrNewStream();
 
       // If user released before the stream was ready, abort quietly
       if (cancelRecordingRef.current) {
-        stream.getTracks().forEach((track) => track.stop());
+        cacheStream(stream);
         pendingStartRef.current = false;
         setIsConnecting(false);
         setIsRecording(false);
@@ -586,7 +673,7 @@ export default function App() {
         cancelRecordingRef.current = false;
 
         if (wasCancelled) {
-          stream.getTracks().forEach((track) => track.stop());
+          cacheStream(stream);
           if (audioManagerRef.current?.isStreaming()) {
             audioManagerRef.current.cancelStreaming();
           }
@@ -630,7 +717,8 @@ export default function App() {
           processAudio(audioBlob);
         }
 
-        stream.getTracks().forEach((track) => track.stop());
+        // Cache the stream for faster start on next recording instead of releasing it
+        cacheStream(stream);
         setIsStreamingMode(false);
         audioManagerRef.current = null;
       };

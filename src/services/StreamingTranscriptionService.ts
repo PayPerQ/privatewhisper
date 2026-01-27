@@ -6,7 +6,7 @@ const debugLogger = createDebugLogger("streaming-transcription");
 // Increased timeout for Bluetooth devices (AirPods) which have higher connection latency
 const CONNECTION_TIMEOUT_MS = 20000;
 
-const FINAL_RESULT_WAIT_MS = 500;
+const FINAL_RESULT_WAIT_MS = 1500;
 
 export type StreamingState =
   | "disconnected"
@@ -53,6 +53,7 @@ class StreamingTranscriptionService {
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 3;
   private language: string = "multi";
+  private finalized = false;
 
   setCallbacks(callbacks: StreamingCallbacks): void {
     this.callbacks = callbacks;
@@ -84,6 +85,7 @@ class StreamingTranscriptionService {
       }
 
       this.accumulatedText = "";
+      this.finalized = false;
       this.setState("connecting");
 
       const wsUrl = API_ENDPOINTS.PPQ_STREAMING_TRANSCRIPTION_WS;
@@ -279,9 +281,11 @@ class StreamingTranscriptionService {
   }
 
   finalize(): void {
+    if (this.finalized) return;
     if (this.ws?.readyState === WebSocket.OPEN) {
       void debugLogger.log("SENDING_FINALIZE");
       this.ws.send(JSON.stringify({ type: "finalize" }));
+      this.finalized = true;
     }
   }
 
@@ -290,11 +294,28 @@ class StreamingTranscriptionService {
       accumulatedText: this.accumulatedText.trim(),
     });
 
-    // First finalize to flush any remaining audio
+    // Finalize if not already done (idempotent)
     this.finalize();
 
-    // Wait briefly for final results to come through
-    await new Promise((resolve) => setTimeout(resolve, FINAL_RESULT_WAIT_MS));
+    // Wait for final results to come through.
+    // Poll in short intervals so we can return early once text stabilises.
+    const POLL_INTERVAL_MS = 100;
+    const maxPolls = Math.ceil(FINAL_RESULT_WAIT_MS / POLL_INTERVAL_MS);
+    let stableCount = 0;
+    let lastSeenText = this.accumulatedText;
+
+    for (let i = 0; i < maxPolls; i++) {
+      await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+      if (this.accumulatedText !== lastSeenText) {
+        // Text changed — reset stability counter and snapshot
+        lastSeenText = this.accumulatedText;
+        stableCount = 0;
+      } else {
+        stableCount++;
+        // If text has been stable for 500ms after finalize, we're done
+        if (stableCount >= 5) break;
+      }
+    }
 
     const finalText = this.accumulatedText.trim();
 
@@ -304,6 +325,7 @@ class StreamingTranscriptionService {
 
     this.ws?.close();
     this.ws = null;
+    this.finalized = false;
     this.setState("disconnected");
 
     return finalText;
@@ -318,6 +340,7 @@ class StreamingTranscriptionService {
     }
 
     this.accumulatedText = "";
+    this.finalized = false;
     this.setState("disconnected");
   }
 

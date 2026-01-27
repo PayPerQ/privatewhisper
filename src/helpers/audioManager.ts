@@ -758,13 +758,20 @@ class AudioManager {
       return "";
     }
 
-    // Stop PCM capture first
-    this.stopPCMCapture();
-
     this.metrics?.mark("streamingStopRequested");
     // Mark transcription request start - for streaming, this is when we stop sending audio
     this.metrics?.mark("transcriptionRequestStart");
     this.metrics?.setFlag("transcriptionRequestStartedAtEpochMs", Date.now());
+
+    // Send finalize BEFORE stopping PCM capture so remaining audio in the
+    // ScriptProcessorNode pipeline can flush to the server.
+    StreamingTranscriptionService.finalize();
+
+    // Wait for the last PCM buffer to be processed and sent (~128ms at 2048 samples/16kHz)
+    await new Promise((r) => setTimeout(r, 150));
+
+    // Now safe to tear down the capture pipeline
+    this.stopPCMCapture();
 
     try {
       const finalText = await StreamingTranscriptionService.close();

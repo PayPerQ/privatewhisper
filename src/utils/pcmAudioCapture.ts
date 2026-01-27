@@ -241,18 +241,10 @@ class PCMAudioCapture {
       this.audioContext = null;
     }
 
-    // Stop all stream tracks to release the audio device (important for Bluetooth)
-    // This prevents "device in use" errors on next recording
-    if (this.stream) {
-      this.stream.getTracks().forEach((track) => {
-        try {
-          track.stop();
-        } catch {
-          // Track may already be stopped
-        }
-      });
-      this.stream = null;
-    }
+    // Release our reference but don't stop the stream tracks here.
+    // The caller (App.jsx) owns stream lifecycle and may want to cache
+    // the stream for faster re-use on the next recording.
+    this.stream = null;
 
     this.onAudioChunk = null;
     this.onTrackEnded = null;

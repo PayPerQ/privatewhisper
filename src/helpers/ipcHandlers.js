@@ -220,8 +220,7 @@ class IPCHandlers {
         // the character from being typed. Compound hotkeys (e.g., Control+Space)
         // don't need suppression — the modifier prevents unintended character input,
         // and unconditional suppression of the base key would block it system-wide.
-        const suppressKey =
-          isGlobeKey || isCompoundHotkey ? null : hotkey;
+        const suppressKey = isGlobeKey || isCompoundHotkey ? null : hotkey;
 
         // Check if we need to restart the listener
         const currentGlobeOnly = this.globeKeyManager.isGlobeOnlyMode();

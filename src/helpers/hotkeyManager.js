@@ -27,6 +27,12 @@ class HotkeyManager {
         return { success: true, hotkey };
       }
 
+      // If re-registering the same key (e.g., to refresh the callback),
+      // unregister first — globalShortcut.register fails for already-registered keys.
+      if (this.currentHotkey === hotkey) {
+        globalShortcut.unregister(hotkey);
+      }
+
       // Register the new hotkey BEFORE unregistering the old one.
       // This prevents a state where no hotkey is active if registration fails.
       const success = globalShortcut.register(hotkey, callback);

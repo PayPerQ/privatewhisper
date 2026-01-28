@@ -163,9 +163,8 @@ export default function SettingsPage({
       showAlertDialog({
         title: "Update Error",
         description:
-          typeof error?.message === "string"
-            ? error.message
-            : "The updater encountered a problem. Please try again or download the latest release manually.",
+          error?.message ||
+          "The updater encountered a problem. Please try again or download the latest release manually from ppq.ai.",
       });
     });
 
@@ -421,7 +420,9 @@ export default function SettingsPage({
                     } catch (error: any) {
                       showAlertDialog({
                         title: "Update Check Failed",
-                        description: `Error checking for updates: ${error.message}`,
+                        description:
+                          error?.message ||
+                          "The updater encountered a problem. Please try again or download the latest release manually from ppq.ai.",
                       });
                     } finally {
                       setCheckingForUpdates(false);

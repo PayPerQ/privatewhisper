@@ -222,9 +222,14 @@ async function startApp() {
 
         // In toggle mode, macOS opens the emoji picker on a quick Globe key tap.
         // We can't suppress it in globe-only mode (no Input Monitoring), so
-        // dismiss it after it appears by sending Escape.
-        // In hold mode this isn't needed — holding the key doesn't trigger the picker.
-        if (currentHotkeyMode === "toggle") {
+        // dismiss it after it appears by sending Escape via osascript.
+        // Skip when the control panel is focused — the Escape would hit that
+        // window instead, closing any open dialog (e.g., Settings).
+        const cpFocused =
+          windowManager.controlPanelWindow &&
+          !windowManager.controlPanelWindow.isDestroyed() &&
+          windowManager.controlPanelWindow.isFocused();
+        if (currentHotkeyMode === "toggle" && !cpFocused) {
           dismissEmojiPicker();
         }
       }

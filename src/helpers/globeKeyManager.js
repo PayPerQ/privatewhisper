@@ -73,10 +73,11 @@ class GlobeKeyManager extends EventEmitter {
       // Add suppress keycode argument to prevent default system action
       spawnArgs.push(`--suppress-keycode=${this.suppressKeycode}`);
     }
-    this.process = spawn(listenerPath, spawnArgs);
+    const proc = spawn(listenerPath, spawnArgs);
+    this.process = proc;
 
-    this.process.stdout.setEncoding("utf8");
-    this.process.stdout.on("data", (chunk) => {
+    proc.stdout.setEncoding("utf8");
+    proc.stdout.on("data", (chunk) => {
       chunk
         .split(/\r?\n/)
         .map((line) => line.trim())
@@ -100,8 +101,8 @@ class GlobeKeyManager extends EventEmitter {
         });
     });
 
-    this.process.stderr.setEncoding("utf8");
-    this.process.stderr.on("data", (data) => {
+    proc.stderr.setEncoding("utf8");
+    proc.stderr.on("data", (data) => {
       const message = data.toString().trim();
       if (message.length > 0) {
         console.error("GlobeKeyManager stderr:", message);
@@ -109,12 +110,17 @@ class GlobeKeyManager extends EventEmitter {
       }
     });
 
-    this.process.on("error", (error) => {
-      this.reportError(error);
+    // Guard exit/error handlers: ignore events from a stale process entirely.
+    // Without this, a killed process's async exit handler would null the
+    // reference to (or reportError-kill) a newer process spawned by restart().
+    proc.on("error", (error) => {
+      if (this.process !== proc) return;
       this.process = null;
+      this.reportError(error);
     });
 
-    this.process.on("exit", (code, signal) => {
+    proc.on("exit", (code, signal) => {
+      if (this.process !== proc) return;
       this.process = null;
       if (code !== 0) {
         const error = new Error(

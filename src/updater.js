@@ -1,6 +1,34 @@
 const { ipcMain } = require("electron");
 const debugLogger = require("./helpers/debugLogger");
 
+function friendlyUpdateError(err) {
+  const msg = err?.message || String(err || "");
+
+  if (/HttpError:\s*404|Cannot find.*latest.*\.yml/i.test(msg)) {
+    return {
+      message:
+        "Update info not available yet for this version. Please try again later or download the latest release manually from ppq.ai.",
+      code: "RELEASE_NOT_FOUND",
+    };
+  }
+
+  if (
+    /net::ERR_|ENOTFOUND|ECONNREFUSED|ETIMEDOUT|network|fetch failed/i.test(msg)
+  ) {
+    return {
+      message:
+        "Couldn't reach the update server. Please check your internet connection and try again.",
+      code: "NETWORK_ERROR",
+    };
+  }
+
+  return {
+    message:
+      "The updater encountered a problem. Please try again or download the latest release manually from ppq.ai.",
+    code: "UNKNOWN",
+  };
+}
+
 class UpdateManager {
   constructor() {
     this.mainWindow = null;
@@ -89,14 +117,22 @@ class UpdateManager {
         this.notifyRenderers("update-not-available", info);
       },
       error: (err) => {
+        const friendly = friendlyUpdateError(err);
         debugLogger.error("updater", "auto-updater-error", {
           error: err?.message || err,
           stack: err?.stack,
+          code: friendly.code,
         });
         this.isDownloading = false;
         this.isInstalling = false;
         this.clearInstallTimers();
-        this.notifyRenderers("update-error", err);
+        // Don't pop UI errors for missing release artifacts — not actionable.
+        // Manual checks surface this via the IPC handler's own throw path.
+        if (friendly.code === "RELEASE_NOT_FOUND") return;
+        this.notifyRenderers("update-error", {
+          message: friendly.message,
+          code: friendly.code,
+        });
       },
       "download-progress": (progressObj) => {
         debugLogger.logEvent("updater", "download-progress", {
@@ -185,11 +221,13 @@ class UpdateManager {
               };
             }
           } catch (error) {
+            const friendly = friendlyUpdateError(error);
             debugLogger.error("updater", "update-check-error", {
               error: error.message,
               stack: error.stack,
+              code: friendly.code,
             });
-            throw error;
+            throw new Error(friendly.message);
           }
         },
       },
@@ -286,11 +324,16 @@ class UpdateManager {
               } catch (error) {
                 this.isInstalling = false;
                 this.clearInstallTimers();
+                const friendly = friendlyUpdateError(error);
                 debugLogger.error("updater", "quit-and-install-failed", {
                   error: error?.message || error,
                   stack: error?.stack,
+                  code: friendly.code,
                 });
-                this.notifyRenderers("update-error", error);
+                this.notifyRenderers("update-error", {
+                  message: friendly.message,
+                  code: friendly.code,
+                });
               }
             }, 100);
 

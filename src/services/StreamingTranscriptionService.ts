@@ -299,10 +299,14 @@ class StreamingTranscriptionService {
 
     // Wait for final results to come through.
     // Poll in short intervals so we can return early once text stabilises.
+    // We must NOT exit early until the server has acknowledged the finalize
+    // by sending at least one new transcript; otherwise we'd close before
+    // the tail-end audio is transcribed.
     const POLL_INTERVAL_MS = 100;
     const maxPolls = Math.ceil(FINAL_RESULT_WAIT_MS / POLL_INTERVAL_MS);
     let stableCount = 0;
     let lastSeenText = this.accumulatedText;
+    let receivedUpdateAfterFinalize = false;
 
     for (let i = 0; i < maxPolls; i++) {
       await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
@@ -310,10 +314,12 @@ class StreamingTranscriptionService {
         // Text changed — reset stability counter and snapshot
         lastSeenText = this.accumulatedText;
         stableCount = 0;
+        receivedUpdateAfterFinalize = true;
       } else {
         stableCount++;
-        // If text has been stable for 500ms after finalize, we're done
-        if (stableCount >= 5) break;
+        // Only allow early exit once the server has sent new text after
+        // finalize, proving it processed the remaining audio.
+        if (receivedUpdateAfterFinalize && stableCount >= 5) break;
       }
     }
 

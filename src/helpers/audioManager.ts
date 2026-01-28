@@ -763,15 +763,18 @@ class AudioManager {
     this.metrics?.mark("transcriptionRequestStart");
     this.metrics?.setFlag("transcriptionRequestStartedAtEpochMs", Date.now());
 
-    // Send finalize BEFORE stopping PCM capture so remaining audio in the
-    // ScriptProcessorNode pipeline can flush to the server.
-    StreamingTranscriptionService.finalize();
+    // Wait for the last PCM buffer(s) to be processed and sent to the server.
+    // At 16kHz with 2048-sample buffers each cycle is ~128ms; we wait for two
+    // full cycles to cover processing jitter and Bluetooth latency.
+    await new Promise((r) => setTimeout(r, 300));
 
-    // Wait for the last PCM buffer to be processed and sent (~128ms at 2048 samples/16kHz)
-    await new Promise((r) => setTimeout(r, 150));
-
-    // Now safe to tear down the capture pipeline
+    // Tear down the capture pipeline — all buffered audio has been sent.
     this.stopPCMCapture();
+
+    // Only NOW tell the server we're done sending audio.  Because WebSocket
+    // messages are ordered, every audio chunk is guaranteed to arrive at the
+    // server before this finalize message.
+    StreamingTranscriptionService.finalize();
 
     try {
       const finalText = await StreamingTranscriptionService.close();

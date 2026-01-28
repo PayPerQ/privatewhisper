@@ -7,6 +7,7 @@ import { useHotkey } from "./hooks/useHotkey";
 import { useWindowDrag } from "./hooks/useWindowDrag";
 import { useSettings } from "./hooks/useSettings";
 import AudioManager from "./helpers/audioManager";
+import StreamingTranscriptionService from "./services/StreamingTranscriptionService";
 import createDebugLogger from "./utils/debugLoggerRenderer";
 
 const MIN_HOLD_DURATION_MS = 200;
@@ -380,26 +381,6 @@ export default function App() {
   // --- Mic stream caching for faster recording start ---
   const STREAM_CACHE_TTL_MS = 30000; // release cached stream after 30s of inactivity
 
-  // Release cached stream on unmount to avoid leaking mic access
-  useEffect(() => {
-    return () => {
-      if (streamCacheTimerRef.current) {
-        clearTimeout(streamCacheTimerRef.current);
-        streamCacheTimerRef.current = null;
-      }
-      if (cachedStreamRef.current) {
-        cachedStreamRef.current.getTracks().forEach((t) => {
-          try {
-            t.stop();
-          } catch {
-            /* already stopped */
-          }
-        });
-        cachedStreamRef.current = null;
-      }
-    };
-  }, []);
-
   const releaseCachedStream = () => {
     if (streamCacheTimerRef.current) {
       clearTimeout(streamCacheTimerRef.current);
@@ -416,6 +397,59 @@ export default function App() {
       cachedStreamRef.current = null;
     }
   };
+
+  // Full cleanup of all audio resources (mic, WebSocket, PCM capture).
+  // Called on beforeunload (app quit / update install) and on app-quitting IPC.
+  const cleanupAllAudioResources = () => {
+    // 1. Stop any active MediaRecorder
+    if (mediaRecorderRef.current) {
+      try {
+        mediaRecorderRef.current.stop();
+      } catch {
+        /* already stopped */
+      }
+      mediaRecorderRef.current = null;
+    }
+
+    // 2. Cleanup AudioManager (stops PCM capture + disconnects WebSocket)
+    if (audioManagerRef.current) {
+      audioManagerRef.current.cleanup();
+      audioManagerRef.current = null;
+    }
+
+    // 3. Disconnect WebSocket singleton directly (belt-and-suspenders)
+    try {
+      StreamingTranscriptionService.disconnect();
+    } catch {
+      /* already disconnected */
+    }
+
+    // 4. Release cached stream (stops mic tracks)
+    releaseCachedStream();
+  };
+
+  // Ensure audio resources are cleaned up when the window is closing (app quit, update install).
+  // This fires synchronously before the renderer is torn down, preventing the mic from staying on
+  // and leaving orphaned WebSocket connections.
+  useEffect(() => {
+    window.addEventListener("beforeunload", cleanupAllAudioResources);
+    return () => {
+      window.removeEventListener("beforeunload", cleanupAllAudioResources);
+      // Also clean up on React unmount
+      cleanupAllAudioResources();
+    };
+  }, []);
+
+  // Listen for app-quitting IPC from main process (fires before window close during updates)
+  useEffect(() => {
+    if (!window.electronAPI?.onAppQuitting) return;
+    const unsubscribe = window.electronAPI.onAppQuitting(() => {
+      cleanupAllAudioResources();
+    });
+    return () => {
+      if (typeof unsubscribe === "function") unsubscribe();
+    };
+  }, []);
 
   const cacheStream = (stream) => {
     // Replace any previous cached stream

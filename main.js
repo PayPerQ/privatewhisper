@@ -31,6 +31,7 @@ const EdgeFunctionLogger = require("./src/helpers/edgeFunctionLogger");
 const UpdateManager = require("./src/updater");
 const GlobeKeyManager = require("./src/helpers/globeKeyManager");
 const { matchesMacKeyCode } = require("./src/helpers/hotkeyKeycodes");
+const { exec } = require("child_process");
 
 // Manager instances (will be initialized after app is ready)
 let environmentManager;
@@ -46,7 +47,28 @@ let ipcHandlers;
 let globeKeyAlertShown = false;
 let hotkeyListeningMode = false; // Suppresses dictation trigger when user is selecting a hotkey
 let globeKeyIsDown = false;
+let currentHotkeyMode = "toggle"; // Updated via IPC when settings change
 const FN_KEY_CODE = 63;
+
+/**
+ * Dismiss the macOS emoji picker that opens when the Globe/Fn key is tapped.
+ * In globe-only mode (no Input Monitoring) we can't suppress the key event,
+ * so instead we send Escape after the picker appears to close it.
+ * Uses Accessibility permissions the app already has for paste simulation.
+ */
+function dismissEmojiPicker() {
+  if (process.platform !== "darwin") return;
+  // Small delay to let the emoji picker appear before dismissing it.
+  // osascript startup adds ~100-200ms on top, so the Escape arrives ~200-300ms
+  // after globe-up which is after the picker has rendered.
+  setTimeout(() => {
+    exec(
+      `osascript -e 'tell application "System Events" to key code 53'`,
+      { timeout: 3000 },
+      () => {}, // Errors are silently ignored (e.g., no Accessibility permissions)
+    );
+  }, 100);
+}
 
 // Bypass certificate verification in development
 if (process.env.NODE_ENV === "development") {
@@ -105,6 +127,11 @@ async function startApp() {
   // Set up callback for hotkey listening mode changes
   ipcHandlers.onHotkeyListeningModeChange = (isListening) => {
     hotkeyListeningMode = isListening;
+  };
+
+  // Track hotkey mode changes (used for emoji picker dismissal)
+  ipcHandlers.onHotkeySettingsChange = ({ hotkeyMode }) => {
+    currentHotkeyMode = hotkeyMode;
   };
 
   // In development, add a small delay to let Vite start properly
@@ -192,6 +219,14 @@ async function startApp() {
         !windowManager.mainWindow.isDestroyed()
       ) {
         windowManager.mainWindow.webContents.send("dictation-hotkey-up");
+
+        // In toggle mode, macOS opens the emoji picker on a quick Globe key tap.
+        // We can't suppress it in globe-only mode (no Input Monitoring), so
+        // dismiss it after it appears by sending Escape.
+        // In hold mode this isn't needed — holding the key doesn't trigger the picker.
+        if (currentHotkeyMode === "toggle") {
+          dismissEmojiPicker();
+        }
       }
     };
 
@@ -306,6 +341,17 @@ function setupApp() {
         windowManager.enforceMainWindowOnTop();
       }
     }
+  });
+
+  // Notify all renderer windows to clean up audio resources before the app quits.
+  // This fires before window close events, giving the renderer a chance to stop
+  // the microphone, close WebSocket connections, and release cached streams.
+  app.on("before-quit", () => {
+    BrowserWindow.getAllWindows().forEach((win) => {
+      if (!win.isDestroyed() && win.webContents) {
+        win.webContents.send("app-quitting");
+      }
+    });
   });
 
   app.on("will-quit", () => {

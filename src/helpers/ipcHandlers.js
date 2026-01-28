@@ -206,13 +206,18 @@ class IPCHandlers {
           return { success: true, globeOnly: true };
         }
 
-        // Globe key: always use globeOnly mode (suppresses emoji picker natively)
-        // Other keys: need full monitoring for hold mode, plus key suppression
         const isGlobeKey = hotkey === "GLOBE";
-        const needsFullMonitoring = !isGlobeKey && hotkeyMode === "hold";
+
+        // Globe key: always use globe-only mode (no Input Monitoring required).
+        // The emoji picker that macOS opens on Globe tap is dismissed separately
+        // by main.js after the globe-up event (toggle mode only).
+        // Non-globe keys: need full monitoring + key suppression to prevent
+        // default system actions (e.g., backtick triggering emoji picker).
         const globeOnly = isGlobeKey;
 
-        // For non-GLOBE hotkeys, suppress the key to prevent default actions
+        // For non-GLOBE hotkeys, suppress the key to prevent default actions.
+        // GLOBE key suppression is handled differently (post-hoc dismissal)
+        // to avoid requiring Input Monitoring permissions.
         const suppressKey = isGlobeKey ? null : hotkey;
 
         // Check if we need to restart the listener
@@ -235,7 +240,12 @@ class IPCHandlers {
           this.globeKeyManager.restart({ globeOnly, suppressKey });
         }
 
-        return { success: true, globeOnly, suppressKey, needsFullMonitoring };
+        // Notify main.js of current hotkey settings (used for emoji picker dismissal)
+        if (this.onHotkeySettingsChange) {
+          this.onHotkeySettingsChange({ hotkey, hotkeyMode });
+        }
+
+        return { success: true, globeOnly, suppressKey };
       },
     );
 

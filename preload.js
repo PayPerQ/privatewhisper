@@ -135,4 +135,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   // Set hotkey listening mode - suppresses dictation trigger during hotkey selection
   setHotkeyListeningMode: (isListening) =>
     ipcRenderer.invoke("set-hotkey-listening-mode", isListening),
+
+  // App lifecycle - notifies renderer to clean up audio resources before quit
+  onAppQuitting: (callback) => exposeListener("app-quitting", callback),
 });

@@ -61,6 +61,7 @@ const NAMED_KEYCODES = {
   RETURN: 36,
   ESCAPE: 53,
   ESC: 53,
+  GLOBE: 63, // macOS Fn/Globe key (kVK_Function)
 };
 
 const FUNCTION_KEYCODES = {

@@ -11,10 +11,6 @@ class HotkeyManager {
       throw new Error("Callback function is required for hotkey setup");
     }
 
-    if (this.currentHotkey && this.currentHotkey !== "GLOBE") {
-      globalShortcut.unregister(this.currentHotkey);
-    }
-
     try {
       if (hotkey === "GLOBE") {
         if (process.platform !== "darwin") {
@@ -23,14 +19,27 @@ class HotkeyManager {
             error: "The Globe key is only available on macOS.",
           };
         }
+        // Unregister old non-GLOBE hotkey before switching to GLOBE
+        if (this.currentHotkey && this.currentHotkey !== "GLOBE") {
+          globalShortcut.unregister(this.currentHotkey);
+        }
         this.currentHotkey = hotkey;
         return { success: true, hotkey };
       }
 
-      // Register the new hotkey
+      // Register the new hotkey BEFORE unregistering the old one.
+      // This prevents a state where no hotkey is active if registration fails.
       const success = globalShortcut.register(hotkey, callback);
 
       if (success) {
+        // New hotkey registered — now safe to unregister the old one
+        if (
+          this.currentHotkey &&
+          this.currentHotkey !== "GLOBE" &&
+          this.currentHotkey !== hotkey
+        ) {
+          globalShortcut.unregister(this.currentHotkey);
+        }
         this.currentHotkey = hotkey;
         return { success: true, hotkey };
       } else {
@@ -79,8 +88,10 @@ class HotkeyManager {
 
       if (savedHotkey && savedHotkey !== "`") {
         const result = this.setupShortcuts(savedHotkey, callback);
-        if (result.success) {
-          // Hotkey initialized from localStorage
+        if (!result.success) {
+          console.warn(
+            `Failed to restore saved hotkey "${savedHotkey}": ${result.error}. Default hotkey remains active.`,
+          );
         }
       }
     } catch (err) {

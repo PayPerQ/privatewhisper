@@ -207,18 +207,21 @@ class IPCHandlers {
         }
 
         const isGlobeKey = hotkey === "GLOBE";
+        const isCompoundHotkey = !isGlobeKey && hotkey.includes("+");
 
-        // Globe key: always use globe-only mode (no Input Monitoring required).
-        // The emoji picker that macOS opens on Globe tap is dismissed separately
-        // by main.js after the globe-up event (toggle mode only).
-        // Non-globe keys: need full monitoring + key suppression to prevent
-        // default system actions (e.g., backtick triggering emoji picker).
-        const globeOnly = isGlobeKey;
+        // Determine when we need full keyboard monitoring (keyDown/keyUp events):
+        // - Non-Globe + hold mode: need key-up detection to stop dictation
+        // - Non-Globe + simple key: need key suppression to prevent character input
+        // Globe key and compound hotkeys in toggle mode only need flagsChanged events.
+        const globeOnly =
+          isGlobeKey || (isCompoundHotkey && hotkeyMode === "toggle");
 
-        // For non-GLOBE hotkeys, suppress the key to prevent default actions.
-        // GLOBE key suppression is handled differently (post-hoc dismissal)
-        // to avoid requiring Input Monitoring permissions.
-        const suppressKey = isGlobeKey ? null : hotkey;
+        // Only suppress simple single-key hotkeys (e.g., backtick) to prevent
+        // the character from being typed. Compound hotkeys (e.g., Control+Space)
+        // don't need suppression — the modifier prevents unintended character input,
+        // and unconditional suppression of the base key would block it system-wide.
+        const suppressKey =
+          isGlobeKey || isCompoundHotkey ? null : hotkey;
 
         // Check if we need to restart the listener
         const currentGlobeOnly = this.globeKeyManager.isGlobeOnlyMode();

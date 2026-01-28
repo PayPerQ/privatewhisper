@@ -62,7 +62,7 @@ func eventTapCallback(proxy: CGEventTapProxy, type: CGEventType, event: CGEvent,
                 fnIsDown = true
                 FileHandle.standardOutput.write("FN_DOWN\n".data(using: .utf8)!)
                 fflush(stdout)
-                // Suppress globe key event when in globe-only mode to prevent emoji picker
+                // Suppress globe key press in globe-only mode to prevent emoji picker
                 if globeOnly {
                     return nil
                 }
@@ -70,10 +70,10 @@ func eventTapCallback(proxy: CGEventTapProxy, type: CGEventType, event: CGEvent,
                 fnIsDown = false
                 FileHandle.standardOutput.write("FN_UP\n".data(using: .utf8)!)
                 fflush(stdout)
-                // Suppress globe key event when in globe-only mode to prevent emoji picker
-                if globeOnly {
-                    return nil
-                }
+                // Pass through the globe key release (don't suppress it).
+                // Suppressing FN_UP causes macOS to think Fn is still held,
+                // which modifies Space and other keys system-wide.
+                // FN_DOWN is still suppressed to prevent the emoji picker.
             }
         }
     }

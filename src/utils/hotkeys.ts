@@ -19,7 +19,12 @@ export function formatHotkeyLabel(hotkey?: string | null): string {
 
     const formattedParts = parts.map((part) => {
       switch (part) {
+        case "Control":
+          return "Ctrl";
+        case "Command":
+          return isMac ? "Cmd" : "Ctrl";
         case "CommandOrControl":
+          // Legacy: stored before Ctrl/Cmd were separated
           return isMac ? "Cmd" : "Ctrl";
         case "Alt":
           return isMac ? "Option" : "Alt";

@@ -84,7 +84,7 @@ function macKeyCodeFromHotkey(hotkey) {
   const trimmed = hotkey.trim();
   if (!trimmed) return null;
 
-  // For compound hotkeys like "Shift+K" or "CommandOrControl+Shift+Space",
+  // For compound hotkeys like "Shift+K" or "Control+Shift+Space",
   // extract the base key (the last part after all modifiers)
   let baseKey = trimmed;
   if (trimmed.includes("+")) {

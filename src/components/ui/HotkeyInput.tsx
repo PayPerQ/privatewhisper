@@ -98,9 +98,13 @@ export function mapKeyboardEventToHotkey(
 
   // Build modifier prefix
   const modifiers: string[] = [];
-  // Use CommandOrControl for cross-platform (Cmd on Mac, Ctrl elsewhere)
-  // Include metaKey (Cmd on Mac) in CommandOrControl
-  if (e.ctrlKey || e.metaKey) modifiers.push("CommandOrControl");
+  // Map Ctrl and Cmd/Meta as separate modifiers so the user can
+  // register Ctrl-based shortcuts independently of Cmd on macOS.
+  // Only map metaKey on macOS — Electron's globalShortcut doesn't
+  // support "Command" on Windows/Linux, so ignore the Win/Super key.
+  const isMac = /Mac|Darwin/.test(navigator.platform);
+  if (e.ctrlKey) modifiers.push("Control");
+  if (e.metaKey && isMac) modifiers.push("Command");
   if (e.altKey) modifiers.push("Alt");
   if (e.shiftKey) modifiers.push("Shift");
 

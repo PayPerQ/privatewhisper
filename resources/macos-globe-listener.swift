@@ -31,6 +31,10 @@ var fnIsDown = false
 var eventTap: CFMachPort?
 let fnKeyCode: Int64 = 63
 
+// Track if we need to dismiss emoji picker (safety mechanism)
+var shouldDismissEmojiPicker = false
+var lastFnUpTime: Date? = nil
+
 func eventTapCallback(proxy: CGEventTapProxy, type: CGEventType, event: CGEvent, refcon: UnsafeMutableRawPointer?) -> Unmanaged<CGEvent>? {
     if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
         if let tap = eventTap {
@@ -78,10 +82,16 @@ func eventTapCallback(proxy: CGEventTapProxy, type: CGEventType, event: CGEvent,
                 }
             } else if !containsFn && fnIsDown {
                 fnIsDown = false
+                lastFnUpTime = Date()
+                shouldDismissEmojiPicker = true
                 FileHandle.standardOutput.write("FN_UP\n".data(using: .utf8)!)
                 fflush(stdout)
                 // In globe-only mode, suppress the event entirely to prevent emoji picker
                 if globeOnly {
+                    // Schedule emoji picker dismissal as a safety measure
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                        dismissEmojiPickerIfNeeded()
+                    }
                     return nil
                 }
             }
@@ -97,21 +107,55 @@ func eventTapCallback(proxy: CGEventTapProxy, type: CGEventType, event: CGEvent,
     return Unmanaged.passUnretained(event)
 }
 
-guard let createdTap = CGEvent.tapCreate(tap: .cgSessionEventTap,
-                                         place: .headInsertEventTap,
-                                         options: needsIntercept ? .defaultTap : .listenOnly,
-                                         eventsOfInterest: mask,
-                                         callback: eventTapCallback,
-                                         userInfo: nil) else {
+/// Dismiss the emoji picker window if it appeared despite our suppression.
+/// This is a safety mechanism to ensure the popover never stays visible.
+func dismissEmojiPickerIfNeeded() {
+    guard shouldDismissEmojiPicker else { return }
+    shouldDismissEmojiPicker = false
+
+    // Method 1: Send Escape key to dismiss any popover
+    if let escapeEvent = CGEvent(keyboardEventSource: nil, virtualKey: 0x35, keyDown: true) {
+        escapeEvent.post(tap: .cghidEventTap)
+        if let escapeUp = CGEvent(keyboardEventSource: nil, virtualKey: 0x35, keyDown: false) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) {
+                escapeUp.post(tap: .cghidEventTap)
+            }
+        }
+    }
+}
+
+// Try HID-level tap first (intercepts events earlier in the chain, before system handlers)
+// Fall back to session-level tap if HID tap fails (HID tap may require elevated privileges)
+var createdTap: CFMachPort? = nil
+
+// First attempt: HID-level event tap (highest priority, intercepts before system sees events)
+createdTap = CGEvent.tapCreate(tap: .cghidEventTap,
+                               place: .headInsertEventTap,
+                               options: needsIntercept ? .defaultTap : .listenOnly,
+                               eventsOfInterest: mask,
+                               callback: eventTapCallback,
+                               userInfo: nil)
+
+if createdTap == nil {
+    // Fallback: Session-level event tap (still effective with Accessibility permission)
+    createdTap = CGEvent.tapCreate(tap: .cgSessionEventTap,
+                                   place: .headInsertEventTap,
+                                   options: needsIntercept ? .defaultTap : .listenOnly,
+                                   eventsOfInterest: mask,
+                                   callback: eventTapCallback,
+                                   userInfo: nil)
+}
+
+guard let finalTap = createdTap else {
     FileHandle.standardError.write("Failed to create event tap\n".data(using: .utf8)!)
     exit(1)
 }
 
-eventTap = createdTap
+eventTap = finalTap
 
-let runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, createdTap, 0)
+let runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, finalTap, 0)
 CFRunLoopAddSource(CFRunLoopGetCurrent(), runLoopSource, .commonModes)
-CGEvent.tapEnable(tap: createdTap, enable: true)
+CGEvent.tapEnable(tap: finalTap, enable: true)
 
 let signalSource = DispatchSource.makeSignalSource(signal: SIGTERM, queue: .main)
 signal(SIGTERM, SIG_IGN)

@@ -31,7 +31,7 @@ const EdgeFunctionLogger = require("./src/helpers/edgeFunctionLogger");
 const UpdateManager = require("./src/updater");
 const GlobeKeyManager = require("./src/helpers/globeKeyManager");
 const { matchesMacKeyCode } = require("./src/helpers/hotkeyKeycodes");
-const { exec } = require("child_process");
+const { exec, execSync } = require("child_process");
 
 // Manager instances (will be initialized after app is ready)
 let environmentManager;
@@ -63,40 +63,90 @@ let globeKeyFunctionDisabled = false;
 /**
  * Disable the Globe key's emoji picker by changing the system setting.
  * This is the only reliable way to prevent the emoji picker from appearing.
+ *
+ * Uses synchronous execution to ensure the setting is applied immediately,
+ * and restarts cfprefsd to force the preference daemon to reload.
  */
 function disableGlobeKeyEmojiPicker() {
   if (process.platform !== "darwin" || globeKeyFunctionDisabled) return;
 
-  // Save original setting
-  exec(
-    "defaults read com.apple.HIToolbox AppleFnUsageType 2>/dev/null || echo 2",
-    (error, stdout) => {
-      if (!error) {
-        originalGlobeKeyFunction = parseInt(stdout.trim(), 10);
-        if (isNaN(originalGlobeKeyFunction)) originalGlobeKeyFunction = 2;
-      }
-      // Set to "Do Nothing" (0)
-      exec("defaults write com.apple.HIToolbox AppleFnUsageType -int 0", () => {
-        globeKeyFunctionDisabled = true;
+  try {
+    // Save original setting (synchronous)
+    try {
+      const stdout = execSync(
+        "defaults read com.apple.HIToolbox AppleFnUsageType 2>/dev/null || echo 2",
+        { encoding: "utf8", timeout: 5000 },
+      );
+      originalGlobeKeyFunction = parseInt(stdout.trim(), 10);
+      if (isNaN(originalGlobeKeyFunction)) originalGlobeKeyFunction = 2;
+    } catch {
+      originalGlobeKeyFunction = 2;
+    }
+
+    // Set to "Do Nothing" (0) - synchronous to ensure it completes before proceeding
+    execSync("defaults write com.apple.HIToolbox AppleFnUsageType -int 0", {
+      encoding: "utf8",
+      timeout: 5000,
+    });
+
+    // Force cfprefsd to reload preferences immediately
+    // This ensures the new setting takes effect without requiring logout
+    // Kill user-level cfprefsd (doesn't require sudo)
+    try {
+      execSync("killall -u $(whoami) cfprefsd 2>/dev/null || true", {
+        encoding: "utf8",
+        timeout: 5000,
+        shell: "/bin/bash",
       });
-    },
-  );
+    } catch {
+      // Ignore errors - cfprefsd will auto-restart
+    }
+
+    globeKeyFunctionDisabled = true;
+  } catch (error) {
+    console.error("Failed to disable Globe key emoji picker:", error.message);
+    // Fall back to async method if sync fails
+    exec("defaults write com.apple.HIToolbox AppleFnUsageType -int 0", () => {
+      globeKeyFunctionDisabled = true;
+    });
+  }
 }
 
 /**
  * Restore the original Globe key function when app quits or hotkey changes.
+ * Uses synchronous execution to ensure restoration completes before app exits.
  */
 function restoreGlobeKeyFunction() {
   if (process.platform !== "darwin" || !globeKeyFunctionDisabled) return;
 
   const valueToRestore =
     originalGlobeKeyFunction !== null ? originalGlobeKeyFunction : 2;
-  exec(
-    `defaults write com.apple.HIToolbox AppleFnUsageType -int ${valueToRestore}`,
-    () => {
-      globeKeyFunctionDisabled = false;
-    },
-  );
+  try {
+    execSync(
+      `defaults write com.apple.HIToolbox AppleFnUsageType -int ${valueToRestore}`,
+      { encoding: "utf8", timeout: 5000 },
+    );
+    // Force cfprefsd to reload
+    try {
+      execSync("killall -u $(whoami) cfprefsd 2>/dev/null || true", {
+        encoding: "utf8",
+        timeout: 5000,
+        shell: "/bin/bash",
+      });
+    } catch {
+      // Ignore errors
+    }
+    globeKeyFunctionDisabled = false;
+  } catch (error) {
+    console.error("Failed to restore Globe key function:", error.message);
+    // Fall back to async if sync fails
+    exec(
+      `defaults write com.apple.HIToolbox AppleFnUsageType -int ${valueToRestore}`,
+      () => {
+        globeKeyFunctionDisabled = false;
+      },
+    );
+  }
 }
 
 // Bypass certificate verification in development

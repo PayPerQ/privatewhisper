@@ -13,9 +13,11 @@ import { acquireSharedAudioContext } from "./utils/sharedAudioContext";
 
 const MIN_HOLD_DURATION_MS = 200;
 const pipelineLogger = createDebugLogger("pipeline");
+const audioDeviceLogger = createDebugLogger("audio-device");
 const BUILT_IN_MIC_LABEL =
   /built[- ]?in|internal|macbook|imac|mac mini|mac studio|mac pro/i;
 const BUILT_IN_MIC_STORAGE_KEY = "builtInMicDeviceId";
+const INVALID_DEVICE_IDS = new Set(["default", "communications"]);
 const builtInMicCache = {
   deviceId: "",
   valid: false,
@@ -28,15 +30,22 @@ const loadBuiltInMicCacheFromStorage = () => {
   }
   try {
     const storedDeviceId = localStorage.getItem(BUILT_IN_MIC_STORAGE_KEY);
-    if (storedDeviceId) {
+    if (storedDeviceId && !INVALID_DEVICE_IDS.has(storedDeviceId)) {
       builtInMicCache.deviceId = storedDeviceId;
       builtInMicCache.valid = true;
+    } else if (storedDeviceId) {
+      clearBuiltInMicStorage();
     }
   } catch {}
 };
 
 const persistBuiltInMicCache = () => {
-  if (!builtInMicCache.deviceId) return;
+  if (
+    !builtInMicCache.deviceId ||
+    INVALID_DEVICE_IDS.has(builtInMicCache.deviceId)
+  ) {
+    return;
+  }
   try {
     localStorage.setItem(BUILT_IN_MIC_STORAGE_KEY, builtInMicCache.deviceId);
   } catch {}
@@ -93,11 +102,44 @@ async function getUserMediaWithFallback(constraints) {
   }
 }
 
+const logStreamDeviceInfo = (stream, context) => {
+  try {
+    const track = stream?.getAudioTracks?.()[0];
+    const settings = track?.getSettings?.() || {};
+    const label = track?.label || "";
+    const deviceId = settings.deviceId || "";
+    const matchedBuiltInLabel = label ? BUILT_IN_MIC_LABEL.test(label) : false;
+    const matchedBuiltInCache =
+      deviceId && builtInMicCache.deviceId
+        ? deviceId === builtInMicCache.deviceId
+        : false;
+
+    void audioDeviceLogger.log("MIC_STREAM_SELECTED", {
+      context,
+      label,
+      deviceId,
+      groupId: settings.groupId || "",
+      readyState: track?.readyState || "",
+      matchedBuiltInLabel,
+      matchedBuiltInCache,
+    });
+  } catch (error) {
+    void audioDeviceLogger.log("MIC_STREAM_LOG_FAILED", {
+      context,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+};
+
 async function getBuiltInMicrophoneStream() {
   registerBuiltInMicCacheListener();
   loadBuiltInMicCacheFromStorage();
 
-  if (builtInMicCache.valid && builtInMicCache.deviceId) {
+  if (
+    builtInMicCache.valid &&
+    builtInMicCache.deviceId &&
+    !INVALID_DEVICE_IDS.has(builtInMicCache.deviceId)
+  ) {
     try {
       return await getUserMediaWithFallback({
         deviceId: { exact: builtInMicCache.deviceId },
@@ -128,7 +170,10 @@ async function getBuiltInMicrophoneStream() {
       device.kind === "audioinput" && BUILT_IN_MIC_LABEL.test(device.label),
   );
 
-  if (!builtInDevice?.deviceId) {
+  if (
+    !builtInDevice?.deviceId ||
+    INVALID_DEVICE_IDS.has(builtInDevice.deviceId)
+  ) {
     return initialStream;
   }
 
@@ -164,22 +209,30 @@ async function getPreferredMicrophoneStream({
   // Using built-in mic avoids Bluetooth profile switch entirely
   // (music keeps playing in high-quality A2DP while recording uses built-in mic)
   if (alwaysUseBuiltInMic) {
-    return getBuiltInMicrophoneStream();
+    const stream = await getBuiltInMicrophoneStream();
+    logStreamDeviceInfo(stream, "always_use_built_in");
+    return stream;
   }
 
   if (preferredMicrophoneId) {
     try {
-      return await getUserMediaWithFallback({
+      const stream = await getUserMediaWithFallback({
         deviceId: { exact: preferredMicrophoneId },
         ...DICTATION_AUDIO_CONSTRAINTS,
       });
+      logStreamDeviceInfo(stream, "preferred_device");
+      return stream;
     } catch {
       // Fallback without exact device constraint
-      return getUserMediaWithFallback(DICTATION_AUDIO_CONSTRAINTS);
+      const stream = await getUserMediaWithFallback(DICTATION_AUDIO_CONSTRAINTS);
+      logStreamDeviceInfo(stream, "preferred_device_fallback");
+      return stream;
     }
   }
 
-  return getUserMediaWithFallback(DICTATION_AUDIO_CONSTRAINTS);
+  const stream = await getUserMediaWithFallback(DICTATION_AUDIO_CONSTRAINTS);
+  logStreamDeviceInfo(stream, "default");
+  return stream;
 }
 
 const scheduleBackgroundTask = (task) => {

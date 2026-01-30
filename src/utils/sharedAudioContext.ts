@@ -42,10 +42,6 @@ const releaseSharedAudioContext = (): void => {
   if (!sharedAudioContext) return;
 
   sharedContextUsers = Math.max(0, sharedContextUsers - 1);
-
-  // Don't suspend the AudioContext when users reach 0.
-  // Keeping it running ("warm") prevents Bluetooth audio interruptions
-  // that occur when resuming a suspended context (A2DP/HFP renegotiation).
 };
 
 export const acquireSharedAudioContext = async (): Promise<{

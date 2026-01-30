@@ -14,7 +14,11 @@ export function useLocalStorage<T>(
   const [state, setState] = useState<T>(() => {
     try {
       const item = localStorage.getItem(key);
-      if (item === null) return defaultValue;
+      if (item === null) {
+        // Persist the default value immediately so it's consistent across windows/sessions
+        localStorage.setItem(key, serialize(defaultValue));
+        return defaultValue;
+      }
       return deserialize(item);
     } catch {
       return defaultValue;

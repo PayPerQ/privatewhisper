@@ -23,6 +23,7 @@ const builtInMicCache = {
   valid: false,
 };
 let builtInMicListenerRegistered = false;
+let builtInMicCacheWarmedUp = false;
 
 const loadBuiltInMicCacheFromStorage = () => {
   if (builtInMicCache.valid || builtInMicCache.deviceId) {
@@ -72,6 +73,65 @@ const registerBuiltInMicCacheListener = () => {
     invalidateBuiltInMicCache();
   });
   builtInMicListenerRegistered = true;
+};
+
+// Load from storage immediately on module load (after all helpers are defined)
+loadBuiltInMicCacheFromStorage();
+
+/**
+ * Proactively warm the built-in mic cache on startup.
+ * This detects and caches the built-in mic device ID early (if permission is granted),
+ * ensuring it's ready for the first recording without relying on lazy initialization.
+ */
+const warmBuiltInMicCache = async () => {
+  if (builtInMicCacheWarmedUp) return;
+  builtInMicCacheWarmedUp = true;
+
+  // If cache is already valid (from storage), no need to warm up
+  if (builtInMicCache.valid && builtInMicCache.deviceId) {
+    return;
+  }
+
+  // Check if we already have mic permission (without prompting)
+  try {
+    const permissionStatus = await navigator.permissions?.query?.({
+      name: "microphone",
+    });
+    if (permissionStatus?.state !== "granted") {
+      // Don't have permission yet - skip warmup (will happen on first recording)
+      return;
+    }
+  } catch {
+    // Permissions API not available - try enumerating anyway
+  }
+
+  // Permission granted - enumerate devices to find and cache built-in mic
+  try {
+    const devices = await navigator.mediaDevices?.enumerateDevices?.();
+    if (!devices) return;
+
+    const builtInDevice = devices.find(
+      (device) =>
+        device.kind === "audioinput" &&
+        device.label &&
+        BUILT_IN_MIC_LABEL.test(device.label) &&
+        !INVALID_DEVICE_IDS.has(device.deviceId),
+    );
+
+    if (builtInDevice?.deviceId) {
+      builtInMicCache.deviceId = builtInDevice.deviceId;
+      builtInMicCache.valid = true;
+      persistBuiltInMicCache();
+      console.log(
+        "[Audio] Built-in mic cache warmed:",
+        builtInDevice.label,
+        builtInDevice.deviceId,
+      );
+    }
+  } catch (e) {
+    // Enumeration failed - will happen naturally on first recording
+    console.warn("[Audio] Built-in mic warmup failed:", e.message);
+  }
 };
 
 /**
@@ -490,9 +550,12 @@ export default function App() {
     };
   }, []);
 
-  // Pre-warm WebSocket connection for faster recording start
+  // Pre-warm connections and caches for faster recording start
   useEffect(() => {
-    // Warm connection on initial mount (delayed to not block startup)
+    // Warm built-in mic cache immediately (no delay - just reads existing permission state)
+    void warmBuiltInMicCache();
+
+    // Warm WebSocket connection on initial mount (delayed to not block startup)
     const warmTimer = setTimeout(() => {
       void AudioManager.warmConnection();
     }, 2000);

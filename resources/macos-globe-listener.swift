@@ -88,8 +88,15 @@ func eventTapCallback(proxy: CGEventTapProxy, type: CGEventType, event: CGEvent,
                 fflush(stdout)
                 // In globe-only mode, suppress the event entirely to prevent emoji picker
                 if globeOnly {
-                    // Schedule emoji picker dismissal as a safety measure
+                    // Immediately dismiss emoji picker - don't wait
+                    dismissEmojiPickerIfNeeded()
+                    // Also schedule additional dismissals to catch late-spawning popover
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) {
+                        shouldDismissEmojiPicker = true
+                        dismissEmojiPickerIfNeeded()
+                    }
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                        shouldDismissEmojiPicker = true
                         dismissEmojiPickerIfNeeded()
                     }
                     return nil
@@ -113,7 +120,16 @@ func dismissEmojiPickerIfNeeded() {
     guard shouldDismissEmojiPicker else { return }
     shouldDismissEmojiPicker = false
 
-    // Method 1: Send Escape key to dismiss any popover
+    // Method 1: Kill CharacterPalette process immediately (most reliable)
+    // This closes the emoji picker before it can fully render
+    let killTask = Process()
+    killTask.launchPath = "/usr/bin/killall"
+    killTask.arguments = ["-9", "CharacterPalette"]
+    killTask.standardOutput = FileHandle.nullDevice
+    killTask.standardError = FileHandle.nullDevice
+    try? killTask.run()
+
+    // Method 2: Send Escape key to dismiss any popover (backup)
     if let escapeEvent = CGEvent(keyboardEventSource: nil, virtualKey: 0x35, keyDown: true) {
         escapeEvent.post(tap: .cghidEventTap)
         if let escapeUp = CGEvent(keyboardEventSource: nil, virtualKey: 0x35, keyDown: false) {
@@ -121,6 +137,16 @@ func dismissEmojiPickerIfNeeded() {
                 escapeUp.post(tap: .cghidEventTap)
             }
         }
+    }
+
+    // Method 3: Kill again after a short delay in case it spawned late
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+        let killTask2 = Process()
+        killTask2.launchPath = "/usr/bin/killall"
+        killTask2.arguments = ["-9", "CharacterPalette"]
+        killTask2.standardOutput = FileHandle.nullDevice
+        killTask2.standardError = FileHandle.nullDevice
+        try? killTask2.run()
     }
 }
 

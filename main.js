@@ -308,8 +308,19 @@ async function startApp() {
         !windowManager.mainWindow.isDestroyed()
       ) {
         windowManager.mainWindow.webContents.send("dictation-hotkey-up");
-        // Note: Emoji picker is prevented by disabling Globe key function at system level
-        // (see disableGlobeKeyEmojiPicker). No need for post-hoc dismissal.
+
+        // Kill CharacterPalette immediately as backup (in case Swift-level kill didn't work)
+        // This ensures the emoji picker never stays visible
+        if (process.platform === "darwin") {
+          exec("killall -9 CharacterPalette 2>/dev/null || true");
+          // Kill again after short delays to catch late-spawning popover
+          setTimeout(() => {
+            exec("killall -9 CharacterPalette 2>/dev/null || true");
+          }, 50);
+          setTimeout(() => {
+            exec("killall -9 CharacterPalette 2>/dev/null || true");
+          }, 100);
+        }
       }
     };
 

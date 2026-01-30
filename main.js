@@ -51,23 +51,52 @@ let currentHotkeyMode = "toggle"; // Updated via IPC when settings change
 const FN_KEY_CODE = 63;
 
 /**
- * Dismiss the macOS emoji picker that opens when the Globe/Fn key is tapped.
- * In globe-only mode (no Input Monitoring) we can't suppress the key event,
- * so instead we send Escape after the picker appears to close it.
- * Uses Accessibility permissions the app already has for paste simulation.
+ * macOS Globe key function values (AppleFnUsageType):
+ * 0 = Do Nothing
+ * 1 = Change Input Source
+ * 2 = Show Emoji & Symbols (default)
+ * 3 = Start Dictation
  */
-function dismissEmojiPicker() {
-  if (process.platform !== "darwin") return;
-  // Small delay to let the emoji picker appear before dismissing it.
-  // osascript startup adds ~100-200ms on top, so the Escape arrives ~200-300ms
-  // after globe-up which is after the picker has rendered.
-  setTimeout(() => {
-    exec(
-      `osascript -e 'tell application "System Events" to key code 53'`,
-      { timeout: 3000 },
-      () => {}, // Errors are silently ignored (e.g., no Accessibility permissions)
-    );
-  }, 100);
+let originalGlobeKeyFunction = null;
+let globeKeyFunctionDisabled = false;
+
+/**
+ * Disable the Globe key's emoji picker by changing the system setting.
+ * This is the only reliable way to prevent the emoji picker from appearing.
+ */
+function disableGlobeKeyEmojiPicker() {
+  if (process.platform !== "darwin" || globeKeyFunctionDisabled) return;
+
+  // Save original setting
+  exec(
+    "defaults read com.apple.HIToolbox AppleFnUsageType 2>/dev/null || echo 2",
+    (error, stdout) => {
+      if (!error) {
+        originalGlobeKeyFunction = parseInt(stdout.trim(), 10);
+        if (isNaN(originalGlobeKeyFunction)) originalGlobeKeyFunction = 2;
+      }
+      // Set to "Do Nothing" (0)
+      exec("defaults write com.apple.HIToolbox AppleFnUsageType -int 0", () => {
+        globeKeyFunctionDisabled = true;
+      });
+    },
+  );
+}
+
+/**
+ * Restore the original Globe key function when app quits or hotkey changes.
+ */
+function restoreGlobeKeyFunction() {
+  if (process.platform !== "darwin" || !globeKeyFunctionDisabled) return;
+
+  const valueToRestore =
+    originalGlobeKeyFunction !== null ? originalGlobeKeyFunction : 2;
+  exec(
+    `defaults write com.apple.HIToolbox AppleFnUsageType -int ${valueToRestore}`,
+    () => {
+      globeKeyFunctionDisabled = false;
+    },
+  );
 }
 
 // Bypass certificate verification in development
@@ -86,6 +115,10 @@ async function startApp() {
   trayManager = new TrayManager();
   updateManager = new UpdateManager();
   globeKeyManager = new GlobeKeyManager();
+  // On macOS, default hotkey is GLOBE - disable emoji picker function immediately
+  if (process.platform === "darwin") {
+    disableGlobeKeyEmojiPicker();
+  }
   edgeFunctionLogger = new EdgeFunctionLogger(
     environmentManager,
     app.getVersion(),
@@ -129,9 +162,15 @@ async function startApp() {
     hotkeyListeningMode = isListening;
   };
 
-  // Track hotkey mode changes (used for emoji picker dismissal)
-  ipcHandlers.onHotkeySettingsChange = ({ hotkeyMode }) => {
+  // Track hotkey changes (used for emoji picker suppression)
+  ipcHandlers.onHotkeySettingsChange = ({ hotkey, hotkeyMode }) => {
     currentHotkeyMode = hotkeyMode;
+    // Disable Globe key's emoji picker function when using Globe as hotkey
+    if (hotkey === "GLOBE") {
+      disableGlobeKeyEmojiPicker();
+    } else {
+      restoreGlobeKeyFunction();
+    }
   };
 
   // In development, add a small delay to let Vite start properly
@@ -219,19 +258,8 @@ async function startApp() {
         !windowManager.mainWindow.isDestroyed()
       ) {
         windowManager.mainWindow.webContents.send("dictation-hotkey-up");
-
-        // In toggle mode, macOS opens the emoji picker on a quick Globe key tap.
-        // We can't suppress it in globe-only mode (no Input Monitoring), so
-        // dismiss it after it appears by sending Escape via osascript.
-        // Skip when the control panel is focused — the Escape would hit that
-        // window instead, closing any open dialog (e.g., Settings).
-        const cpFocused =
-          windowManager.controlPanelWindow &&
-          !windowManager.controlPanelWindow.isDestroyed() &&
-          windowManager.controlPanelWindow.isFocused();
-        if (currentHotkeyMode === "toggle" && !cpFocused) {
-          dismissEmojiPicker();
-        }
+        // Note: Emoji picker is prevented by disabling Globe key function at system level
+        // (see disableGlobeKeyEmojiPicker). No need for post-hoc dismissal.
       }
     };
 
@@ -363,6 +391,8 @@ function setupApp() {
     globalShortcut.unregisterAll();
     if (globeKeyManager) globeKeyManager.stop();
     if (updateManager) updateManager.cleanup();
+    // Restore the user's original Globe key function
+    restoreGlobeKeyFunction();
   });
 }
 

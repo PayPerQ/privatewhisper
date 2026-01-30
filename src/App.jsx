@@ -9,6 +9,7 @@ import { useSettings } from "./hooks/useSettings";
 import AudioManager from "./helpers/audioManager";
 import StreamingTranscriptionService from "./services/StreamingTranscriptionService";
 import createDebugLogger from "./utils/debugLoggerRenderer";
+import { acquireSharedAudioContext } from "./utils/sharedAudioContext";
 
 const MIN_HOLD_DURATION_MS = 200;
 const pipelineLogger = createDebugLogger("pipeline");
@@ -259,6 +260,7 @@ export default function App() {
   const [isRecording, setIsRecording] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false); // Optimistic UI: show animation while connecting
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isReconnecting, setIsReconnecting] = useState(false); // WebSocket or device reconnecting
   const [isHovered, setIsHovered] = useState(false);
   const [isCommandMenuOpen, setIsCommandMenuOpen] = useState(false);
   const [interimTranscript, setInterimTranscript] = useState("");
@@ -277,7 +279,6 @@ export default function App() {
   const hotkeyPressStartRef = useRef(null);
   const cancelRecordingRef = useRef(false);
   const pendingStartRef = useRef(false);
-  const audioContextRef = useRef(null);
   const recordingStartedAtRef = useRef(null);
   const lastAudioDurationMsRef = useRef(null);
   const [shouldShowIconDelayed, setShouldShowIconDelayed] = useState(false);
@@ -436,6 +437,26 @@ export default function App() {
     };
   }, []);
 
+  // Pre-warm WebSocket connection for faster recording start
+  useEffect(() => {
+    // Warm connection on initial mount (delayed to not block startup)
+    const warmTimer = setTimeout(() => {
+      void AudioManager.warmConnection();
+    }, 2000);
+
+    // Keep warm connection alive with periodic refresh (every 45 seconds)
+    // This ensures a connection is ready even when the overlay doesn't receive focus
+    const refreshInterval = setInterval(() => {
+      void AudioManager.warmConnection();
+    }, 45000);
+
+    return () => {
+      clearTimeout(warmTimer);
+      clearInterval(refreshInterval);
+      AudioManager.cleanupWarmConnections();
+    };
+  }, []);
+
   const getNewStream = async () => {
     return getPreferredMicrophoneStream({
       alwaysUseBuiltInMic,
@@ -481,8 +502,34 @@ export default function App() {
         onInterimResult: (text) => {
           setInterimTranscript(text);
         },
-        onStreamingStateChange: (_state) => {
-          // Streaming state change handled by AudioManager
+        onStreamingStateChange: (state) => {
+          // Handle reconnecting state for UI feedback
+          if (state === "reconnecting") {
+            setIsReconnecting(true);
+          } else if (state === "ready" || state === "streaming") {
+            setIsReconnecting(false);
+          }
+        },
+        getNewStream,
+        onDeviceDisconnected: () => {},
+        onDeviceRecoveryStarted: () => {
+          setIsReconnecting(true);
+        },
+        onDeviceRecovered: () => {
+          setIsReconnecting(false);
+          toast({
+            title: "Device Recovered",
+            description: "Audio device reconnected successfully.",
+          });
+        },
+        onDeviceRecoveryFailed: () => {
+          setIsReconnecting(false);
+        },
+        onReconnecting: () => {
+          setIsReconnecting(true);
+        },
+        onReconnected: () => {
+          setIsReconnecting(false);
         },
         onTranscriptionComplete: async (result) => {
           const metrics = result.metrics;
@@ -593,8 +640,20 @@ export default function App() {
         await audioManager.startPCMCapture(stream, true /* bufferMode */);
         pcmBufferingStarted = true;
 
+        // Check if cancelled during PCM setup
+        if (cancelRecordingRef.current) {
+          audioManager.abortConnection();
+          throw new Error("Recording cancelled during setup");
+        }
+
         // Now connect WebSocket (audio is being buffered in the meantime)
         await audioManager.startStreaming();
+
+        // Check if cancelled during WebSocket connection
+        if (cancelRecordingRef.current) {
+          audioManager.abortConnection();
+          throw new Error("Recording cancelled during connection");
+        }
 
         // WebSocket is ready - transition from buffering to streaming
         // This flushes all buffered audio and switches to live streaming
@@ -602,9 +661,12 @@ export default function App() {
         streamingStarted = true;
         setIsStreamingMode(true);
       } catch (streamingError) {
-        void pipelineLogger.log("STREAMING_FALLBACK_TO_BATCH", {
-          error: streamingError.message,
-        });
+        // Don't log cancellation as a fallback - it's intentional
+        if (!cancelRecordingRef.current) {
+          void pipelineLogger.log("STREAMING_FALLBACK_TO_BATCH", {
+            error: streamingError.message,
+          });
+        }
         // Clear buffer and fall back to batch mode
         if (pcmBufferingStarted) {
           audioManager.clearPCMBuffer();
@@ -652,10 +714,11 @@ export default function App() {
 
         if (wasCancelled) {
           stopStreamTracks(stream);
-          if (audioManagerRef.current?.isStreaming()) {
-            audioManagerRef.current.cancelStreaming();
+          // Use abortConnection to handle cleanup regardless of connection state
+          // This works both during connection phase and when streaming
+          if (audioManagerRef.current) {
+            audioManagerRef.current.abortConnection();
           }
-          audioManagerRef.current?.clearPCMBuffer();
           setIsProcessing(false);
           setIsConnecting(false);
           setIsStreamingMode(false);
@@ -706,14 +769,22 @@ export default function App() {
       // and batch mode fallback
       mediaRecorderRef.current.start();
     } catch (err) {
-      console.error("Recording error:", err);
-      toast({
-        title: "Recording Error",
-        description: "Failed to access microphone: " + err.message,
-        variant: "destructive",
-      });
+      // Ensure any partial connection is cleaned up
+      if (audioManagerRef.current) {
+        audioManagerRef.current.abortConnection();
+      }
+      // Only show error toast if not a cancellation
+      if (!cancelRecordingRef.current) {
+        console.error("Recording error:", err);
+        toast({
+          title: "Recording Error",
+          description: "Failed to access microphone: " + err.message,
+          variant: "destructive",
+        });
+      }
       pendingStartRef.current = false;
       setIsConnecting(false);
+      setIsRecording(false);
       audioManagerRef.current = null;
       setIsStreamingMode(false);
     }
@@ -735,6 +806,16 @@ export default function App() {
       setIsRecording(false);
       setIsConnecting(false);
       setIsPushToTalk(false);
+      return true;
+    }
+    return false;
+  };
+
+  const cancelProcessing = () => {
+    if (isProcessing && audioManagerRef.current) {
+      audioManagerRef.current.cancelProcessing();
+      setIsProcessing(false);
+      setInterimTranscript("");
       return true;
     }
     return false;
@@ -798,9 +879,15 @@ export default function App() {
 
       if (pendingStartRef.current) {
         cancelRecordingRef.current = true;
+        // Abort any in-progress connection to prevent orphan WebSockets
+        if (audioManagerRef.current) {
+          audioManagerRef.current.abortConnection();
+          audioManagerRef.current = null;
+        }
         pendingStartRef.current = false;
         setIsConnecting(false);
         setIsRecording(false);
+        setIsStreamingMode(false);
         return;
       }
 
@@ -856,8 +943,14 @@ export default function App() {
 
       if (wasPendingStart) {
         // Stop immediately if we released before recording actually began
+        // Also abort any in-progress connection to prevent orphan WebSockets
+        if (audioManagerRef.current) {
+          audioManagerRef.current.abortConnection();
+          audioManagerRef.current = null;
+        }
         setIsConnecting(false);
         setIsRecording(false);
+        setIsStreamingMode(false);
         pendingStartRef.current = false;
         return;
       }
@@ -880,9 +973,15 @@ export default function App() {
     setIsCommandMenuOpen(false);
     if (pendingStartRef.current) {
       cancelRecordingRef.current = true;
+      // Abort any in-progress connection to prevent orphan WebSockets
+      if (audioManagerRef.current) {
+        audioManagerRef.current.abortConnection();
+        audioManagerRef.current = null;
+      }
       pendingStartRef.current = false;
       setIsConnecting(false);
       setIsRecording(false);
+      setIsStreamingMode(false);
       return;
     }
     if (!isRecording && !isConnecting && !isProcessing) {
@@ -916,7 +1015,8 @@ export default function App() {
 
   // Handle delayed icon visibility when showIconOnlyWhenActive is enabled
   useEffect(() => {
-    const isActive = isRecording || isConnecting || isProcessing;
+    const isActive =
+      isRecording || isConnecting || isProcessing || isReconnecting;
 
     if (isActive) {
       // Show icon after 500ms delay
@@ -938,33 +1038,40 @@ export default function App() {
         showIconTimeoutRef.current = null;
       }
     };
-  }, [isRecording, isConnecting, isProcessing]);
+  }, [isRecording, isConnecting, isProcessing, isReconnecting]);
 
   const playCue = React.useCallback(
     async (type) => {
+      let release = null;
+      let releaseTimer = null;
+      let audioElement = null;
       try {
         if (!audioCuesEnabled) return;
         const AudioContextClass =
           window.AudioContext || window.webkitAudioContext;
         if (!AudioContextClass) return;
 
-        if (
-          !audioContextRef.current ||
-          audioContextRef.current.state === "closed"
-        ) {
-          audioContextRef.current = new AudioContextClass();
-        }
-
-        const context = audioContextRef.current;
-        if (context.state === "suspended") {
-          await context.resume();
-        }
+        const shared = await acquireSharedAudioContext();
+        const context = shared.context;
+        release = shared.release;
 
         const isStart = type === "start";
         const now = context.currentTime + 0.01;
         const master = context.createGain();
         master.gain.setValueAtTime(0.9, now);
-        master.connect(context.destination);
+
+        // Route through MediaStreamDestination + Audio element to avoid touching
+        // context.destination directly. This prevents Bluetooth audio interruptions
+        // (A2DP/HFP profile switches) when playing cues during recording.
+        const streamDest = context.createMediaStreamDestination();
+        master.connect(streamDest);
+        audioElement = new Audio();
+        audioElement.srcObject = streamDest.stream;
+        audioElement.play().catch(() => {
+          // Fallback: connect directly if Audio element fails (autoplay policy, etc.)
+          master.disconnect();
+          master.connect(context.destination);
+        });
 
         const cue = isStart
           ? {
@@ -1009,13 +1116,43 @@ export default function App() {
           osc.stop(time + duration + 0.04);
         };
 
+        let lastBloopEnd = now;
         cue.bloops.forEach((bloop, index) => {
           scheduleBloop({
             ...bloop,
             time: now + index * cue.gap,
           });
+          const bloopStart = now + index * cue.gap;
+          const bloopEnd = bloopStart + bloop.duration + 0.04;
+          if (bloopEnd > lastBloopEnd) lastBloopEnd = bloopEnd;
         });
+
+        const releaseDelayMs = Math.max(
+          0,
+          Math.ceil((lastBloopEnd - context.currentTime) * 1000) + 20,
+        );
+        releaseTimer = window.setTimeout(() => {
+          try {
+            master.disconnect();
+          } catch {
+            /* already disconnected */
+          }
+          if (audioElement) {
+            audioElement.pause();
+            audioElement.srcObject = null;
+          }
+          release?.();
+        }, releaseDelayMs);
       } catch (error) {
+        if (releaseTimer) {
+          clearTimeout(releaseTimer);
+          releaseTimer = null;
+        }
+        if (audioElement) {
+          audioElement.pause();
+          audioElement.srcObject = null;
+        }
+        release?.();
         console.debug("Audio cue failed:", error);
       }
     },
@@ -1024,6 +1161,7 @@ export default function App() {
 
   const getMicState = () => {
     if (isConnecting) return "connecting";
+    if (isReconnecting) return "reconnecting";
     if (isRecording) return "recording";
     if (isProcessing) return "processing";
     if (isHovered) return "hover";
@@ -1041,6 +1179,7 @@ export default function App() {
       "rounded-full w-10 h-10 flex items-center justify-center relative overflow-hidden border-2 border-white/70";
     const isActive =
       micState === "connecting" ||
+      micState === "reconnecting" ||
       micState === "recording" ||
       micState === "processing";
 
@@ -1049,9 +1188,11 @@ export default function App() {
       tooltip: isActive
         ? micState === "connecting"
           ? "Connecting..."
-          : micState === "recording"
-            ? "Recording..."
-            : "Processing..."
+          : micState === "reconnecting"
+            ? "Reconnecting..."
+            : micState === "recording"
+              ? "Recording..."
+              : "Processing..."
         : hotkeyTooltip,
     };
   };
@@ -1079,13 +1220,23 @@ export default function App() {
               }
             }}
           >
-            {isRecording && isHovered && (
-              <Tooltip content="Cancel recording">
+            {(isRecording || isProcessing) && isHovered && (
+              <Tooltip
+                content={
+                  isProcessing ? "Cancel processing" : "Cancel recording"
+                }
+              >
                 <button
-                  aria-label="Cancel recording"
+                  aria-label={
+                    isProcessing ? "Cancel processing" : "Cancel recording"
+                  }
                   onClick={(e) => {
                     e.stopPropagation();
-                    cancelRecording();
+                    if (isProcessing) {
+                      cancelProcessing();
+                    } else {
+                      cancelRecording();
+                    }
                   }}
                   className="w-7 h-7 rounded-full bg-neutral-800/90 hover:bg-red-500 border border-white/20 hover:border-red-400 flex items-center justify-center transition-all duration-150 shadow-lg backdrop-blur-sm"
                 >
@@ -1134,12 +1285,7 @@ export default function App() {
                 }}
                 className={micProps.className}
                 style={{
-                  cursor:
-                    micState === "processing"
-                      ? "not-allowed"
-                      : isDragging
-                        ? "grabbing"
-                        : "pointer",
+                  cursor: isDragging ? "grabbing" : "pointer",
                   transition:
                     "transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.25s ease-out",
                 }}

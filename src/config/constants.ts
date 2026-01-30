@@ -121,3 +121,35 @@ export const RETRY_CONFIG = {
   MAX_DELAY: 10000, // 10 seconds
   BACKOFF_MULTIPLIER: 2,
 } as const;
+
+// WebSocket Connection Configuration (for Bluetooth resilience)
+export const CONNECTION_CONFIG = {
+  MAX_RECONNECT_ATTEMPTS: 5,
+  INITIAL_BACKOFF_MS: 500,
+  MAX_BACKOFF_MS: 8000,
+  BACKOFF_MULTIPLIER: 1.5,
+  KEEPALIVE_INTERVAL_MS: 15000, // Send ping every 15 seconds
+  KEEPALIVE_TIMEOUT_MS: 5000, // Consider stale if no pong within 5 seconds
+  CONNECTION_TIMEOUT_MS: 20000, // 20 seconds for initial connection (Bluetooth needs longer)
+} as const;
+
+// Audio Device Recovery Configuration
+export const DEVICE_RECOVERY_CONFIG = {
+  MAX_RECOVERY_ATTEMPTS: 3,
+  RECOVERY_INTERVAL_MS: 1000, // Wait 1 second between recovery attempts
+  DEVICE_RECONNECT_GRACE_PERIOD_MS: 5000, // Wait for device to reappear
+} as const;
+
+// Warm Connection Pool Configuration
+export const WARM_CONNECTION_CONFIG = {
+  MAX_POOL_SIZE: 1, // Keep one warm connection ready
+  CONNECTION_TTL_MS: 60000, // Recycle connections after 1 minute
+  REFRESH_BUFFER_MS: 10000, // Start refresh 10 seconds before TTL expires
+} as const;
+
+// PCM Audio Buffer Configuration (extended for Bluetooth)
+export const AUDIO_BUFFER_CONFIG = {
+  MAX_BUFFER_DURATION_MS: 10000, // 10 seconds (was 5 seconds)
+  MAX_BUFFER_SIZE_BYTES: 10 * 1024 * 1024, // 10MB (was 5MB)
+  BUFFER_SIZE_SAMPLES: 2048, // Samples per chunk at 16kHz = ~128ms
+} as const;

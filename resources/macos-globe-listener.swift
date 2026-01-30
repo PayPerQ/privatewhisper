@@ -21,11 +21,11 @@ for arg in CommandLine.arguments {
 // 2. OR we have a keycode to suppress
 let needsIntercept = globeOnly || suppressKeycode != nil
 
-let mask: CGEventMask = globeOnly
-    ? CGEventMask(1 << CGEventType.flagsChanged.rawValue)
-    : CGEventMask(1 << CGEventType.flagsChanged.rawValue) |
-      CGEventMask(1 << CGEventType.keyDown.rawValue) |
-      CGEventMask(1 << CGEventType.keyUp.rawValue)
+// In globe-only mode, we still need to listen for keyDown/keyUp to catch synthesized
+// globe key events that might trigger the emoji picker
+let mask: CGEventMask = CGEventMask(1 << CGEventType.flagsChanged.rawValue) |
+    CGEventMask(1 << CGEventType.keyDown.rawValue) |
+    CGEventMask(1 << CGEventType.keyUp.rawValue)
 
 var fnIsDown = false
 var eventTap: CFMachPort?
@@ -39,15 +39,25 @@ func eventTapCallback(proxy: CGEventTapProxy, type: CGEventType, event: CGEvent,
         return Unmanaged.passUnretained(event)
     }
 
-    if !globeOnly && (type == .keyDown || type == .keyUp) {
+    if type == .keyDown || type == .keyUp {
         let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
-        let prefix = (type == .keyDown) ? "KEY_DOWN:" : "KEY_UP:"
-        if let data = "\(prefix)\(keyCode)\n".data(using: .utf8) {
-            FileHandle.standardOutput.write(data)
-            fflush(stdout)
+
+        // In globe-only mode, suppress any keyDown/keyUp for the Fn key itself
+        // This catches synthesized key events that might trigger the emoji picker
+        if globeOnly && keyCode == fnKeyCode {
+            return nil
         }
+
+        // Output key events (only in non-globe-only mode for regular key monitoring)
+        if !globeOnly {
+            let prefix = (type == .keyDown) ? "KEY_DOWN:" : "KEY_UP:"
+            if let data = "\(prefix)\(keyCode)\n".data(using: .utf8) {
+                FileHandle.standardOutput.write(data)
+                fflush(stdout)
+            }
+        }
+
         // Suppress the key event if it matches the configured suppress keycode
-        // This prevents the default system action (e.g., emoji picker for backtick)
         if let suppress = suppressKeycode, keyCode == suppress {
             return nil
         }
@@ -62,7 +72,7 @@ func eventTapCallback(proxy: CGEventTapProxy, type: CGEventType, event: CGEvent,
                 fnIsDown = true
                 FileHandle.standardOutput.write("FN_DOWN\n".data(using: .utf8)!)
                 fflush(stdout)
-                // Suppress globe key press in globe-only mode to prevent emoji picker
+                // In globe-only mode, suppress the event entirely to prevent emoji picker
                 if globeOnly {
                     return nil
                 }
@@ -70,11 +80,17 @@ func eventTapCallback(proxy: CGEventTapProxy, type: CGEventType, event: CGEvent,
                 fnIsDown = false
                 FileHandle.standardOutput.write("FN_UP\n".data(using: .utf8)!)
                 fflush(stdout)
-                // Pass through the globe key release (don't suppress it).
-                // Suppressing FN_UP causes macOS to think Fn is still held,
-                // which modifies Space and other keys system-wide.
-                // FN_DOWN is still suppressed to prevent the emoji picker.
+                // In globe-only mode, suppress the event entirely to prevent emoji picker
+                if globeOnly {
+                    return nil
+                }
             }
+        } else if globeOnly && containsFn {
+            // For other keys pressed while Fn is held, strip the Fn flag
+            // This prevents macOS from interpreting Fn+key combinations
+            var newFlags = event.flags
+            newFlags.remove(.maskSecondaryFn)
+            event.flags = newFlags
         }
     }
 

@@ -236,9 +236,6 @@ class IPCHandlers {
           newSuppressKeycode !== currentSuppressKeycode;
 
         if (needsRestart) {
-          console.log(
-            `[GlobeKeyManager] Restarting: globeOnly=${globeOnly}, suppressKey=${suppressKey}`,
-          );
           this.globeKeyManager.restart({ globeOnly, suppressKey });
         }
 

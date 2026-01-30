@@ -2,7 +2,8 @@ import ReasoningService from "../services/ReasoningService";
 import StreamingTranscriptionService, {
   StreamingState,
 } from "../services/StreamingTranscriptionService";
-import { API_ENDPOINTS } from "../config/constants";
+import WarmConnectionPool from "../services/WarmConnectionPool";
+import { API_ENDPOINTS, DEVICE_RECOVERY_CONFIG } from "../config/constants";
 import createDebugLogger from "../utils/debugLoggerRenderer";
 import apiKeyManager from "../utils/ApiKeyManager";
 import { AUDIO_CONFIG } from "../config/audio";
@@ -122,6 +123,13 @@ type AudioManagerCallbacks = {
   }) => void;
   onInterimResult?: (text: string) => void;
   onStreamingStateChange?: (state: StreamingState) => void;
+  onDeviceDisconnected?: () => void;
+  onDeviceRecoveryStarted?: () => void;
+  onDeviceRecovered?: () => void;
+  onDeviceRecoveryFailed?: () => void;
+  onReconnecting?: (attempt: number, maxAttempts: number) => void;
+  onReconnected?: () => void;
+  getNewStream?: () => Promise<MediaStream>;
 };
 
 const DEFAULT_SETTINGS: AudioSettings = {
@@ -136,9 +144,19 @@ class AudioManager {
   onTranscriptionComplete: AudioManagerCallbacks["onTranscriptionComplete"];
   onInterimResult: AudioManagerCallbacks["onInterimResult"];
   onStreamingStateChange: AudioManagerCallbacks["onStreamingStateChange"];
+  onDeviceDisconnected: AudioManagerCallbacks["onDeviceDisconnected"];
+  onDeviceRecoveryStarted: AudioManagerCallbacks["onDeviceRecoveryStarted"];
+  onDeviceRecovered: AudioManagerCallbacks["onDeviceRecovered"];
+  onDeviceRecoveryFailed: AudioManagerCallbacks["onDeviceRecoveryFailed"];
+  onReconnecting: AudioManagerCallbacks["onReconnecting"];
+  onReconnected: AudioManagerCallbacks["onReconnected"];
+  getNewStream: AudioManagerCallbacks["getNewStream"];
   metrics: PipelineMetrics | null;
   private streamingMode: boolean;
   private pcmCapture: PCMAudioCapture | null;
+  private abortController: AbortController | null;
+  private isRecoveringDevice: boolean;
+  private usedWarmConnection: boolean;
 
   constructor(settings: Partial<AudioSettings> = {}) {
     this.settings = { ...DEFAULT_SETTINGS, ...settings };
@@ -146,9 +164,19 @@ class AudioManager {
     this.onTranscriptionComplete = null;
     this.onInterimResult = null;
     this.onStreamingStateChange = null;
+    this.onDeviceDisconnected = null;
+    this.onDeviceRecoveryStarted = null;
+    this.onDeviceRecovered = null;
+    this.onDeviceRecoveryFailed = null;
+    this.onReconnecting = null;
+    this.onReconnected = null;
+    this.getNewStream = null;
     this.metrics = null;
     this.streamingMode = false;
     this.pcmCapture = null;
+    this.abortController = null;
+    this.isRecoveringDevice = false;
+    this.usedWarmConnection = false;
   }
 
   updateSettings(settings: Partial<AudioSettings>) {
@@ -160,15 +188,30 @@ class AudioManager {
     onTranscriptionComplete,
     onInterimResult,
     onStreamingStateChange,
+    onDeviceDisconnected,
+    onDeviceRecoveryStarted,
+    onDeviceRecovered,
+    onDeviceRecoveryFailed,
+    onReconnecting,
+    onReconnected,
+    getNewStream,
   }: AudioManagerCallbacks) {
     this.onError = onError;
     this.onTranscriptionComplete = onTranscriptionComplete;
     this.onInterimResult = onInterimResult;
     this.onStreamingStateChange = onStreamingStateChange;
+    this.onDeviceDisconnected = onDeviceDisconnected;
+    this.onDeviceRecoveryStarted = onDeviceRecoveryStarted;
+    this.onDeviceRecovered = onDeviceRecovered;
+    this.onDeviceRecoveryFailed = onDeviceRecoveryFailed;
+    this.onReconnecting = onReconnecting;
+    this.onReconnected = onReconnected;
+    this.getNewStream = getNewStream;
   }
 
   async processAudio(audioBlob: Blob) {
     try {
+      this.abortController = new AbortController();
       this.metrics = new PipelineMetrics();
       const metrics = this.metrics;
       metrics.setFlag("preferredLanguage", this.settings.preferredLanguage);
@@ -181,6 +224,11 @@ class AudioManager {
       const result = await this.processWithPPQAPI(audioBlob);
       this.onTranscriptionComplete?.(result);
     } catch (error: any) {
+      // Don't show error for user-initiated cancellation
+      if (error.name === "AbortError") {
+        void debugLogger.log("PROCESSING_ABORTED_BY_USER");
+        return;
+      }
       this.onError?.({
         title: "Transcription Error",
         description: `Transcription failed: ${error.message}`,
@@ -190,6 +238,8 @@ class AudioManager {
         success: false,
         metrics: this.metrics,
       });
+    } finally {
+      this.abortController = null;
     }
   }
 
@@ -531,6 +581,7 @@ class AudioManager {
             method: "POST",
             headers: requestHeaders,
             body: formData,
+            signal: this.abortController?.signal,
           });
           metrics?.mark("transcriptionResponse");
         } catch (fetchError: any) {
@@ -602,6 +653,10 @@ class AudioManager {
     this.metrics.setFlag("mode", "streaming");
     this.metrics.mark("streamingStart");
 
+    // Track warm connection availability before connect (will be updated after)
+    const hadWarmConnection = WarmConnectionPool.hasWarmConnection();
+    this.metrics.setFlag("hadWarmConnection", hadWarmConnection);
+
     // Set up streaming service callbacks
     StreamingTranscriptionService.setCallbacks({
       onInterimResult: (text: string) => {
@@ -619,12 +674,37 @@ class AudioManager {
       },
       onStateChange: (state: StreamingState) => {
         this.onStreamingStateChange?.(state);
+        // Handle reconnecting state - pause PCM capture
+        if (state === "reconnecting" && this.pcmCapture) {
+          this.pcmCapture.pause();
+          void debugLogger.log("PCM_PAUSED_FOR_RECONNECTION");
+        }
       },
       onSpeechStarted: () => {
         this.metrics?.mark("speechStarted");
       },
       onSpeechEnded: () => {
         this.metrics?.mark("speechEnded");
+      },
+      onReconnecting: (attempt: number, maxAttempts: number) => {
+        this.metrics?.mark("reconnectAttempt", { attempt, maxAttempts });
+        this.onReconnecting?.(attempt, maxAttempts);
+        void debugLogger.log("WEBSOCKET_RECONNECTING", {
+          attempt,
+          maxAttempts,
+        });
+      },
+      onReconnected: () => {
+        this.metrics?.mark("reconnected");
+        this.onReconnected?.();
+        // Resume PCM capture and flush buffered audio
+        if (this.pcmCapture?.isPausedState()) {
+          const bufferedChunks = this.pcmCapture.resume();
+          this.flushBufferedAudio(bufferedChunks);
+          void debugLogger.log("PCM_RESUMED_AFTER_RECONNECTION", {
+            bufferedChunks: bufferedChunks.length,
+          });
+        }
       },
     });
 
@@ -635,6 +715,14 @@ class AudioManager {
       await StreamingTranscriptionService.connect(apiKey, "stt:ppq-voice");
       this.streamingMode = true;
       this.metrics.mark("streamingConnected");
+
+      // Record whether a warm connection was actually used
+      this.usedWarmConnection =
+        StreamingTranscriptionService.didUseWarmConnection();
+      this.metrics.setFlag("usedWarmConnection", this.usedWarmConnection);
+
+      // Pre-warm next connection in background for faster subsequent recordings
+      void WarmConnectionPool.warmConnection(apiKey, "stt:ppq-voice");
     } catch (error: any) {
       this.metrics?.setError(`streaming_connect_failed: ${error.message}`);
       void debugLogger.log("STREAMING_CONNECT_ERROR", {
@@ -660,12 +748,20 @@ class AudioManager {
     // Handle audio device disconnection (AirPods, Bluetooth, etc.)
     this.pcmCapture.setOnTrackEnded(() => {
       void debugLogger.log("AUDIO_DEVICE_DISCONNECTED");
-      this.stopPCMCapture();
-      this.onError?.({
-        title: "Audio Device Disconnected",
-        description: "Your microphone was disconnected.",
-      });
-      if (this.streamingMode) this.cancelStreaming();
+      this.onDeviceDisconnected?.();
+
+      // Attempt device recovery instead of immediately canceling
+      if (this.streamingMode && this.getNewStream) {
+        void this.handleDeviceDisconnection();
+      } else {
+        // No recovery possible - cancel streaming
+        this.stopPCMCapture();
+        this.onError?.({
+          title: "Audio Device Disconnected",
+          description: "Your microphone was disconnected.",
+        });
+        if (this.streamingMode) this.cancelStreaming();
+      }
     });
 
     try {
@@ -689,6 +785,103 @@ class AudioManager {
       });
       throw error;
     }
+  }
+
+  /**
+   * Handle audio device disconnection with recovery attempt.
+   * Pauses PCM capture, attempts to acquire new stream, and resumes.
+   */
+  private async handleDeviceDisconnection(): Promise<void> {
+    if (this.isRecoveringDevice || !this.pcmCapture || !this.getNewStream) {
+      return;
+    }
+
+    this.isRecoveringDevice = true;
+    this.onDeviceRecoveryStarted?.();
+    this.metrics?.mark("deviceRecoveryStarted");
+
+    void debugLogger.log("DEVICE_RECOVERY_STARTING");
+
+    // Pause PCM capture (continues buffering)
+    this.pcmCapture.pause();
+
+    const recovered = await this.attemptDeviceRecovery();
+
+    if (recovered) {
+      this.onDeviceRecovered?.();
+      this.metrics?.mark("deviceRecovered");
+
+      // Resume PCM capture and flush buffered audio
+      const bufferedChunks = this.pcmCapture.resume();
+      this.flushBufferedAudio(bufferedChunks);
+
+      void debugLogger.log("DEVICE_RECOVERY_SUCCESS", {
+        bufferedChunks: bufferedChunks.length,
+      });
+    } else {
+      this.onDeviceRecoveryFailed?.();
+      this.metrics?.mark("deviceRecoveryFailed");
+      this.metrics?.setError("device_recovery_failed");
+
+      void debugLogger.log("DEVICE_RECOVERY_FAILED");
+
+      // Recovery failed - cancel streaming
+      this.stopPCMCapture();
+      this.onError?.({
+        title: "Device Recovery Failed",
+        description:
+          "Could not reconnect to audio device. Recording has been stopped.",
+      });
+      this.cancelStreaming();
+    }
+
+    this.isRecoveringDevice = false;
+  }
+
+  /**
+   * Attempt to recover audio device by acquiring a new stream.
+   */
+  private async attemptDeviceRecovery(): Promise<boolean> {
+    if (!this.getNewStream || !this.pcmCapture) {
+      return false;
+    }
+
+    for (
+      let attempt = 0;
+      attempt < DEVICE_RECOVERY_CONFIG.MAX_RECOVERY_ATTEMPTS;
+      attempt++
+    ) {
+      void debugLogger.log("DEVICE_RECOVERY_ATTEMPT", {
+        attempt: attempt + 1,
+        maxAttempts: DEVICE_RECOVERY_CONFIG.MAX_RECOVERY_ATTEMPTS,
+      });
+
+      // Wait before retry (except first attempt)
+      if (attempt > 0) {
+        await new Promise((r) =>
+          setTimeout(r, DEVICE_RECOVERY_CONFIG.RECOVERY_INTERVAL_MS),
+        );
+      }
+
+      try {
+        const newStream = await this.getNewStream();
+        await this.pcmCapture.replaceStream(newStream);
+
+        void debugLogger.log("DEVICE_RECOVERY_STREAM_REPLACED", {
+          attempt: attempt + 1,
+          streamId: newStream.id,
+        });
+
+        return true;
+      } catch (error) {
+        void debugLogger.log("DEVICE_RECOVERY_ATTEMPT_FAILED", {
+          attempt: attempt + 1,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+
+    return false;
   }
 
   /**
@@ -719,7 +912,15 @@ class AudioManager {
    * Flush buffered audio chunks to the streaming service.
    */
   private flushBufferedAudio(bufferedChunks: ArrayBuffer[]): void {
-    if (!this.streamingMode || bufferedChunks.length === 0) {
+    if (bufferedChunks.length === 0) {
+      return;
+    }
+
+    if (!this.streamingMode) {
+      void debugLogger.log("FLUSH_SKIPPED_NOT_STREAMING", {
+        chunks: bufferedChunks.length,
+        totalBytes: bufferedChunks.reduce((sum, c) => sum + c.byteLength, 0),
+      });
       return;
     }
 
@@ -747,6 +948,16 @@ class AudioManager {
   }
 
   /**
+   * Stop PCM audio capture gracefully, waiting for final buffer to flush.
+   */
+  private async stopPCMCaptureAndFlush(): Promise<void> {
+    if (this.pcmCapture) {
+      await this.pcmCapture.stopAndFlush();
+      this.pcmCapture = null;
+    }
+  }
+
+  /**
    * Check if PCM capture is active.
    */
   isPCMCaptureActive(): boolean {
@@ -763,13 +974,9 @@ class AudioManager {
     this.metrics?.mark("transcriptionRequestStart");
     this.metrics?.setFlag("transcriptionRequestStartedAtEpochMs", Date.now());
 
-    // Wait for the last PCM buffer(s) to be processed and sent to the server.
-    // At 16kHz with 2048-sample buffers each cycle is ~128ms; we wait for two
-    // full cycles to cover processing jitter and Bluetooth latency.
-    await new Promise((r) => setTimeout(r, 300));
-
-    // Tear down the capture pipeline — all buffered audio has been sent.
-    this.stopPCMCapture();
+    // Gracefully stop PCM capture, waiting for the final buffer to flush.
+    // This ensures all audio in the ScriptProcessorNode pipeline gets sent.
+    await this.stopPCMCaptureAndFlush();
 
     // Only NOW tell the server we're done sending audio.  Because WebSocket
     // messages are ordered, every audio chunk is guaranteed to arrive at the
@@ -823,6 +1030,13 @@ class AudioManager {
 
       return processedText;
     } catch (error: any) {
+      // Don't show error for user-initiated cancellation
+      if (error.name === "AbortError") {
+        void debugLogger.log("STREAMING_ABORTED_BY_USER");
+        this.streamingMode = false;
+        return "";
+      }
+
       this.metrics?.setError(`streaming_stop_failed: ${error.message}`);
       this.streamingMode = false;
 
@@ -857,6 +1071,42 @@ class AudioManager {
       this.metrics?.setFlag("streamingCancelled", true);
       void debugLogger.log("STREAMING_CANCELLED");
     }
+  }
+
+  /**
+   * Abort any in-progress connection or streaming session.
+   * Unlike cancelStreaming(), this works even during the connection phase
+   * before streamingMode is set to true.
+   */
+  abortConnection(): void {
+    // Capture state before resetting for accurate logging
+    const wasStreaming = this.streamingMode;
+
+    // Stop PCM capture if active
+    this.stopPCMCapture();
+
+    // Disconnect WebSocket regardless of streamingMode state
+    // This handles the case where connect() is in progress but not complete
+    StreamingTranscriptionService.disconnect();
+
+    this.streamingMode = false;
+    this.metrics?.setFlag("connectionAborted", true);
+    void debugLogger.log("CONNECTION_ABORTED", { wasStreaming });
+  }
+
+  cancelProcessing(): void {
+    if (this.abortController) {
+      this.abortController.abort();
+      this.abortController = null;
+      this.metrics?.setFlag("processingCancelled", true);
+      void debugLogger.log("PROCESSING_CANCELLED");
+    }
+    // Also cancel streaming if active
+    if (this.streamingMode) {
+      this.cancelStreaming();
+    }
+    // Cancel reasoning service if it's processing
+    ReasoningService.cancel();
   }
 
   async safePaste(text: string) {
@@ -912,6 +1162,52 @@ class AudioManager {
     this.onTranscriptionComplete = null;
     this.onInterimResult = null;
     this.onStreamingStateChange = null;
+    this.onDeviceDisconnected = null;
+    this.onDeviceRecoveryStarted = null;
+    this.onDeviceRecovered = null;
+    this.onDeviceRecoveryFailed = null;
+    this.onReconnecting = null;
+    this.onReconnected = null;
+    this.getNewStream = null;
+    this.isRecoveringDevice = false;
+  }
+
+  /**
+   * Check if device recovery is in progress.
+   */
+  isRecovering(): boolean {
+    return this.isRecoveringDevice;
+  }
+
+  /**
+   * Check if a warm connection was used for this session.
+   */
+  didUseWarmConnection(): boolean {
+    return this.usedWarmConnection;
+  }
+
+  /**
+   * Pre-warm a connection for faster future recordings.
+   * Call this on app focus/foreground.
+   */
+  static async warmConnection(): Promise<void> {
+    try {
+      const apiKey = await apiKeyManager.getApiKey();
+      if (apiKey) {
+        await WarmConnectionPool.warmConnection(apiKey, "stt:ppq-voice");
+      }
+    } catch (error) {
+      void debugLogger.log("WARM_CONNECTION_FAILED", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  /**
+   * Clean up all warm connections.
+   */
+  static cleanupWarmConnections(): void {
+    WarmConnectionPool.cleanup();
   }
 }
 

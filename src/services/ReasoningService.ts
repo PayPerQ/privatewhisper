@@ -25,6 +25,7 @@ const debugLogger = createDebugLogger("reasoning");
 
 class ReasoningService {
   private isProcessing = false;
+  private abortController: AbortController | null = null;
 
   private calculateMaxTokens(
     textLength: number,
@@ -42,6 +43,14 @@ class ReasoningService {
     } catch {
       return false;
     }
+  }
+
+  cancel(): void {
+    if (this.abortController) {
+      this.abortController.abort();
+      this.abortController = null;
+    }
+    this.isProcessing = false;
   }
 
   private buildRequestBody(
@@ -286,6 +295,7 @@ You are processing transcribed speech, so expect imperfect input. Your goal is t
     }
 
     this.isProcessing = true;
+    this.abortController = new AbortController();
 
     try {
       const apiKey = await apiKeyManager.getApiKey();
@@ -310,6 +320,7 @@ You are processing transcribed speech, so expect imperfect input. Your goal is t
             Authorization: `Bearer ${apiKey}`,
           },
           body: JSON.stringify(requestBody),
+          signal: this.abortController?.signal,
         });
 
         if (!res.ok) {
@@ -369,6 +380,7 @@ You are processing transcribed speech, so expect imperfect input. Your goal is t
       throw error;
     } finally {
       this.isProcessing = false;
+      this.abortController = null;
     }
   }
 }

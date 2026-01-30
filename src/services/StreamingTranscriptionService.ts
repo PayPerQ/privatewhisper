@@ -1,12 +1,10 @@
-import { API_ENDPOINTS } from "../config/constants";
+import { API_ENDPOINTS, CONNECTION_CONFIG } from "../config/constants";
 import createDebugLogger from "../utils/debugLoggerRenderer";
+import WarmConnectionPool from "./WarmConnectionPool";
 
 const debugLogger = createDebugLogger("streaming-transcription");
 
-// Increased timeout for Bluetooth devices (AirPods) which have higher connection latency
-const CONNECTION_TIMEOUT_MS = 20000;
-
-const FINAL_RESULT_WAIT_MS = 1500;
+const FINAL_RESULT_WAIT_MS = 500;
 
 export type StreamingState =
   | "disconnected"
@@ -14,6 +12,7 @@ export type StreamingState =
   | "authenticating"
   | "ready"
   | "streaming"
+  | "reconnecting"
   | "closed"
   | "error";
 
@@ -24,6 +23,8 @@ export interface StreamingCallbacks {
   onStateChange?: (state: StreamingState) => void;
   onSpeechStarted?: () => void;
   onSpeechEnded?: () => void;
+  onReconnecting?: (attempt: number, maxAttempts: number) => void;
+  onReconnected?: () => void;
 }
 
 interface ServerMessage {
@@ -35,7 +36,8 @@ interface ServerMessage {
     | "speech_ended"
     | "error"
     | "closed"
-    | "config_ack";
+    | "config_ack"
+    | "pong";
   success?: boolean;
   error?: string;
   message?: string;
@@ -51,9 +53,24 @@ class StreamingTranscriptionService {
   private accumulatedText = "";
   private state: StreamingState = "disconnected";
   private reconnectAttempts = 0;
-  private maxReconnectAttempts = 3;
+  private maxReconnectAttempts = CONNECTION_CONFIG.MAX_RECONNECT_ATTEMPTS;
   private language: string = "multi";
   private finalized = false;
+
+  // Cached credentials for reconnection
+  private cachedApiKey: string = "";
+  private cachedToolId: string | undefined;
+
+  // Keepalive mechanism
+  private keepaliveInterval: ReturnType<typeof setInterval> | null = null;
+  private lastPongTime: number = 0;
+  private isReconnecting: boolean = false;
+
+  // Track if we're in the middle of an active streaming session
+  private wasStreaming: boolean = false;
+
+  // Track if current connection came from warm pool
+  private usedWarmConnection: boolean = false;
 
   setCallbacks(callbacks: StreamingCallbacks): void {
     this.callbacks = callbacks;
@@ -72,11 +89,339 @@ class StreamingTranscriptionService {
   }
 
   private setState(newState: StreamingState): void {
+    const previousState = this.state;
     this.state = newState;
     this.callbacks.onStateChange?.(newState);
+
+    void debugLogger.log("STATE_CHANGE", {
+      from: previousState,
+      to: newState,
+    });
+  }
+
+  private startKeepalive(): void {
+    this.stopKeepalive();
+    this.lastPongTime = Date.now();
+
+    this.keepaliveInterval = setInterval(() => {
+      if (this.ws?.readyState === WebSocket.OPEN) {
+        // Check for stale connection (no pong received recently)
+        const timeSinceLastPong = Date.now() - this.lastPongTime;
+        if (timeSinceLastPong > CONNECTION_CONFIG.KEEPALIVE_TIMEOUT_MS) {
+          void debugLogger.log("KEEPALIVE_TIMEOUT", {
+            timeSinceLastPong,
+            threshold: CONNECTION_CONFIG.KEEPALIVE_TIMEOUT_MS,
+          });
+          this.handleStaleConnection();
+          return;
+        }
+
+        // Send ping
+        try {
+          this.ws.send(JSON.stringify({ type: "ping" }));
+          void debugLogger.log("KEEPALIVE_PING_SENT");
+        } catch (error) {
+          void debugLogger.log("KEEPALIVE_PING_ERROR", { error });
+        }
+      }
+    }, CONNECTION_CONFIG.KEEPALIVE_INTERVAL_MS);
+
+    void debugLogger.log("KEEPALIVE_STARTED", {
+      interval: CONNECTION_CONFIG.KEEPALIVE_INTERVAL_MS,
+      timeout: CONNECTION_CONFIG.KEEPALIVE_TIMEOUT_MS,
+    });
+  }
+
+  private stopKeepalive(): void {
+    if (this.keepaliveInterval) {
+      clearInterval(this.keepaliveInterval);
+      this.keepaliveInterval = null;
+      void debugLogger.log("KEEPALIVE_STOPPED");
+    }
+  }
+
+  private handleStaleConnection(): void {
+    void debugLogger.log("STALE_CONNECTION_DETECTED");
+    this.stopKeepalive();
+
+    // Close the stale WebSocket
+    if (this.ws) {
+      try {
+        this.ws.close();
+      } catch {
+        // Ignore close errors on stale connection
+      }
+      this.ws = null;
+    }
+
+    // Attempt reconnection if we were actively streaming
+    if (
+      this.wasStreaming &&
+      this.reconnectAttempts < this.maxReconnectAttempts
+    ) {
+      void this.attemptReconnect();
+    } else {
+      this.setState("error");
+      this.callbacks.onError?.("Connection lost (keepalive timeout)");
+    }
+  }
+
+  private async attemptReconnect(): Promise<boolean> {
+    if (this.isReconnecting) {
+      void debugLogger.log("RECONNECT_ALREADY_IN_PROGRESS");
+      return false;
+    }
+
+    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+      void debugLogger.log("RECONNECT_MAX_ATTEMPTS_REACHED", {
+        attempts: this.reconnectAttempts,
+        max: this.maxReconnectAttempts,
+      });
+      this.setState("error");
+      this.callbacks.onError?.(
+        `Connection lost after ${this.maxReconnectAttempts} reconnection attempts`,
+      );
+      return false;
+    }
+
+    this.isReconnecting = true;
+    this.setState("reconnecting");
+
+    const backoffMs = Math.min(
+      CONNECTION_CONFIG.INITIAL_BACKOFF_MS *
+        Math.pow(CONNECTION_CONFIG.BACKOFF_MULTIPLIER, this.reconnectAttempts),
+      CONNECTION_CONFIG.MAX_BACKOFF_MS,
+    );
+
+    this.reconnectAttempts++;
+    this.callbacks.onReconnecting?.(
+      this.reconnectAttempts,
+      this.maxReconnectAttempts,
+    );
+
+    void debugLogger.log("RECONNECT_ATTEMPTING", {
+      attempt: this.reconnectAttempts,
+      maxAttempts: this.maxReconnectAttempts,
+      backoffMs,
+    });
+
+    await new Promise((r) => setTimeout(r, backoffMs));
+
+    try {
+      await this.connectInternal(this.cachedApiKey, this.cachedToolId);
+      this.isReconnecting = false;
+      this.callbacks.onReconnected?.();
+
+      void debugLogger.log("RECONNECT_SUCCESS", {
+        attempt: this.reconnectAttempts,
+      });
+
+      return true;
+    } catch (error) {
+      void debugLogger.log("RECONNECT_FAILED", {
+        attempt: this.reconnectAttempts,
+        error: error instanceof Error ? error.message : String(error),
+      });
+
+      this.isReconnecting = false;
+
+      // Try again if we haven't exceeded max attempts
+      if (this.reconnectAttempts < this.maxReconnectAttempts) {
+        return this.attemptReconnect();
+      }
+
+      this.setState("error");
+      this.callbacks.onError?.(
+        `Reconnection failed after ${this.maxReconnectAttempts} attempts`,
+      );
+      return false;
+    }
   }
 
   async connect(apiKey: string, toolId?: string): Promise<void> {
+    // Abort any existing connection before starting a new one
+    // This prevents orphan connections and state corruption
+    if (this.ws) {
+      void debugLogger.log("ABORTING_EXISTING_CONNECTION", {
+        readyState: this.ws.readyState,
+        state: this.state,
+      });
+      this.stopKeepalive();
+      try {
+        this.ws.close();
+      } catch {
+        // Ignore close errors
+      }
+      this.ws = null;
+    }
+
+    // Cache credentials for potential reconnection
+    this.cachedApiKey = apiKey;
+    this.cachedToolId = toolId;
+    this.reconnectAttempts = 0;
+    this.wasStreaming = false;
+    this.usedWarmConnection = false;
+    this.accumulatedText = "";
+    this.finalized = false;
+    this.isReconnecting = false;
+
+    // Try to acquire a pre-warmed connection first
+    const warmWs = WarmConnectionPool.acquire();
+    if (warmWs) {
+      this.usedWarmConnection = true;
+      return this.useWarmConnection(warmWs);
+    }
+
+    return this.connectInternal(apiKey, toolId);
+  }
+
+  /**
+   * Use an already-authenticated warm connection from the pool.
+   */
+  private useWarmConnection(ws: WebSocket): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (ws.readyState !== WebSocket.OPEN) {
+        void debugLogger.log("WARM_CONNECTION_NOT_OPEN", {
+          readyState: ws.readyState,
+        });
+        this.usedWarmConnection = false;
+        // Fall back to creating a new connection
+        return this.connectInternal(this.cachedApiKey, this.cachedToolId)
+          .then(resolve)
+          .catch(reject);
+      }
+
+      void debugLogger.log("USING_WARM_CONNECTION");
+
+      this.ws = ws;
+      this.accumulatedText = "";
+      this.finalized = false;
+
+      // Set up event handlers for the warm connection
+      this.ws.onmessage = (event: MessageEvent) => {
+        try {
+          const msg: ServerMessage = JSON.parse(event.data);
+          // Warm connection is already authenticated, handle messages directly
+          this.handleStreamingMessage(msg);
+        } catch (error) {
+          void debugLogger.log("MESSAGE_PARSE_ERROR", {
+            error,
+            data: event.data,
+          });
+        }
+      };
+
+      this.ws.onerror = (event: Event) => {
+        void debugLogger.log("WEBSOCKET_ERROR", { event });
+        this.stopKeepalive();
+
+        if (
+          this.wasStreaming &&
+          this.reconnectAttempts < this.maxReconnectAttempts
+        ) {
+          this.ws = null;
+          void this.attemptReconnect();
+          return;
+        }
+
+        this.setState("error");
+        this.callbacks.onError?.("WebSocket error");
+      };
+
+      this.ws.onclose = (event: CloseEvent) => {
+        void debugLogger.log("WEBSOCKET_CLOSED", {
+          code: event.code,
+          reason: event.reason,
+          wasClean: event.wasClean,
+          wasStreaming: this.wasStreaming,
+        });
+
+        this.stopKeepalive();
+
+        const shouldReconnect =
+          this.wasStreaming &&
+          !event.wasClean &&
+          this.state !== "closed" &&
+          this.state !== "error" &&
+          this.state !== "disconnected" &&
+          this.reconnectAttempts < this.maxReconnectAttempts;
+
+        if (shouldReconnect) {
+          this.ws = null;
+          void this.attemptReconnect();
+          return;
+        }
+
+        if (this.state !== "closed" && this.state !== "error") {
+          this.setState("closed");
+        }
+      };
+
+      // Warm connection is already ready - start keepalive and resolve
+      this.startKeepalive();
+      this.setState("ready");
+
+      if (this.language !== "multi") {
+        this.ws.send(JSON.stringify({ type: "config", language: this.language }));
+      }
+
+      resolve();
+    });
+  }
+
+  /**
+   * Handle messages during active streaming (after authentication).
+   */
+  private handleStreamingMessage(msg: ServerMessage): void {
+    switch (msg.type) {
+      case "pong":
+        this.lastPongTime = Date.now();
+        break;
+
+      case "transcript":
+        if (msg.text) {
+          if (msg.is_final) {
+            this.accumulatedText += msg.text + " ";
+            this.callbacks.onFinalResult?.(this.accumulatedText.trim());
+          } else {
+            const interimDisplay = this.accumulatedText + msg.text;
+            this.callbacks.onInterimResult?.(interimDisplay);
+          }
+        }
+        break;
+
+      case "speech_started":
+        if (this.state === "ready") {
+          this.setState("streaming");
+        }
+        this.wasStreaming = true;
+        this.callbacks.onSpeechStarted?.();
+        break;
+
+      case "speech_ended":
+        this.callbacks.onSpeechEnded?.();
+        break;
+
+      case "error":
+        void debugLogger.log("SERVER_ERROR", { message: msg.message });
+        this.callbacks.onError?.(msg.message || "Unknown server error");
+        break;
+
+      case "closed":
+        this.stopKeepalive();
+        this.setState("closed");
+        break;
+
+      case "config_ack":
+        void debugLogger.log("CONFIG_ACKNOWLEDGED");
+        break;
+    }
+  }
+
+  private async connectInternal(
+    apiKey: string,
+    toolId?: string,
+  ): Promise<void> {
     return new Promise((resolve, reject) => {
       if (this.ws?.readyState === WebSocket.OPEN) {
         void debugLogger.log("ALREADY_CONNECTED");
@@ -84,7 +429,10 @@ class StreamingTranscriptionService {
         return;
       }
 
-      this.accumulatedText = "";
+      // Don't reset accumulated text on reconnection
+      if (!this.isReconnecting) {
+        this.accumulatedText = "";
+      }
       this.finalized = false;
       this.setState("connecting");
 
@@ -95,6 +443,7 @@ class StreamingTranscriptionService {
         hasApiKey: !!apiKey,
         apiKeyPrefix: apiKey ? `${apiKey.substring(0, 8)}...` : "none",
         toolId,
+        isReconnect: this.isReconnecting,
       });
 
       try {
@@ -113,7 +462,7 @@ class StreamingTranscriptionService {
           this.setState("error");
           reject(new Error("Connection timeout"));
         }
-      }, CONNECTION_TIMEOUT_MS);
+      }, CONNECTION_CONFIG.CONNECTION_TIMEOUT_MS);
 
       this.ws.onopen = () => {
         this.setState("authenticating");
@@ -145,9 +494,21 @@ class StreamingTranscriptionService {
       this.ws.onerror = (event: Event) => {
         void debugLogger.log("WEBSOCKET_ERROR", { event });
         clearTimeout(connectionTimeout);
+        this.stopKeepalive();
 
         const wasConnecting =
           this.state === "connecting" || this.state === "authenticating";
+
+        // If we were streaming and lost connection, attempt reconnection
+        if (
+          this.wasStreaming &&
+          !wasConnecting &&
+          this.reconnectAttempts < this.maxReconnectAttempts
+        ) {
+          this.ws = null;
+          void this.attemptReconnect();
+          return;
+        }
 
         this.setState("error");
 
@@ -165,9 +526,26 @@ class StreamingTranscriptionService {
           code: event.code,
           reason: event.reason,
           wasClean: event.wasClean,
+          wasStreaming: this.wasStreaming,
         });
 
         clearTimeout(connectionTimeout);
+        this.stopKeepalive();
+
+        // Don't attempt reconnection if it was a clean close or we initiated it
+        const shouldReconnect =
+          this.wasStreaming &&
+          !event.wasClean &&
+          this.state !== "closed" &&
+          this.state !== "error" &&
+          this.state !== "disconnected" &&
+          this.reconnectAttempts < this.maxReconnectAttempts;
+
+        if (shouldReconnect) {
+          this.ws = null;
+          void this.attemptReconnect();
+          return;
+        }
 
         if (this.state !== "closed" && this.state !== "error") {
           this.setState("closed");
@@ -184,6 +562,7 @@ class StreamingTranscriptionService {
     reject: (reason?: any) => void,
     connectionTimeout: ReturnType<typeof setTimeout>,
   ): void {
+    // Handle authentication-phase messages
     switch (msg.type) {
       case "auth_result":
         if (msg.success) {
@@ -191,16 +570,20 @@ class StreamingTranscriptionService {
         } else {
           void debugLogger.log("AUTH_FAILED", { error: msg.error });
           clearTimeout(connectionTimeout);
+          this.stopKeepalive();
           this.setState("error");
           this.callbacks.onError?.(msg.error || "Authentication failed");
           reject(new Error(msg.error || "Authentication failed"));
         }
-        break;
+        return;
 
       case "ready":
         clearTimeout(connectionTimeout);
         this.setState("ready");
         this.reconnectAttempts = 0;
+
+        // Start keepalive mechanism
+        this.startKeepalive();
 
         if (this.language !== "multi") {
           this.ws?.send(
@@ -209,54 +592,18 @@ class StreamingTranscriptionService {
         }
 
         resolve();
-        break;
-
-      case "transcript":
-        if (msg.text) {
-          if (msg.is_final) {
-            this.accumulatedText += msg.text + " ";
-            this.callbacks.onFinalResult?.(this.accumulatedText.trim());
-          } else {
-            // Interim result - show accumulated + current interim
-            const interimDisplay = this.accumulatedText + msg.text;
-            this.callbacks.onInterimResult?.(interimDisplay);
-          }
-        }
-        break;
-
-      case "speech_started":
-        if (this.state === "ready") {
-          this.setState("streaming");
-        }
-        this.callbacks.onSpeechStarted?.();
-        break;
-
-      case "speech_ended":
-        void debugLogger.log("SPEECH_ENDED");
-        this.callbacks.onSpeechEnded?.();
-        break;
-
-      case "error":
-        void debugLogger.log("SERVER_ERROR", { message: msg.message });
-        this.callbacks.onError?.(msg.message || "Server error");
-        break;
-
-      case "closed":
-        void debugLogger.log("SERVER_CLOSED");
-        this.setState("closed");
-        break;
-
-      case "config_ack":
-        // Config acknowledged by server
-        break;
-
-      default:
-        void debugLogger.log("UNKNOWN_MESSAGE", { msg });
+        return;
     }
+
+    // Delegate all post-authentication messages to the shared handler
+    this.handleStreamingMessage(msg);
   }
 
   sendAudio(chunk: ArrayBuffer): void {
     if (this.ws?.readyState === WebSocket.OPEN) {
+      // Mark that we're actively streaming
+      this.wasStreaming = true;
+
       // Convert ArrayBuffer to base64 efficiently using chunked approach
       // This avoids stack overflow on large buffers and is faster than string concatenation
       const uint8Array = new Uint8Array(chunk);
@@ -272,10 +619,16 @@ class StreamingTranscriptionService {
       const base64 = btoa(binary);
 
       this.ws.send(JSON.stringify({ type: "audio", data: base64 }));
+    } else if (this.state === "reconnecting") {
+      // During reconnection, audio will be buffered by PCMAudioCapture
+      void debugLogger.log("SEND_AUDIO_DURING_RECONNECT", {
+        state: this.state,
+      });
     } else {
       void debugLogger.log("SEND_AUDIO_FAILED", {
         readyState: this.ws?.readyState,
         expectedState: WebSocket.OPEN,
+        currentState: this.state,
       });
     }
   }
@@ -293,6 +646,10 @@ class StreamingTranscriptionService {
     void debugLogger.log("CLOSING", {
       accumulatedText: this.accumulatedText.trim(),
     });
+
+    // Mark that we're no longer actively streaming (prevent reconnection attempts)
+    this.wasStreaming = false;
+    this.stopKeepalive();
 
     // Finalize if not already done (idempotent)
     this.finalize();
@@ -340,6 +697,10 @@ class StreamingTranscriptionService {
   disconnect(): void {
     void debugLogger.log("DISCONNECTING");
 
+    this.wasStreaming = false;
+    this.usedWarmConnection = false;
+    this.stopKeepalive();
+
     if (this.ws) {
       this.ws.close();
       this.ws = null;
@@ -347,11 +708,25 @@ class StreamingTranscriptionService {
 
     this.accumulatedText = "";
     this.finalized = false;
+    this.cachedApiKey = "";
+    this.cachedToolId = undefined;
     this.setState("disconnected");
   }
 
   isConnected(): boolean {
     return this.ws?.readyState === WebSocket.OPEN;
+  }
+
+  isInReconnectingState(): boolean {
+    return this.state === "reconnecting" || this.isReconnecting;
+  }
+
+  getReconnectAttempts(): number {
+    return this.reconnectAttempts;
+  }
+
+  didUseWarmConnection(): boolean {
+    return this.usedWarmConnection;
   }
 }
 

@@ -75,89 +75,95 @@ const registerBuiltInMicCacheListener = () => {
   builtInMicListenerRegistered = true;
 };
 
-// Load from storage immediately on module load (after all helpers are defined)
 loadBuiltInMicCacheFromStorage();
 
-/**
- * Proactively warm the built-in mic cache on startup.
- * This detects and caches the built-in mic device ID early (if permission is granted),
- * ensuring it's ready for the first recording without relying on lazy initialization.
- */
 const warmBuiltInMicCache = async () => {
   if (builtInMicCacheWarmedUp) return;
   builtInMicCacheWarmedUp = true;
 
-  // If cache is already valid (from storage), no need to warm up
-  if (builtInMicCache.valid && builtInMicCache.deviceId) {
-    return;
-  }
-
-  // Check if we already have mic permission (without prompting)
+  let hasPermission = false;
   try {
     const permissionStatus = await navigator.permissions?.query?.({
       name: "microphone",
     });
-    if (permissionStatus?.state !== "granted") {
-      // Don't have permission yet - skip warmup (will happen on first recording)
-      return;
-    }
-  } catch {
-    // Permissions API not available - try enumerating anyway
+    hasPermission = permissionStatus?.state === "granted";
+  } catch {}
+
+  if (!hasPermission) {
+    void audioDeviceLogger.log("MIC_WARMUP_SKIPPED", {
+      reason: "no_permission",
+    });
+    return;
   }
 
-  // Permission granted - enumerate devices to find and cache built-in mic
   try {
     const devices = await navigator.mediaDevices?.enumerateDevices?.();
     if (!devices) return;
 
-    const builtInDevice = devices.find(
-      (device) =>
-        device.kind === "audioinput" &&
-        device.label &&
-        BUILT_IN_MIC_LABEL.test(device.label) &&
-        !INVALID_DEVICE_IDS.has(device.deviceId),
+    const audioInputs = devices.filter(
+      (d) =>
+        d.kind === "audioinput" &&
+        d.label &&
+        !INVALID_DEVICE_IDS.has(d.deviceId),
+    );
+
+    if (builtInMicCache.valid && builtInMicCache.deviceId) {
+      const cachedDeviceExists = audioInputs.some(
+        (d) => d.deviceId === builtInMicCache.deviceId,
+      );
+
+      if (cachedDeviceExists) {
+        void audioDeviceLogger.log("MIC_CACHE_VERIFIED", {
+          deviceId: builtInMicCache.deviceId,
+        });
+        return;
+      }
+
+      void audioDeviceLogger.log("MIC_CACHE_STALE", {
+        deviceId: builtInMicCache.deviceId,
+      });
+      invalidateBuiltInMicCache({ clearStorage: true });
+    }
+
+    const builtInDevice = audioInputs.find((device) =>
+      BUILT_IN_MIC_LABEL.test(device.label),
     );
 
     if (builtInDevice?.deviceId) {
       builtInMicCache.deviceId = builtInDevice.deviceId;
       builtInMicCache.valid = true;
       persistBuiltInMicCache();
-      console.log(
-        "[Audio] Built-in mic cache warmed:",
-        builtInDevice.label,
-        builtInDevice.deviceId,
-      );
+      void audioDeviceLogger.log("MIC_CACHED", {
+        label: builtInDevice.label,
+        deviceId: builtInDevice.deviceId,
+      });
+    } else {
+      void audioDeviceLogger.log("MIC_NOT_FOUND", {
+        available: audioInputs.map((d) => d.label),
+      });
     }
   } catch (e) {
-    // Enumeration failed - will happen naturally on first recording
-    console.warn("[Audio] Built-in mic warmup failed:", e.message);
+    void audioDeviceLogger.log("MIC_WARMUP_FAILED", {
+      error: e?.message || String(e),
+    });
   }
 };
 
-/**
- * Audio constraints optimized for dictation.
- * Disabling echo cancellation, noise suppression, and auto gain control
- * can help prevent Bluetooth profile switching on some devices,
- * and gives us more control over the raw audio.
- */
 const DICTATION_AUDIO_CONSTRAINTS = {
   echoCancellation: false,
   noiseSuppression: false,
   autoGainControl: false,
-  // Prefer 16kHz sample rate to match transcription service
   sampleRate: { ideal: 16000 },
   channelCount: { ideal: 1 },
 };
 
-/**
- * Get audio stream with fallback for device compatibility.
- * Tries strict constraints first for quality, falls back to basic if device can't comply.
- */
 async function getUserMediaWithFallback(constraints) {
   try {
     return await navigator.mediaDevices.getUserMedia({ audio: constraints });
   } catch (e) {
-    console.warn("[Audio] Strict constraints failed, trying basic:", e.message);
+    void audioDeviceLogger.log("MIC_CONSTRAINTS_FALLBACK", {
+      error: e?.message || String(e),
+    });
     return navigator.mediaDevices.getUserMedia({ audio: true });
   }
 }
@@ -201,15 +207,23 @@ async function getBuiltInMicrophoneStream() {
     !INVALID_DEVICE_IDS.has(builtInMicCache.deviceId)
   ) {
     try {
+      void audioDeviceLogger.log("MIC_USING_CACHED", {
+        deviceId: builtInMicCache.deviceId,
+      });
       return await getUserMediaWithFallback({
         deviceId: { exact: builtInMicCache.deviceId },
         ...DICTATION_AUDIO_CONSTRAINTS,
       });
-    } catch {
+    } catch (e) {
+      void audioDeviceLogger.log("MIC_CACHED_FAILED", {
+        deviceId: builtInMicCache.deviceId,
+        error: e?.message || String(e),
+      });
       invalidateBuiltInMicCache({ clearStorage: true });
     }
   }
 
+  void audioDeviceLogger.log("MIC_DETECTING");
   const initialStream = await getUserMediaWithFallback(
     DICTATION_AUDIO_CONSTRAINTS,
   );
@@ -225,28 +239,37 @@ async function getBuiltInMicrophoneStream() {
     return initialStream;
   }
 
-  const builtInDevice = devices.find(
-    (device) =>
-      device.kind === "audioinput" && BUILT_IN_MIC_LABEL.test(device.label),
+  const audioInputs = devices.filter((d) => d.kind === "audioinput");
+  void audioDeviceLogger.log("MIC_AVAILABLE", {
+    devices: audioInputs.map((d) => ({ label: d.label, deviceId: d.deviceId })),
+  });
+
+  const builtInDevice = audioInputs.find((device) =>
+    BUILT_IN_MIC_LABEL.test(device.label),
   );
 
   if (
     !builtInDevice?.deviceId ||
     INVALID_DEVICE_IDS.has(builtInDevice.deviceId)
   ) {
+    void audioDeviceLogger.log("MIC_BUILTIN_NOT_FOUND");
     return initialStream;
   }
 
   builtInMicCache.deviceId = builtInDevice.deviceId;
   builtInMicCache.valid = true;
   persistBuiltInMicCache();
+  void audioDeviceLogger.log("MIC_CACHED", {
+    label: builtInDevice.label,
+    deviceId: builtInDevice.deviceId,
+  });
 
   const currentTrack = initialStream.getAudioTracks()[0];
   const currentDeviceId = currentTrack?.getSettings?.().deviceId;
-  if (currentDeviceId && currentDeviceId === builtInDevice.deviceId) {
+  if (currentDeviceId === builtInDevice.deviceId) {
     return initialStream;
   }
-  if (currentTrack?.label && currentTrack.label === builtInDevice.label) {
+  if (currentTrack?.label === builtInDevice.label) {
     return initialStream;
   }
 

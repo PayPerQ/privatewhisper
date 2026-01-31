@@ -284,7 +284,9 @@ async function getPreferredMicrophoneStream({
       return stream;
     } catch {
       // Fallback without exact device constraint
-      const stream = await getUserMediaWithFallback(DICTATION_AUDIO_CONSTRAINTS);
+      const stream = await getUserMediaWithFallback(
+        DICTATION_AUDIO_CONSTRAINTS,
+      );
       logStreamDeviceInfo(stream, "preferred_device_fallback");
       return stream;
     }
@@ -941,12 +943,8 @@ export default function App() {
     // Use the audioManager from startRecording if available (batch mode fallback)
     const audioManager = audioManagerRef.current;
     if (!audioManager) {
-      // This shouldn't happen, but handle gracefully
-      toast({
-        title: "Transcription Error",
-        description: "Audio manager not initialized",
-        variant: "destructive",
-      });
+      // This can happen during race conditions with rapid tap/cancel - silently ignore
+      // since the recording was effectively cancelled
       setIsProcessing(false);
       return;
     }

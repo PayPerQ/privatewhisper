@@ -388,7 +388,7 @@ async function startApp() {
       }
     });
 
-  globeKeyManager.on("key-up", (keyCode) => {
+    globeKeyManager.on("key-up", (keyCode) => {
       if (Number(keyCode) === FN_KEY_CODE) {
         handleGlobeUp();
         return;

@@ -77,8 +77,13 @@ class StreamingTranscriptionService {
   // Track if we've received ANY server response after starting to send audio.
   // If we're streaming but receive nothing within a timeout, connection is dead.
   private receivedResponseAfterStreaming = false;
-  private streamingResponseTimeoutId: ReturnType<typeof setTimeout> | null = null;
+  private streamingResponseTimeoutId: ReturnType<typeof setTimeout> | null =
+    null;
   private static readonly STREAMING_RESPONSE_TIMEOUT_MS = 5000; // 5 seconds
+
+  // Track if connection was intentionally aborted (e.g., rapid push-to-talk taps)
+  // Suppresses error callbacks when user cancels before connection completes
+  private aborted = false;
 
   setCallbacks(callbacks: StreamingCallbacks): void {
     this.callbacks = callbacks;
@@ -134,10 +139,16 @@ class StreamingTranscriptionService {
         }
 
         const timeSinceLastPong = Date.now() - this.lastPongTime;
-        if (timeSinceLastPong > CONNECTION_CONFIG.KEEPALIVE_INTERVAL_MS + CONNECTION_CONFIG.KEEPALIVE_TIMEOUT_MS) {
+        if (
+          timeSinceLastPong >
+          CONNECTION_CONFIG.KEEPALIVE_INTERVAL_MS +
+            CONNECTION_CONFIG.KEEPALIVE_TIMEOUT_MS
+        ) {
           void debugLogger.log("KEEPALIVE_TIMEOUT", {
             timeSinceLastPong,
-            threshold: CONNECTION_CONFIG.KEEPALIVE_INTERVAL_MS + CONNECTION_CONFIG.KEEPALIVE_TIMEOUT_MS,
+            threshold:
+              CONNECTION_CONFIG.KEEPALIVE_INTERVAL_MS +
+              CONNECTION_CONFIG.KEEPALIVE_TIMEOUT_MS,
           });
           this.handleStaleConnection();
           return;
@@ -326,7 +337,7 @@ class StreamingTranscriptionService {
             void debugLogger.log("TRANSCRIPT_FINAL", {
               text: msg.text,
               accumulatedBefore: this.accumulatedText.trim().slice(-50),
-              lastInterim: this.lastInterimText.slice(-50)
+              lastInterim: this.lastInterimText.slice(-50),
             });
             this.accumulatedText += msg.text + " ";
             // Don't clear lastInterimText here - wait for finalized to ensure
@@ -373,7 +384,7 @@ class StreamingTranscriptionService {
       case "finalized":
         void debugLogger.log("WS_FINALIZED", {
           accumulatedText: this.accumulatedText.trim().slice(-100),
-          lastInterimText: this.lastInterimText
+          lastInterimText: this.lastInterimText,
         });
         // If we have pending interim text, check if it contains content not yet in accumulated
         if (this.lastInterimText) {
@@ -382,18 +393,21 @@ class StreamingTranscriptionService {
 
           // Only add interim if it's not already contained in accumulated text
           // This handles the case where the final transcript was truncated
-          if (!accumulated.endsWith(interim) && !accumulated.includes(interim)) {
+          if (
+            !accumulated.endsWith(interim) &&
+            !accumulated.includes(interim)
+          ) {
             // Find if interim extends beyond accumulated (shares a common prefix/overlap)
             // For simplicity, if interim is longer and accumulated doesn't contain it, add it
             void debugLogger.log("ADDED_PENDING_INTERIM", {
               text: this.lastInterimText,
-              reason: "interim not found in accumulated"
+              reason: "interim not found in accumulated",
             });
             this.accumulatedText += this.lastInterimText + " ";
           } else {
             void debugLogger.log("SKIPPED_PENDING_INTERIM", {
               text: this.lastInterimText,
-              reason: "already in accumulated"
+              reason: "already in accumulated",
             });
           }
           this.lastInterimText = "";
@@ -422,6 +436,7 @@ class StreamingTranscriptionService {
         this.accumulatedText = "";
       }
       this.finalized = false;
+      this.aborted = false; // Reset aborted flag for new connection
       this.setState("connecting");
 
       const wsUrl = API_ENDPOINTS.PPQ_STREAMING_TRANSCRIPTION_WS;
@@ -480,9 +495,19 @@ class StreamingTranscriptionService {
       };
 
       this.ws.onerror = (event: Event) => {
-        void debugLogger.log("WEBSOCKET_ERROR", { event });
+        void debugLogger.log("WEBSOCKET_ERROR", {
+          event,
+          aborted: this.aborted,
+        });
         clearTimeout(connectionTimeout);
         this.stopKeepalive();
+
+        // Suppress errors if connection was intentionally aborted (e.g., rapid push-to-talk)
+        if (this.aborted) {
+          // Still reject the promise so it doesn't hang, but with a distinct error
+          reject(new Error("Connection aborted"));
+          return;
+        }
 
         const wasConnecting =
           this.state === "connecting" || this.state === "authenticating";
@@ -657,7 +682,9 @@ class StreamingTranscriptionService {
   }
 
   async close(): Promise<string> {
-    void debugLogger.log("WS_CLOSING", { accumulated: this.accumulatedText.trim().slice(0, 50) });
+    void debugLogger.log("WS_CLOSING", {
+      accumulated: this.accumulatedText.trim().slice(0, 50),
+    });
 
     // Mark that we're no longer actively streaming (prevent reconnection attempts)
     this.wasStreaming = false;
@@ -686,7 +713,10 @@ class StreamingTranscriptionService {
     this.finalizeResolver = null;
 
     const finalText = this.accumulatedText.trim();
-    void debugLogger.log("WS_FINAL_TEXT", { text: finalText.slice(0, 100), length: finalText.length });
+    void debugLogger.log("WS_FINAL_TEXT", {
+      text: finalText.slice(0, 100),
+      length: finalText.length,
+    });
 
     if (this.ws?.readyState === WebSocket.OPEN) {
       void debugLogger.log("WS_SEND", { type: "close" });
@@ -710,6 +740,8 @@ class StreamingTranscriptionService {
   disconnect(): void {
     void debugLogger.log("DISCONNECTING");
 
+    // Mark as aborted to suppress error callbacks from pending WebSocket events
+    this.aborted = true;
     this.wasStreaming = false;
     this.stopKeepalive();
 

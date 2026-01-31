@@ -15,6 +15,11 @@ const nowMs = () =>
     ? performance.now()
     : Date.now();
 
+// Module-level reference to track the active PCM capture instance globally.
+// This ensures stale captures from previous AudioManager instances are stopped
+// when a new recording starts, preventing orphan audio processing.
+let globalActivePcmCapture: PCMAudioCapture | null = null;
+
 type PipelineMetricsFlags = Record<string, unknown>;
 
 class PipelineMetrics {
@@ -728,7 +733,17 @@ class AudioManager {
     stream: MediaStream,
     bufferMode: boolean = false,
   ): Promise<void> {
+    // Stop any existing capture first - both on this instance AND globally.
+    // The global check catches stale captures from previous AudioManager instances.
+    this.stopPCMCapture();
+    if (globalActivePcmCapture) {
+      void debugLogger.log("STOPPING_STALE_GLOBAL_PCM_CAPTURE");
+      globalActivePcmCapture.stop();
+      globalActivePcmCapture = null;
+    }
+
     this.pcmCapture = new PCMAudioCapture();
+    globalActivePcmCapture = this.pcmCapture;
 
     // Handle audio device disconnection (AirPods, Bluetooth, etc.)
     this.pcmCapture.setOnTrackEnded(() => {
@@ -928,6 +943,10 @@ class AudioManager {
   stopPCMCapture(): void {
     if (this.pcmCapture) {
       this.pcmCapture.stop();
+      // Clear global reference if it matches this instance
+      if (globalActivePcmCapture === this.pcmCapture) {
+        globalActivePcmCapture = null;
+      }
       this.pcmCapture = null;
     }
   }
@@ -938,6 +957,10 @@ class AudioManager {
   private async stopPCMCaptureAndFlush(): Promise<void> {
     if (this.pcmCapture) {
       await this.pcmCapture.stopAndFlush();
+      // Clear global reference if it matches this instance
+      if (globalActivePcmCapture === this.pcmCapture) {
+        globalActivePcmCapture = null;
+      }
       this.pcmCapture = null;
     }
   }

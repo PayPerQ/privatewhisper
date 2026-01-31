@@ -118,9 +118,7 @@ class PCMAudioCapture {
         void debugLogger.log("PCM_CONTEXT_NOT_RUNNING_AT_START", {
           state: this.audioContext.state,
         });
-        throw new Error(
-          `AudioContext not running: ${this.audioContext.state}`,
-        );
+        throw new Error(`AudioContext not running: ${this.audioContext.state}`);
       }
 
       // If browser created context at different rate, we'll need to resample
@@ -186,11 +184,16 @@ class PCMAudioCapture {
             void debugLogger.log("PCM_BUFFER_SIZE_LIMIT_REACHED", {
               bufferSize: this.audioBufferSize,
               maxSize: AUDIO_BUFFER_CONFIG.MAX_BUFFER_SIZE_BYTES,
+              isPaused: this.isPaused,
+              isBuffering: this.isBuffering,
             });
           } else {
             void debugLogger.log("PCM_BUFFER_DURATION_LIMIT_REACHED", {
               elapsed,
               maxDuration: AUDIO_BUFFER_CONFIG.MAX_BUFFER_DURATION_MS,
+              isPaused: this.isPaused,
+              isBuffering: this.isBuffering,
+              hasOnAudioChunk: !!this.onAudioChunk,
             });
           }
         } else if (this.onAudioChunk) {
@@ -201,6 +204,13 @@ class PCMAudioCapture {
             });
           }
           this.onAudioChunk(pcmBuffer);
+        } else if (audioCallbackCount === 1) {
+          // Log if audio is being dropped (no buffer, no callback)
+          void debugLogger.log("PCM_AUDIO_DROPPED_NO_HANDLER", {
+            isPaused: this.isPaused,
+            isBuffering: this.isBuffering,
+            hasCallback: !!this.onAudioChunk,
+          });
         }
 
         // If stopping, signal completion after processing this final chunk
@@ -219,7 +229,8 @@ class PCMAudioCapture {
       // Use a MediaStreamDestination + muted Audio element to keep the graph pulled
       // without routing to hardware output (avoids Bluetooth interruptions).
       try {
-        const streamDestination = this.audioContext.createMediaStreamDestination();
+        const streamDestination =
+          this.audioContext.createMediaStreamDestination();
         this.outputNode = streamDestination;
         this.processorNode.connect(streamDestination);
 
@@ -336,6 +347,9 @@ class PCMAudioCapture {
     void debugLogger.log("PCM_CAPTURE_PAUSED", {
       bufferSize: this.audioBufferSize,
       bufferedChunks: this.audioBuffer.length,
+      isBuffering: this.isBuffering,
+      bufferStartTime: this.bufferStartTime,
+      caller: new Error().stack?.split("\n")[2]?.trim(),
     });
   }
 
@@ -362,6 +376,8 @@ class PCMAudioCapture {
     void debugLogger.log("PCM_CAPTURE_RESUMED", {
       pauseDurationMs: pauseDuration,
       bufferedChunks: bufferedAudio.length,
+      isBufferingAfter: this.isBuffering,
+      isPausedAfter: this.isPaused,
     });
 
     return bufferedAudio;
@@ -425,11 +441,13 @@ class PCMAudioCapture {
     this.bufferStartTime = Date.now();
 
     // Start capture without a callback - audio goes to buffer
-    await this.start(stream, () => {
-      // This callback won't be used while buffering
-    });
+    await this.start(stream, () => {});
 
-    void debugLogger.log("PCM_BUFFERING_STARTED");
+    void debugLogger.log("PCM_BUFFERING_STARTED", {
+      bufferStartTime: this.bufferStartTime,
+      isBuffering: this.isBuffering,
+      isPaused: this.isPaused,
+    });
   }
 
   /**
@@ -448,6 +466,9 @@ class PCMAudioCapture {
       bufferDurationMs: this.bufferStartTime
         ? Date.now() - this.bufferStartTime
         : 0,
+      isBufferingAfter: this.isBuffering,
+      isPaused: this.isPaused,
+      hasCallback: !!this.onAudioChunk,
     });
 
     this.bufferStartTime = null;
@@ -502,6 +523,14 @@ class PCMAudioCapture {
   }
 
   private cleanup(): void {
+    void debugLogger.log("PCM_CLEANUP_CALLED", {
+      hasProcessorNode: !!this.processorNode,
+      hasSourceNode: !!this.sourceNode,
+      hasAudioContext: !!this.audioContext,
+      isCapturing: this.isCapturing,
+      isBuffering: this.isBuffering,
+    });
+
     // Remove track handlers
     this.unregisterTrackEndedHandlers();
 

@@ -112,6 +112,17 @@ class PCMAudioCapture {
       this.releaseSharedContext = shared.release;
       this.usingSharedContext = true;
 
+      // Verify AudioContext is actually running - critical for subsequent recordings
+      // where the context may have been suspended between uses
+      if (this.audioContext.state !== "running") {
+        void debugLogger.log("PCM_CONTEXT_NOT_RUNNING_AT_START", {
+          state: this.audioContext.state,
+        });
+        throw new Error(
+          `AudioContext not running: ${this.audioContext.state}`,
+        );
+      }
+
       // If browser created context at different rate, we'll need to resample
       const actualSampleRate = this.audioContext.sampleRate;
 
@@ -126,10 +137,25 @@ class PCMAudioCapture {
         1, // mono output
       );
 
+      // Track first audio callback for debugging
+      let audioCallbackCount = 0;
+
       // Process audio data
       this.processorNode.onaudioprocess = (event) => {
         // Continue processing during graceful stop to flush final buffer
         if (!this.isCapturing && !this.isStopping) return;
+
+        // Log first few callbacks for debugging
+        audioCallbackCount++;
+        if (audioCallbackCount <= 3) {
+          void debugLogger.log("PCM_ONAUDIOPROCESS", {
+            callbackNumber: audioCallbackCount,
+            isBuffering: this.isBuffering,
+            isPaused: this.isPaused,
+            hasCallback: !!this.onAudioChunk,
+            inputLength: event.inputBuffer.getChannelData(0).length,
+          });
+        }
 
         const inputData = event.inputBuffer.getChannelData(0);
 
@@ -168,6 +194,12 @@ class PCMAudioCapture {
             });
           }
         } else if (this.onAudioChunk) {
+          // Log first callback invocation
+          if (audioCallbackCount === 1) {
+            void debugLogger.log("PCM_SENDING_TO_CALLBACK", {
+              bufferSize: pcmBuffer.byteLength,
+            });
+          }
           this.onAudioChunk(pcmBuffer);
         }
 

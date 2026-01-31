@@ -1,10 +1,7 @@
 import { API_ENDPOINTS, CONNECTION_CONFIG } from "../config/constants";
 import createDebugLogger from "../utils/debugLoggerRenderer";
-import WarmConnectionPool from "./WarmConnectionPool";
 
 const debugLogger = createDebugLogger("streaming-transcription");
-
-const FINAL_RESULT_WAIT_MS = 500;
 
 export type StreamingState =
   | "disconnected"
@@ -37,7 +34,8 @@ interface ServerMessage {
     | "error"
     | "closed"
     | "config_ack"
-    | "pong";
+    | "pong"
+    | "finalized";
   success?: boolean;
   error?: string;
   message?: string;
@@ -69,8 +67,18 @@ class StreamingTranscriptionService {
   // Track if we're in the middle of an active streaming session
   private wasStreaming: boolean = false;
 
-  // Track if current connection came from warm pool
-  private usedWarmConnection: boolean = false;
+  // Event-driven finalize completion
+  private finalizeResolver: (() => void) | null = null;
+  private finalizeTimeoutId: ReturnType<typeof setTimeout> | null = null;
+
+  // Track last interim text in case server doesn't send is_final before finalized
+  private lastInterimText = "";
+
+  // Track if we've received ANY server response after starting to send audio.
+  // If we're streaming but receive nothing within a timeout, connection is dead.
+  private receivedResponseAfterStreaming = false;
+  private streamingResponseTimeoutId: ReturnType<typeof setTimeout> | null = null;
+  private static readonly STREAMING_RESPONSE_TIMEOUT_MS = 5000; // 5 seconds
 
   setCallbacks(callbacks: StreamingCallbacks): void {
     this.callbacks = callbacks;
@@ -103,33 +111,39 @@ class StreamingTranscriptionService {
     this.stopKeepalive();
     this.lastPongTime = Date.now();
 
+    // Send immediate ping so server can respond before first timeout check
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      try {
+        this.ws.send(JSON.stringify({ type: "ping" }));
+      } catch {
+        // Connection might be closing
+      }
+    }
+
     this.keepaliveInterval = setInterval(() => {
+      // Only do keepalive when NOT streaming - during streaming, audio data keeps connection alive
+      if (this.state === "streaming") {
+        return;
+      }
+
       if (this.ws?.readyState === WebSocket.OPEN) {
-        // Check for stale connection (no pong received recently)
+        try {
+          this.ws.send(JSON.stringify({ type: "ping" }));
+        } catch (error) {
+          void debugLogger.log("KEEPALIVE_PING_ERROR", { error });
+        }
+
         const timeSinceLastPong = Date.now() - this.lastPongTime;
-        if (timeSinceLastPong > CONNECTION_CONFIG.KEEPALIVE_TIMEOUT_MS) {
+        if (timeSinceLastPong > CONNECTION_CONFIG.KEEPALIVE_INTERVAL_MS + CONNECTION_CONFIG.KEEPALIVE_TIMEOUT_MS) {
           void debugLogger.log("KEEPALIVE_TIMEOUT", {
             timeSinceLastPong,
-            threshold: CONNECTION_CONFIG.KEEPALIVE_TIMEOUT_MS,
+            threshold: CONNECTION_CONFIG.KEEPALIVE_INTERVAL_MS + CONNECTION_CONFIG.KEEPALIVE_TIMEOUT_MS,
           });
           this.handleStaleConnection();
           return;
         }
-
-        // Send ping
-        try {
-          this.ws.send(JSON.stringify({ type: "ping" }));
-          void debugLogger.log("KEEPALIVE_PING_SENT");
-        } catch (error) {
-          void debugLogger.log("KEEPALIVE_PING_ERROR", { error });
-        }
       }
     }, CONNECTION_CONFIG.KEEPALIVE_INTERVAL_MS);
-
-    void debugLogger.log("KEEPALIVE_STARTED", {
-      interval: CONNECTION_CONFIG.KEEPALIVE_INTERVAL_MS,
-      timeout: CONNECTION_CONFIG.KEEPALIVE_TIMEOUT_MS,
-    });
   }
 
   private stopKeepalive(): void {
@@ -260,119 +274,47 @@ class StreamingTranscriptionService {
     this.cachedToolId = toolId;
     this.reconnectAttempts = 0;
     this.wasStreaming = false;
-    this.usedWarmConnection = false;
     this.accumulatedText = "";
+    this.lastInterimText = "";
     this.finalized = false;
     this.isReconnecting = false;
-
-    // Try to acquire a pre-warmed connection first
-    const warmWs = WarmConnectionPool.acquire();
-    if (warmWs) {
-      this.usedWarmConnection = true;
-      return this.useWarmConnection(warmWs);
+    this.finalizeResolver = null;
+    if (this.finalizeTimeoutId) {
+      clearTimeout(this.finalizeTimeoutId);
+      this.finalizeTimeoutId = null;
+    }
+    this.receivedResponseAfterStreaming = false;
+    if (this.streamingResponseTimeoutId) {
+      clearTimeout(this.streamingResponseTimeoutId);
+      this.streamingResponseTimeoutId = null;
     }
 
     return this.connectInternal(apiKey, toolId);
   }
 
   /**
-   * Use an already-authenticated warm connection from the pool.
-   */
-  private useWarmConnection(ws: WebSocket): Promise<void> {
-    return new Promise((resolve, reject) => {
-      if (ws.readyState !== WebSocket.OPEN) {
-        void debugLogger.log("WARM_CONNECTION_NOT_OPEN", {
-          readyState: ws.readyState,
-        });
-        this.usedWarmConnection = false;
-        // Fall back to creating a new connection
-        return this.connectInternal(this.cachedApiKey, this.cachedToolId)
-          .then(resolve)
-          .catch(reject);
-      }
-
-      void debugLogger.log("USING_WARM_CONNECTION");
-
-      this.ws = ws;
-      this.accumulatedText = "";
-      this.finalized = false;
-
-      // Set up event handlers for the warm connection
-      this.ws.onmessage = (event: MessageEvent) => {
-        try {
-          const msg: ServerMessage = JSON.parse(event.data);
-          // Warm connection is already authenticated, handle messages directly
-          this.handleStreamingMessage(msg);
-        } catch (error) {
-          void debugLogger.log("MESSAGE_PARSE_ERROR", {
-            error,
-            data: event.data,
-          });
-        }
-      };
-
-      this.ws.onerror = (event: Event) => {
-        void debugLogger.log("WEBSOCKET_ERROR", { event });
-        this.stopKeepalive();
-
-        if (
-          this.wasStreaming &&
-          this.reconnectAttempts < this.maxReconnectAttempts
-        ) {
-          this.ws = null;
-          void this.attemptReconnect();
-          return;
-        }
-
-        this.setState("error");
-        this.callbacks.onError?.("WebSocket error");
-      };
-
-      this.ws.onclose = (event: CloseEvent) => {
-        void debugLogger.log("WEBSOCKET_CLOSED", {
-          code: event.code,
-          reason: event.reason,
-          wasClean: event.wasClean,
-          wasStreaming: this.wasStreaming,
-        });
-
-        this.stopKeepalive();
-
-        const shouldReconnect =
-          this.wasStreaming &&
-          !event.wasClean &&
-          this.state !== "closed" &&
-          this.state !== "error" &&
-          this.state !== "disconnected" &&
-          this.reconnectAttempts < this.maxReconnectAttempts;
-
-        if (shouldReconnect) {
-          this.ws = null;
-          void this.attemptReconnect();
-          return;
-        }
-
-        if (this.state !== "closed" && this.state !== "error") {
-          this.setState("closed");
-        }
-      };
-
-      // Warm connection is already ready - start keepalive and resolve
-      this.startKeepalive();
-      this.setState("ready");
-
-      if (this.language !== "multi") {
-        this.ws.send(JSON.stringify({ type: "config", language: this.language }));
-      }
-
-      resolve();
-    });
-  }
-
-  /**
    * Handle messages during active streaming (after authentication).
    */
   private handleStreamingMessage(msg: ServerMessage): void {
+    void debugLogger.log("WS_RECV", { ...msg });
+
+    // Any message from the server proves the connection is alive and processing
+    // Clear the "no response" timeout if we were waiting for a response
+    if (
+      this.wasStreaming &&
+      !this.receivedResponseAfterStreaming &&
+      (msg.type === "transcript" ||
+        msg.type === "speech_started" ||
+        msg.type === "speech_ended" ||
+        msg.type === "finalized")
+    ) {
+      this.receivedResponseAfterStreaming = true;
+      if (this.streamingResponseTimeoutId) {
+        clearTimeout(this.streamingResponseTimeoutId);
+        this.streamingResponseTimeoutId = null;
+      }
+    }
+
     switch (msg.type) {
       case "pong":
         this.lastPongTime = Date.now();
@@ -381,9 +323,17 @@ class StreamingTranscriptionService {
       case "transcript":
         if (msg.text) {
           if (msg.is_final) {
+            void debugLogger.log("TRANSCRIPT_FINAL", {
+              text: msg.text,
+              accumulatedBefore: this.accumulatedText.trim().slice(-50),
+              lastInterim: this.lastInterimText.slice(-50)
+            });
             this.accumulatedText += msg.text + " ";
+            // Don't clear lastInterimText here - wait for finalized to ensure
+            // all server-side processing is complete and nothing is lost
             this.callbacks.onFinalResult?.(this.accumulatedText.trim());
           } else {
+            this.lastInterimText = msg.text; // Track latest interim
             const interimDisplay = this.accumulatedText + msg.text;
             this.callbacks.onInterimResult?.(interimDisplay);
           }
@@ -410,10 +360,48 @@ class StreamingTranscriptionService {
       case "closed":
         this.stopKeepalive();
         this.setState("closed");
+        // Server confirmed close - resolve any pending finalize
+        if (this.finalizeResolver) {
+          this.finalizeResolver();
+          this.finalizeResolver = null;
+        }
         break;
 
       case "config_ack":
-        void debugLogger.log("CONFIG_ACKNOWLEDGED");
+        break;
+
+      case "finalized":
+        void debugLogger.log("WS_FINALIZED", {
+          accumulatedText: this.accumulatedText.trim().slice(-100),
+          lastInterimText: this.lastInterimText
+        });
+        // If we have pending interim text, check if it contains content not yet in accumulated
+        if (this.lastInterimText) {
+          const accumulated = this.accumulatedText.trim();
+          const interim = this.lastInterimText.trim();
+
+          // Only add interim if it's not already contained in accumulated text
+          // This handles the case where the final transcript was truncated
+          if (!accumulated.endsWith(interim) && !accumulated.includes(interim)) {
+            // Find if interim extends beyond accumulated (shares a common prefix/overlap)
+            // For simplicity, if interim is longer and accumulated doesn't contain it, add it
+            void debugLogger.log("ADDED_PENDING_INTERIM", {
+              text: this.lastInterimText,
+              reason: "interim not found in accumulated"
+            });
+            this.accumulatedText += this.lastInterimText + " ";
+          } else {
+            void debugLogger.log("SKIPPED_PENDING_INTERIM", {
+              text: this.lastInterimText,
+              reason: "already in accumulated"
+            });
+          }
+          this.lastInterimText = "";
+        }
+        if (this.finalizeResolver) {
+          this.finalizeResolver();
+          this.finalizeResolver = null;
+        }
         break;
     }
   }
@@ -600,9 +588,35 @@ class StreamingTranscriptionService {
   }
 
   sendAudio(chunk: ArrayBuffer): void {
+    // Log first few sends for debugging
+    if (!this.wasStreaming) {
+      void debugLogger.log("SEND_AUDIO_FIRST", {
+        wsExists: !!this.ws,
+        readyState: this.ws?.readyState,
+        expectedState: WebSocket.OPEN,
+        state: this.state,
+        chunkSize: chunk.byteLength,
+      });
+    }
+
     if (this.ws?.readyState === WebSocket.OPEN) {
       // Mark that we're actively streaming
       this.wasStreaming = true;
+
+      // Start a timeout to detect dead connections - if we're sending audio but
+      // receive no response within 5 seconds, the server isn't processing our audio
+      if (
+        !this.receivedResponseAfterStreaming &&
+        !this.streamingResponseTimeoutId
+      ) {
+        this.streamingResponseTimeoutId = setTimeout(() => {
+          if (!this.receivedResponseAfterStreaming && this.wasStreaming) {
+            void debugLogger.log("STREAMING_NO_RESPONSE_TIMEOUT");
+            // Connection appears open but server isn't responding - treat as stale
+            this.handleStaleConnection();
+          }
+        }, StreamingTranscriptionService.STREAMING_RESPONSE_TIMEOUT_MS);
+      }
 
       // Convert ArrayBuffer to base64 efficiently using chunked approach
       // This avoids stack overflow on large buffers and is faster than string concatenation
@@ -636,16 +650,14 @@ class StreamingTranscriptionService {
   finalize(): void {
     if (this.finalized) return;
     if (this.ws?.readyState === WebSocket.OPEN) {
-      void debugLogger.log("SENDING_FINALIZE");
+      void debugLogger.log("WS_SEND", { type: "finalize" });
       this.ws.send(JSON.stringify({ type: "finalize" }));
       this.finalized = true;
     }
   }
 
   async close(): Promise<string> {
-    void debugLogger.log("CLOSING", {
-      accumulatedText: this.accumulatedText.trim(),
-    });
+    void debugLogger.log("WS_CLOSING", { accumulated: this.accumulatedText.trim().slice(0, 50) });
 
     // Mark that we're no longer actively streaming (prevent reconnection attempts)
     this.wasStreaming = false;
@@ -654,41 +666,42 @@ class StreamingTranscriptionService {
     // Finalize if not already done (idempotent)
     this.finalize();
 
-    // Wait for final results to come through.
-    // Poll in short intervals so we can return early once text stabilises.
-    // We must NOT exit early until the server has acknowledged the finalize
-    // by sending at least one new transcript; otherwise we'd close before
-    // the tail-end audio is transcribed.
-    const POLL_INTERVAL_MS = 100;
-    const maxPolls = Math.ceil(FINAL_RESULT_WAIT_MS / POLL_INTERVAL_MS);
-    let stableCount = 0;
-    let lastSeenText = this.accumulatedText;
-    let receivedUpdateAfterFinalize = false;
-
-    for (let i = 0; i < maxPolls; i++) {
-      await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
-      if (this.accumulatedText !== lastSeenText) {
-        // Text changed — reset stability counter and snapshot
-        lastSeenText = this.accumulatedText;
-        stableCount = 0;
-        receivedUpdateAfterFinalize = true;
-      } else {
-        stableCount++;
-        // Only allow early exit once the server has sent new text after
-        // finalize, proving it processed the remaining audio.
-        if (receivedUpdateAfterFinalize && stableCount >= 5) break;
-      }
-    }
+    // Wait for server to confirm finalization (event-driven) with timeout fallback
+    const FINALIZE_TIMEOUT_MS = 3000;
+    await new Promise<void>((resolve) => {
+      this.finalizeResolver = () => {
+        if (this.finalizeTimeoutId) {
+          clearTimeout(this.finalizeTimeoutId);
+          this.finalizeTimeoutId = null;
+        }
+        resolve();
+      };
+      this.finalizeTimeoutId = setTimeout(() => {
+        void debugLogger.log("WS_FINALIZE_TIMEOUT");
+        this.finalizeTimeoutId = null;
+        this.finalizeResolver = null;
+        resolve();
+      }, FINALIZE_TIMEOUT_MS);
+    });
+    this.finalizeResolver = null;
 
     const finalText = this.accumulatedText.trim();
+    void debugLogger.log("WS_FINAL_TEXT", { text: finalText.slice(0, 100), length: finalText.length });
 
     if (this.ws?.readyState === WebSocket.OPEN) {
+      void debugLogger.log("WS_SEND", { type: "close" });
       this.ws.send(JSON.stringify({ type: "close" }));
     }
 
     this.ws?.close();
     this.ws = null;
     this.finalized = false;
+    this.lastInterimText = "";
+    this.receivedResponseAfterStreaming = false;
+    if (this.streamingResponseTimeoutId) {
+      clearTimeout(this.streamingResponseTimeoutId);
+      this.streamingResponseTimeoutId = null;
+    }
     this.setState("disconnected");
 
     return finalText;
@@ -698,7 +711,6 @@ class StreamingTranscriptionService {
     void debugLogger.log("DISCONNECTING");
 
     this.wasStreaming = false;
-    this.usedWarmConnection = false;
     this.stopKeepalive();
 
     if (this.ws) {
@@ -707,7 +719,18 @@ class StreamingTranscriptionService {
     }
 
     this.accumulatedText = "";
+    this.lastInterimText = "";
     this.finalized = false;
+    this.finalizeResolver = null;
+    if (this.finalizeTimeoutId) {
+      clearTimeout(this.finalizeTimeoutId);
+      this.finalizeTimeoutId = null;
+    }
+    this.receivedResponseAfterStreaming = false;
+    if (this.streamingResponseTimeoutId) {
+      clearTimeout(this.streamingResponseTimeoutId);
+      this.streamingResponseTimeoutId = null;
+    }
     this.cachedApiKey = "";
     this.cachedToolId = undefined;
     this.setState("disconnected");
@@ -726,7 +749,7 @@ class StreamingTranscriptionService {
   }
 
   didUseWarmConnection(): boolean {
-    return this.usedWarmConnection;
+    return false; // Warm connection pool removed for simplicity
   }
 }
 

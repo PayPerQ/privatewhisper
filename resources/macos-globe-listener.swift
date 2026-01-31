@@ -15,11 +15,10 @@ for arg in CommandLine.arguments {
     }
 }
 
-// Determine if we need to intercept (modify/suppress) events or just listen
-// We need defaultTap (intercept mode) if:
-// 1. globeOnly mode (to suppress globe key)
-// 2. OR we have a keycode to suppress
-let needsIntercept = globeOnly || suppressKeycode != nil
+// Determine if we need to intercept (modify/suppress) events or just listen.
+// Only intercept when we must suppress a specific key; globe-only stays listen-only
+// to avoid interfering with normal typing in other apps.
+let needsIntercept = suppressKeycode != nil
 
 // In globe-only mode, we still need to listen for keyDown/keyUp to catch synthesized
 // globe key events that might trigger the emoji picker
@@ -35,7 +34,73 @@ let fnKeyCode: Int64 = 63
 var shouldDismissEmojiPicker = false
 var lastFnUpTime: Date? = nil
 
+let stdoutFd = FileHandle.standardOutput.fileDescriptor
+let parentPid = getppid()
+
+// Track if we should exit (stdout closed or other fatal condition)
+var shouldExit = false
+
+// Make stdout non-blocking so the event tap callback never stalls.
+// If the pipe is full, we'll drop events instead of freezing input.
+signal(SIGPIPE, SIG_IGN)
+let stdoutFlags = fcntl(stdoutFd, F_GETFL, 0)
+if stdoutFlags != -1 {
+    _ = fcntl(stdoutFd, F_SETFL, stdoutFlags | O_NONBLOCK)
+}
+
+func requestExit() {
+    if shouldExit { return }
+    shouldExit = true
+    if let tap = eventTap {
+        CGEvent.tapEnable(tap: tap, enable: false)
+    }
+    DispatchQueue.main.async {
+        CFRunLoopStop(CFRunLoopGetCurrent())
+    }
+}
+
+// If the parent process dies while we're idle (no stdout writes),
+// a listener in intercept mode can still freeze input. Watch for orphaning.
+let parentWatchdog = DispatchSource.makeTimerSource(queue: .main)
+parentWatchdog.schedule(deadline: .now() + 1.0, repeating: 2.0)
+parentWatchdog.setEventHandler {
+    if shouldExit { return }
+    // When parent dies, macOS re-parents to launchd (pid 1)
+    if getppid() == 1 || getppid() != parentPid {
+        requestExit()
+    }
+}
+parentWatchdog.resume()
+
+/// Safely write to stdout, triggering exit if the pipe is broken.
+/// Never blocks the event tap callback.
+func safeWrite(_ string: String) {
+    guard !shouldExit else { return }
+    let bytes = Array(string.utf8)
+    if bytes.isEmpty { return }
+
+    let written = bytes.withUnsafeBytes { buffer -> Int in
+        guard let base = buffer.baseAddress else { return 0 }
+        return write(stdoutFd, base, buffer.count)
+    }
+
+    if written == -1 {
+        let err = errno
+        if err == EAGAIN || err == EWOULDBLOCK {
+            return
+        }
+        if err == EPIPE || err == EBADF {
+            requestExit()
+        }
+    }
+}
+
 func eventTapCallback(proxy: CGEventTapProxy, type: CGEventType, event: CGEvent, refcon: UnsafeMutableRawPointer?) -> Unmanaged<CGEvent>? {
+    // If we're exiting, pass through all events without modification
+    if shouldExit {
+        return Unmanaged.passUnretained(event)
+    }
+
     if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
         if let tap = eventTap {
             CGEvent.tapEnable(tap: tap, enable: true)
@@ -46,23 +111,20 @@ func eventTapCallback(proxy: CGEventTapProxy, type: CGEventType, event: CGEvent,
     if type == .keyDown || type == .keyUp {
         let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
 
-        // In globe-only mode, suppress any keyDown/keyUp for the Fn key itself
-        // This catches synthesized key events that might trigger the emoji picker
-        if globeOnly && keyCode == fnKeyCode {
+        // In intercept mode, suppress any keyDown/keyUp for the Fn key itself.
+        // This catches synthesized key events that might trigger the emoji picker.
+        if needsIntercept && globeOnly && keyCode == fnKeyCode {
             return nil
         }
 
         // Output key events (only in non-globe-only mode for regular key monitoring)
         if !globeOnly {
             let prefix = (type == .keyDown) ? "KEY_DOWN:" : "KEY_UP:"
-            if let data = "\(prefix)\(keyCode)\n".data(using: .utf8) {
-                FileHandle.standardOutput.write(data)
-                fflush(stdout)
-            }
+            safeWrite("\(prefix)\(keyCode)\n")
         }
 
         // Suppress the key event if it matches the configured suppress keycode
-        if let suppress = suppressKeycode, keyCode == suppress {
+        if needsIntercept, let suppress = suppressKeycode, keyCode == suppress {
             return nil
         }
     }
@@ -74,19 +136,17 @@ func eventTapCallback(proxy: CGEventTapProxy, type: CGEventType, event: CGEvent,
         if keyCode == fnKeyCode {
             if containsFn && !fnIsDown {
                 fnIsDown = true
-                FileHandle.standardOutput.write("FN_DOWN\n".data(using: .utf8)!)
-                fflush(stdout)
+                safeWrite("FN_DOWN\n")
                 // In globe-only mode, suppress the event entirely to prevent emoji picker
-                if globeOnly {
+                if needsIntercept && globeOnly {
                     return nil
                 }
             } else if !containsFn && fnIsDown {
                 fnIsDown = false
                 lastFnUpTime = Date()
                 shouldDismissEmojiPicker = true
-                FileHandle.standardOutput.write("FN_UP\n".data(using: .utf8)!)
-                fflush(stdout)
-                // In globe-only mode, suppress the event entirely to prevent emoji picker
+                safeWrite("FN_UP\n")
+                // In globe-only mode, dismiss emoji picker as a safety net.
                 if globeOnly {
                     // Immediately dismiss emoji picker - don't wait
                     dismissEmojiPickerIfNeeded()
@@ -99,7 +159,9 @@ func eventTapCallback(proxy: CGEventTapProxy, type: CGEventType, event: CGEvent,
                         shouldDismissEmojiPicker = true
                         dismissEmojiPickerIfNeeded()
                     }
-                    return nil
+                    if needsIntercept {
+                        return nil
+                    }
                 }
             }
         } else if globeOnly && containsFn {
@@ -129,17 +191,7 @@ func dismissEmojiPickerIfNeeded() {
     killTask.standardError = FileHandle.nullDevice
     try? killTask.run()
 
-    // Method 2: Send Escape key to dismiss any popover (backup)
-    if let escapeEvent = CGEvent(keyboardEventSource: nil, virtualKey: 0x35, keyDown: true) {
-        escapeEvent.post(tap: .cghidEventTap)
-        if let escapeUp = CGEvent(keyboardEventSource: nil, virtualKey: 0x35, keyDown: false) {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) {
-                escapeUp.post(tap: .cghidEventTap)
-            }
-        }
-    }
-
-    // Method 3: Kill again after a short delay in case it spawned late
+    // Method 2: Kill again after a short delay in case it spawned late
     DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
         let killTask2 = Process()
         killTask2.launchPath = "/usr/bin/killall"
@@ -183,11 +235,33 @@ let runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, finalTap,
 CFRunLoopAddSource(CFRunLoopGetCurrent(), runLoopSource, .commonModes)
 CGEvent.tapEnable(tap: finalTap, enable: true)
 
+// Cleanup function - properly disable event tap before exiting
+func cleanup() {
+    requestExit()
+}
+
+// Handle SIGTERM
 let signalSource = DispatchSource.makeSignalSource(signal: SIGTERM, queue: .main)
 signal(SIGTERM, SIG_IGN)
 signalSource.setEventHandler {
-    CFRunLoopStop(CFRunLoopGetCurrent())
+    cleanup()
 }
 signalSource.resume()
+
+// Handle SIGINT (Ctrl+C)
+let sigintSource = DispatchSource.makeSignalSource(signal: SIGINT, queue: .main)
+signal(SIGINT, SIG_IGN)
+sigintSource.setEventHandler {
+    cleanup()
+}
+sigintSource.resume()
+
+// Handle SIGHUP (terminal hangup)
+let sighupSource = DispatchSource.makeSignalSource(signal: SIGHUP, queue: .main)
+signal(SIGHUP, SIG_IGN)
+sighupSource.setEventHandler {
+    cleanup()
+}
+sighupSource.resume()
 
 CFRunLoopRun()

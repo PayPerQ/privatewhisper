@@ -26,14 +26,44 @@ const ensureSharedAudioContext = async (): Promise<AudioContext> => {
   }
 
   if (sharedAudioContext.state === "suspended") {
+    void debugLogger.log("AUDIO_CONTEXT_RESUMING", {
+      state: sharedAudioContext.state,
+    });
     try {
       await sharedAudioContext.resume();
+      // Wait a tick for state to propagate - browsers may not update synchronously
+      await new Promise((r) => setTimeout(r, 10));
     } catch (error) {
       void debugLogger.log("AUDIO_CONTEXT_RESUME_FAILED", {
         error: error instanceof Error ? error.message : String(error),
       });
+      // Try creating a new context
+      sharedAudioContext = null;
+      return ensureSharedAudioContext();
     }
   }
+
+  // Verify context is running (resume() may not have worked)
+  // Use string comparison to avoid TypeScript narrowing issues
+  const currentState = sharedAudioContext.state as string;
+  if (currentState !== "running") {
+    void debugLogger.log("AUDIO_CONTEXT_NOT_RUNNING", {
+      state: currentState,
+    });
+    // Try creating a new context
+    try {
+      await sharedAudioContext.close();
+    } catch {
+      // Ignore close errors
+    }
+    sharedAudioContext = null;
+    return ensureSharedAudioContext();
+  }
+
+  void debugLogger.log("AUDIO_CONTEXT_READY", {
+    state: sharedAudioContext.state,
+    sampleRate: sharedAudioContext.sampleRate,
+  });
 
   return sharedAudioContext;
 };

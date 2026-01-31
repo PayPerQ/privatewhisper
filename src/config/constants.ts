@@ -143,8 +143,8 @@ export const DEVICE_RECOVERY_CONFIG = {
 // Warm Connection Pool Configuration
 export const WARM_CONNECTION_CONFIG = {
   MAX_POOL_SIZE: 1, // Keep one warm connection ready
-  CONNECTION_TTL_MS: 60000, // Recycle connections after 1 minute
-  REFRESH_BUFFER_MS: 10000, // Start refresh 10 seconds before TTL expires
+  CONNECTION_TTL_MS: 30000, // Recycle connections after 30 seconds (server may timeout at ~45-60s)
+  REFRESH_BUFFER_MS: 5000, // Start refresh 5 seconds before TTL expires
 } as const;
 
 // PCM Audio Buffer Configuration (extended for Bluetooth)

@@ -5,21 +5,6 @@ if (process.platform === "darwin" && app && app.getName() !== "PPQ Voice") {
   app.setName("PPQ Voice");
 }
 
-// Add global error handling for uncaught exceptions
-process.on("uncaughtException", (error) => {
-  console.error("Uncaught Exception:", error);
-  // Don't exit the process for EPIPE errors as they're harmless
-  if (error.code === "EPIPE") {
-    return;
-  }
-  // For other errors, log and continue
-  console.error("Error stack:", error.stack);
-});
-
-process.on("unhandledRejection", (reason, promise) => {
-  console.error("Unhandled Rejection at:", promise, "reason:", reason);
-});
-
 // Import helper modules (but don't instantiate yet)
 const EnvironmentManager = require("./src/helpers/environment");
 const WindowManager = require("./src/helpers/windowManager");
@@ -49,6 +34,7 @@ let hotkeyListeningMode = false; // Suppresses dictation trigger when user is se
 let globeKeyIsDown = false;
 let currentHotkeyMode = "toggle"; // Updated via IPC when settings change
 const FN_KEY_CODE = 63;
+let shutdownRequested = false;
 
 /**
  * macOS Globe key function values (AppleFnUsageType):
@@ -148,6 +134,75 @@ function restoreGlobeKeyFunction() {
     );
   }
 }
+
+function cleanupGlobeListener() {
+  try {
+    if (globeKeyManager) globeKeyManager.stop();
+  } catch {
+    // best-effort cleanup
+  }
+  try {
+    GlobeKeyManager.killAll();
+  } catch {
+    // ignore if pkill is unavailable
+  }
+}
+
+function requestShutdown(reason, exitCode = 0) {
+  if (shutdownRequested) return;
+  shutdownRequested = true;
+  console.warn(`Shutting down due to ${reason}`);
+
+  cleanupGlobeListener();
+
+  try {
+    globalShortcut.unregisterAll();
+  } catch {
+    // ignore
+  }
+  try {
+    if (updateManager) updateManager.cleanup();
+  } catch {
+    // ignore
+  }
+  try {
+    restoreGlobeKeyFunction();
+  } catch {
+    // ignore
+  }
+
+  if (app && typeof app.isReady === "function" && app.isReady()) {
+    try {
+      app.quit();
+    } catch {
+      // ignore
+    }
+  }
+
+  setTimeout(() => {
+    process.exit(exitCode);
+  }, 500);
+}
+
+// Add global error handling for uncaught exceptions
+process.on("uncaughtException", (error) => {
+  console.error("Uncaught Exception:", error);
+  // Don't exit the process for EPIPE errors as they're harmless
+  if (error.code === "EPIPE") {
+    return;
+  }
+  console.error("Error stack:", error.stack);
+  requestShutdown("uncaughtException", 1);
+});
+
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("Unhandled Rejection at:", promise, "reason:", reason);
+  requestShutdown("unhandledRejection", 1);
+});
+
+["SIGTERM", "SIGINT", "SIGHUP"].forEach((signal) => {
+  process.on(signal, () => requestShutdown(signal, 0));
+});
 
 // Bypass certificate verification in development
 if (process.env.NODE_ENV === "development") {
@@ -333,7 +388,7 @@ async function startApp() {
       }
     });
 
-    globeKeyManager.on("key-up", (keyCode) => {
+  globeKeyManager.on("key-up", (keyCode) => {
       if (Number(keyCode) === FN_KEY_CODE) {
         handleGlobeUp();
         return;

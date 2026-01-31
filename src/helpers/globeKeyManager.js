@@ -1,4 +1,4 @@
-const { spawn } = require("child_process");
+const { spawn, execSync } = require("child_process");
 const path = require("path");
 const EventEmitter = require("events");
 const fs = require("fs");
@@ -36,6 +36,8 @@ class GlobeKeyManager extends EventEmitter {
     if (!this.isSupported || this.process) {
       return;
     }
+
+    GlobeKeyManager.killAll();
 
     this.globeOnly = options.globeOnly !== false; // Default to true
     this.suppressKeycode = options.suppressKey
@@ -133,8 +135,23 @@ class GlobeKeyManager extends EventEmitter {
 
   stop() {
     if (this.process) {
-      this.process.kill();
+      const proc = this.process;
       this.process = null;
+
+      // Send SIGTERM first (allows graceful cleanup)
+      proc.kill("SIGTERM");
+
+      // Force kill after 100ms if still running (ensures event tap is released)
+      setTimeout(() => {
+        try {
+          // Check if process is still running by sending signal 0
+          process.kill(proc.pid, 0);
+          // Still running, force kill
+          proc.kill("SIGKILL");
+        } catch {
+          // Process already exited, which is good
+        }
+      }, 100);
     }
   }
 
@@ -252,6 +269,17 @@ class GlobeKeyManager extends EventEmitter {
     }
 
     return null;
+  }
+
+  static killAll() {
+    if (process.platform !== "darwin") return;
+    try {
+      execSync("pkill -f macos-globe-listener", {
+        stdio: "ignore",
+      });
+    } catch {
+      // Ignore when no matching process is found
+    }
   }
 }
 

@@ -15,6 +15,7 @@ interface WarmConnection {
   state: WarmConnectionState;
   apiKey: string;
   toolId?: string;
+  lastPongTime: number; // Track last successful pong for health checks
 }
 
 interface WarmConnectionCallbacks {
@@ -124,6 +125,7 @@ class WarmConnectionPool {
         state: "warming",
         apiKey,
         toolId,
+        lastPongTime: Date.now(),
       };
 
       const timeout = setTimeout(() => {
@@ -165,7 +167,8 @@ class WarmConnectionPool {
             this.startKeepalive(connection);
             resolve(connection);
           } else if (msg.type === "pong") {
-            // Keepalive pong received
+            // Keepalive pong received - update health tracking
+            connection.lastPongTime = Date.now();
             void debugLogger.log("WARM_KEEPALIVE_PONG");
           } else if (msg.type === "error") {
             void debugLogger.log("WARM_CONNECTION_SERVER_ERROR", {
@@ -198,6 +201,14 @@ class WarmConnectionPool {
   }
 
   private startKeepalive(connection: WarmConnection): void {
+    if (connection.ws.readyState === WebSocket.OPEN) {
+      try {
+        connection.ws.send(JSON.stringify({ type: "ping" }));
+      } catch {
+        // Connection might be closing
+      }
+    }
+
     const interval = setInterval(() => {
       if (connection.ws.readyState === WebSocket.OPEN) {
         try {
@@ -282,10 +293,12 @@ class WarmConnectionPool {
 
   /**
    * Acquire a warm connection for use.
-   * Returns the WebSocket if one is available, null otherwise.
+   * Returns the WebSocket and credentials if one is available, null otherwise.
    * The connection is marked as 'in-use' and removed from the pool.
+   * Validates connection health before returning.
    */
-  acquire(): WebSocket | null {
+  acquire(): { ws: WebSocket; apiKey: string; toolId?: string } | null {
+    const now = Date.now();
     const readyConnection = this.pool.find(
       (c) => c.state === "ready" && c.ws.readyState === WebSocket.OPEN,
     );
@@ -302,7 +315,7 @@ class WarmConnectionPool {
     }
 
     // Check if connection is still fresh enough
-    const age = Date.now() - readyConnection.createdAt;
+    const age = now - readyConnection.createdAt;
     if (age > WARM_CONNECTION_CONFIG.CONNECTION_TTL_MS) {
       void debugLogger.log("WARM_CONNECTION_EXPIRED", { age });
       readyConnection.state = "stale";
@@ -316,29 +329,46 @@ class WarmConnectionPool {
       return null;
     }
 
+    // NOTE: We don't validate via ping/pong because the server may not implement it.
+    // Instead we rely on:
+    // 1. Connection TTL (checked above) to recycle connections before server timeout
+    // 2. The streaming service's "response timeout" to detect dead connections during use
+    // 3. WebSocket readyState (checked above) to catch obviously closed connections
+
     // Mark as in-use and remove from pool
     readyConnection.state = "in-use";
     this.stopKeepalive(readyConnection);
     this.removeFromPool(readyConnection);
+
+    // Clear existing handlers to prevent conflicts when service sets up new ones
+    // The service will install its own handlers
+    readyConnection.ws.onmessage = null;
+    readyConnection.ws.onerror = null;
+    readyConnection.ws.onclose = null;
 
     void debugLogger.log("WARM_CONNECTION_ACQUIRED", {
       age,
       poolSize: this.pool.length,
     });
 
-    return readyConnection.ws;
+    return {
+      ws: readyConnection.ws,
+      apiKey: readyConnection.apiKey,
+      toolId: readyConnection.toolId,
+    };
   }
 
   /**
-   * Release a connection back to the pool.
-   * Only call this if the connection is still healthy.
+   * Release a connection back to the pool after use.
+   * Note: We don't validate via ping/pong since the server may not implement it.
+   * We just check WebSocket state and trust the streaming response timeout to catch issues.
    */
-  release(ws: WebSocket, apiKey: string, toolId?: string): void {
+  release(ws: WebSocket, apiKey: string, toolId?: string): boolean {
     if (ws.readyState !== WebSocket.OPEN) {
       void debugLogger.log("RELEASE_SKIPPED_NOT_OPEN", {
         readyState: ws.readyState,
       });
-      return;
+      return false;
     }
 
     // Check if pool is full
@@ -349,7 +379,22 @@ class WarmConnectionPool {
       } catch {
         // Ignore close errors
       }
-      return;
+      return false;
+    }
+
+    // Try to send a reset message to clear any server-side state
+    try {
+      ws.send(JSON.stringify({ type: "reset" }));
+    } catch (error) {
+      void debugLogger.log("RELEASE_RESET_FAILED", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      try {
+        ws.close();
+      } catch {
+        // Ignore close errors
+      }
+      return false;
     }
 
     const connection: WarmConnection = {
@@ -358,6 +403,7 @@ class WarmConnectionPool {
       state: "ready",
       apiKey,
       toolId,
+      lastPongTime: Date.now(), // Not used for health checks, but kept for interface
     };
 
     this.pool.push(connection);
@@ -367,16 +413,20 @@ class WarmConnectionPool {
     void debugLogger.log("CONNECTION_RELEASED", {
       poolSize: this.pool.length,
     });
+    return true;
   }
 
   /**
    * Check if a warm connection is available.
+   * Note: We don't check pong age since server may not implement ping/pong.
    */
   hasWarmConnection(): boolean {
+    const now = Date.now();
     return this.pool.some(
       (c) =>
         c.state === "ready" &&
-        Date.now() - c.createdAt < WARM_CONNECTION_CONFIG.CONNECTION_TTL_MS,
+        c.ws.readyState === WebSocket.OPEN &&
+        now - c.createdAt < WARM_CONNECTION_CONFIG.CONNECTION_TTL_MS,
     );
   }
 

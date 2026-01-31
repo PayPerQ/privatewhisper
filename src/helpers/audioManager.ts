@@ -2,7 +2,6 @@ import ReasoningService from "../services/ReasoningService";
 import StreamingTranscriptionService, {
   StreamingState,
 } from "../services/StreamingTranscriptionService";
-import WarmConnectionPool from "../services/WarmConnectionPool";
 import { API_ENDPOINTS, DEVICE_RECOVERY_CONFIG } from "../config/constants";
 import createDebugLogger from "../utils/debugLoggerRenderer";
 import apiKeyManager from "../utils/ApiKeyManager";
@@ -156,7 +155,6 @@ class AudioManager {
   private pcmCapture: PCMAudioCapture | null;
   private abortController: AbortController | null;
   private isRecoveringDevice: boolean;
-  private usedWarmConnection: boolean;
 
   constructor(settings: Partial<AudioSettings> = {}) {
     this.settings = { ...DEFAULT_SETTINGS, ...settings };
@@ -176,7 +174,6 @@ class AudioManager {
     this.pcmCapture = null;
     this.abortController = null;
     this.isRecoveringDevice = false;
-    this.usedWarmConnection = false;
   }
 
   updateSettings(settings: Partial<AudioSettings>) {
@@ -653,10 +650,6 @@ class AudioManager {
     this.metrics.setFlag("mode", "streaming");
     this.metrics.mark("streamingStart");
 
-    // Track warm connection availability before connect (will be updated after)
-    const hadWarmConnection = WarmConnectionPool.hasWarmConnection();
-    this.metrics.setFlag("hadWarmConnection", hadWarmConnection);
-
     // Set up streaming service callbacks
     StreamingTranscriptionService.setCallbacks({
       onInterimResult: (text: string) => {
@@ -715,14 +708,6 @@ class AudioManager {
       await StreamingTranscriptionService.connect(apiKey, "stt:ppq-voice");
       this.streamingMode = true;
       this.metrics.mark("streamingConnected");
-
-      // Record whether a warm connection was actually used
-      this.usedWarmConnection =
-        StreamingTranscriptionService.didUseWarmConnection();
-      this.metrics.setFlag("usedWarmConnection", this.usedWarmConnection);
-
-      // Pre-warm next connection in background for faster subsequent recordings
-      void WarmConnectionPool.warmConnection(apiKey, "stt:ppq-voice");
     } catch (error: any) {
       this.metrics?.setError(`streaming_connect_failed: ${error.message}`);
       void debugLogger.log("STREAMING_CONNECT_ERROR", {
@@ -1181,33 +1166,26 @@ class AudioManager {
 
   /**
    * Check if a warm connection was used for this session.
+   * @deprecated Warm connection pool removed - always returns false.
    */
   didUseWarmConnection(): boolean {
-    return this.usedWarmConnection;
+    return false;
   }
 
   /**
    * Pre-warm a connection for faster future recordings.
-   * Call this on app focus/foreground.
+   * @deprecated Warm connection pool removed for simplicity - this is now a no-op.
    */
   static async warmConnection(): Promise<void> {
-    try {
-      const apiKey = await apiKeyManager.getApiKey();
-      if (apiKey) {
-        await WarmConnectionPool.warmConnection(apiKey, "stt:ppq-voice");
-      }
-    } catch (error) {
-      void debugLogger.log("WARM_CONNECTION_FAILED", {
-        error: error instanceof Error ? error.message : String(error),
-      });
-    }
+    // No-op: warm connection pool removed for simplicity
   }
 
   /**
    * Clean up all warm connections.
+   * @deprecated Warm connection pool removed for simplicity - this is now a no-op.
    */
   static cleanupWarmConnections(): void {
-    WarmConnectionPool.cleanup();
+    // No-op: warm connection pool removed for simplicity
   }
 }
 

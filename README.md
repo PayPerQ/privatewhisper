@@ -1,21 +1,21 @@
-# PPQ Voice
+# PPQ Whisper
 
-PPQ Voice is a lightweight Electron desktop app that turns any text field into a dictation box. Press a single hotkey, speak, and the app streams your audio to PPQ Cloud for transcription and clean-up, then pastes the result wherever your cursor was.
+PPQ Whisper is a lightweight Electron desktop app that turns any text field into a dictation box. Press a single hotkey, speak, and the app streams your audio to PPQ Cloud for transcription and clean-up, then pastes the result wherever your cursor was.
 
-## Why Teams Use PPQ Voice
+## Why Teams Use PPQ Whisper
 
 - **Cloud-first dictation** – Streams audio to PPQ Cloud for fast, consistent transcriptions.
 - **Automatic paste + history** – Captured text is pasted into the active app and stored locally in SQLite.
 - **AI clean-up pipeline** – PPQ cleans punctuation, lists, and formatting automatically.
 - **Cross-platform** – macOS, Windows, and Linux packages powered by Electron + Vite.
-- **Ops-friendly** – Toggle `PPQVOICE_DEBUG=true` to write rich logs to the user data directory.
+- **Ops-friendly** – Toggle `PPQWHISPER_DEBUG=true` to write rich logs to the user data directory.
 - **Zero local-model overhead** – No llama.cpp builds, Python dependencies, or multi-GB downloads.
 
 ## Quick Start
 
 ```bash
 git clone https://github.com/PayPerQ/ppq-voice-private.git
-cd ppq-voice
+cd ppq-whisper
 npm install
 cp env.example .env   # add your PPQ API key
 npm run dev           # launches Vite + Electron with hot reload
@@ -27,10 +27,10 @@ Want the production build? Run `npm start` to launch Electron with the prebuilt 
 
 ### `.env` keys
 
-| Key              | Required | Description                                                                                                    |
-| ---------------- | -------- | -------------------------------------------------------------------------------------------------------------- |
-| `PPQ_API_KEY`    | ✅       | Your PPQ API key used for transcription and clean-up.                                                          |
-| `PPQVOICE_DEBUG` | optional | `true` writes detailed logs to `~/Library/Application Support/ppq-voice/logs` (platform-specific equivalents). |
+| Key                | Required | Description                                                                                                      |
+| ------------------ | -------- | ---------------------------------------------------------------------------------------------------------------- |
+| `PPQ_API_KEY`      | ✅       | Your PPQ API key used for transcription and clean-up.                                                            |
+| `PPQWHISPER_DEBUG` | optional | `true` writes detailed logs to `~/Library/Application Support/ppq-whisper/logs` (platform-specific equivalents). |
 
 All other preferences (language, hotkeys, audio cues) can be changed inside the Control Panel UI. They persist in `localStorage` and synchronize with the renderer.
 
@@ -54,11 +54,11 @@ npm run build:win           # Windows NSIS + portable
 npm run build:linux         # Linux AppImage + deb
 ```
 
-Artifacts land in `dist/`. On macOS the unsigned app lives at `dist/mac-arm64/PPQ Voice.app`; Windows gets `dist/win-unpacked/PPQ Voice.exe`.
+Artifacts land in `dist/`. On macOS the unsigned app lives at `dist/mac-arm64/PPQ Whisper.app`; Windows gets `dist/win-unpacked/PPQ Whisper.exe`.
 
 ## Permissions You’ll Need
 
-PPQ Voice needs two macOS permissions (Windows/Linux equivalents are requested automatically):
+PPQ Whisper needs two macOS permissions (Windows/Linux equivalents are requested automatically):
 
 1. **Microphone** – required for recording audio.
 2. **Accessibility** – needed so the app can paste transcriptions for you.
@@ -67,14 +67,14 @@ You can revisit both in **Control Panel → Settings → Permissions** if someth
 
 ## Troubleshooting
 
-| Symptom                            | Fix                                                                                                                                                                                      |
-| ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| “PPQ key not found”                | Confirm `.env` + Control Panel → PPQ Cloud has a valid value.                                                                                                                            |
-| Nothing pastes after transcription | Re-request Accessibility permission from Settings, then relaunch the app.                                                                                                                |
-| Need extra logs                    | Run `PPQVOICE_DEBUG=true npm start` (or `npm run dev -- --debug`). Logs go to `%APPDATA%/ppq-voice/logs`, `~/Library/Application Support/ppq-voice/logs`, or `~/.config/ppq-voice/logs`. |
-| Updater stuck                      | Use Control Panel → Settings → Updates → “Download Update” to retry, or grab the latest release from GitHub.                                                                             |
+| Symptom                            | Fix                                                                                                                                                                                              |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| “PPQ key not found”                | Confirm `.env` + Control Panel → PPQ Cloud has a valid value.                                                                                                                                    |
+| Nothing pastes after transcription | Re-request Accessibility permission from Settings, then relaunch the app.                                                                                                                        |
+| Need extra logs                    | Run `PPQWHISPER_DEBUG=true npm start` (or `npm run dev -- --debug`). Logs go to `%APPDATA%/ppq-whisper/logs`, `~/Library/Application Support/ppq-whisper/logs`, or `~/.config/ppq-whisper/logs`. |
+| Updater stuck                      | Use Control Panel → Settings → Updates → “Download Update” to retry, or grab the latest release from GitHub.                                                                                     |
 
 ## Support & Feedback
 
-- Email: [support@ppqvoice.com](mailto:support@ppqvoice.com)
+- Email: [support@PPQWHISPER.com](mailto:support@PPQWHISPER.com)
 - Issues: [github.com/PayPerQ/ppq-voice-private/issues](https://github.com/PayPerQ/ppq-voice-private/issues)

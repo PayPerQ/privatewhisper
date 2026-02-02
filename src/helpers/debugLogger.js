@@ -23,7 +23,7 @@ class DebugLogger {
 
   shouldEnableDebug() {
     return (
-      process.env.PPQVOICE_DEBUG === "true" ||
+      process.env.PPQWHISPER_DEBUG === "true" ||
       process.argv.includes("--debug") ||
       this.checkDebugFile()
     );

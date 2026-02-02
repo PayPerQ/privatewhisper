@@ -90,7 +90,7 @@ export default function ControlPanel() {
         title: "Still Running",
         description:
           info?.message ||
-          "PPQ Voice didn't restart automatically. Please quit the app manually to finish installing the update.",
+          "PPQ Whisper didn't restart automatically. Please quit the app manually to finish installing the update.",
       });
     };
 

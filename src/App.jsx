@@ -190,6 +190,7 @@ const logStreamDeviceInfo = (stream, context) => {
 async function getBuiltInMicrophoneStream() {
   loadBuiltInMicCacheFromStorage();
 
+  // Step 1: Try cached deviceId with direct getUserMedia (no fallback to system default)
   if (
     builtInMicCache.valid &&
     builtInMicCache.deviceId &&
@@ -199,9 +200,11 @@ async function getBuiltInMicrophoneStream() {
       void audioDeviceLogger.log("MIC_USING_CACHED", {
         deviceId: builtInMicCache.deviceId,
       });
-      return await getUserMediaWithFallback({
-        deviceId: { exact: builtInMicCache.deviceId },
-        ...DICTATION_AUDIO_CONSTRAINTS,
+      return await navigator.mediaDevices.getUserMedia({
+        audio: {
+          deviceId: { exact: builtInMicCache.deviceId },
+          ...DICTATION_AUDIO_CONSTRAINTS,
+        },
       });
     } catch (e) {
       void audioDeviceLogger.log("MIC_CACHED_FAILED", {
@@ -209,26 +212,22 @@ async function getBuiltInMicrophoneStream() {
         error: e?.message || String(e),
       });
       invalidateBuiltInMicCache({ clearStorage: true });
+      // Fall through to re-detection by label
     }
   }
 
+  // Step 2: Enumerate devices and find built-in mic by label
   void audioDeviceLogger.log("MIC_DETECTING");
-  const initialStream = await getUserMediaWithFallback(
-    DICTATION_AUDIO_CONSTRAINTS,
-  );
 
   if (!navigator.mediaDevices?.enumerateDevices) {
-    return initialStream;
+    throw new Error("Cannot enumerate audio devices");
   }
 
-  let devices = [];
-  try {
-    devices = await navigator.mediaDevices.enumerateDevices();
-  } catch {
-    return initialStream;
-  }
+  const devices = await navigator.mediaDevices.enumerateDevices();
+  const audioInputs = devices.filter(
+    (d) => d.kind === "audioinput" && !INVALID_DEVICE_IDS.has(d.deviceId),
+  );
 
-  const audioInputs = devices.filter((d) => d.kind === "audioinput");
   void audioDeviceLogger.log("MIC_AVAILABLE", {
     devices: audioInputs.map((d) => ({ label: d.label, deviceId: d.deviceId })),
   });
@@ -237,41 +236,27 @@ async function getBuiltInMicrophoneStream() {
     BUILT_IN_MIC_LABEL.test(device.label),
   );
 
-  if (
-    !builtInDevice?.deviceId ||
-    INVALID_DEVICE_IDS.has(builtInDevice.deviceId)
-  ) {
+  if (!builtInDevice?.deviceId) {
     void audioDeviceLogger.log("MIC_BUILTIN_NOT_FOUND");
-    return initialStream;
+    throw new Error("Built-in microphone not found");
   }
 
+  // Step 3: Cache and acquire the detected built-in mic
   builtInMicCache.deviceId = builtInDevice.deviceId;
   builtInMicCache.valid = true;
   persistBuiltInMicCache();
+
   void audioDeviceLogger.log("MIC_CACHED", {
     label: builtInDevice.label,
     deviceId: builtInDevice.deviceId,
   });
 
-  const currentTrack = initialStream.getAudioTracks()[0];
-  const currentDeviceId = currentTrack?.getSettings?.().deviceId;
-  if (currentDeviceId === builtInDevice.deviceId) {
-    return initialStream;
-  }
-  if (currentTrack?.label === builtInDevice.label) {
-    return initialStream;
-  }
-
-  try {
-    const builtInStream = await getUserMediaWithFallback({
+  return await navigator.mediaDevices.getUserMedia({
+    audio: {
       deviceId: { exact: builtInDevice.deviceId },
       ...DICTATION_AUDIO_CONSTRAINTS,
-    });
-    initialStream.getTracks().forEach((track) => track.stop());
-    return builtInStream;
-  } catch {
-    return initialStream;
-  }
+    },
+  });
 }
 
 async function getPreferredMicrophoneStream({

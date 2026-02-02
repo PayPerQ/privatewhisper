@@ -132,7 +132,7 @@ class IPCHandlers {
         return {
           success: true,
           relaunch: true,
-          message: "Cleanup completed. Relaunching PPQ Voice...",
+          message: "Cleanup completed. Relaunching PPQ Whisper...",
         };
       } catch (error) {
         throw error;

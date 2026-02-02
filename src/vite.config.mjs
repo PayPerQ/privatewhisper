@@ -11,7 +11,7 @@ const __dirname = path.dirname(__filename);
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   base: "./", // Use relative paths for file:// protocol in Electron
-  envPrefix: ["VITE_", "PPQVOICE_"], // Expose PPQVOICE_ prefixed env vars
+  envPrefix: ["VITE_", "PPQWHISPER_"], // Expose PPQWHISPER_ prefixed env vars
   envDir: path.resolve(__dirname, ".."), // Look for .env files in parent directory (root)
   resolve: {
     alias: {

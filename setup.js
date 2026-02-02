@@ -1,9 +1,9 @@
 const fs = require("fs");
 const path = require("path");
 
-console.log("Setting up PPQ Voice...");
+console.log("Setting up PPQ Whisper...");
 
-const envTemplate = `# PPQ Voice Environment Variables
+const envTemplate = `# PPQ Whisper Environment Variables
 # Required: PPQ API key for transcription + clean-up
 PPQ_API_KEY=your_ppq_api_key_here
 
@@ -15,7 +15,7 @@ SUPABASE_LOG_FUNCTION_NAME=voice-logs
 SUPABASE_LOG_TABLE=voice_pipeline_logs
 
 # Optional: Verbose logging toggle
-PPQVOICE_DEBUG=false`;
+PPQWHISPER_DEBUG=false`;
 
 if (!fs.existsSync(".env")) {
   fs.writeFileSync(".env", envTemplate);

@@ -2,7 +2,7 @@ const { Menu } = require("electron");
 
 // Shared menu templates to avoid duplication
 const getAppMenu = () => ({
-  label: "PPQ Voice",
+  label: "PPQ Whisper",
   submenu: [
     { role: "about" },
     { type: "separator" },
@@ -12,7 +12,7 @@ const getAppMenu = () => ({
     { role: "hideOthers" },
     { role: "unhide" },
     { type: "separator" },
-    { role: "quit", label: "Quit PPQ Voice" },
+    { role: "quit", label: "Quit PPQ Whisper" },
   ],
 });
 
@@ -99,7 +99,7 @@ class MenuManager {
               click: async () => {
                 const { shell } = require("electron");
                 await shell.openExternal(
-                  "https://github.com/PayPerQ/ppq-voice-private",
+                  "https://github.com/PayPerQ/ppq-voice",
                 );
               },
             },

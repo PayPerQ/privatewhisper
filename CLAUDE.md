@@ -1,10 +1,10 @@
-# PPQ Voice – Assistant Technical Notes
+# PPQ Whisper – Assistant Technical Notes
 
 Use this doc whenever you need quick architectural context while working on the repo.
 
-## 1. What PPQ Voice Does
+## 1. What PPQ Whisper Does
 
-PPQ Voice is an Electron 36 desktop app (React 19 renderer) that:
+PPQ Whisper is an Electron 36 desktop app (React 19 renderer) that:
 
 1. Listens for a global hotkey (default `\``).
 2. Records audio via the browser's `MediaRecorder`.
@@ -41,7 +41,7 @@ Main process (Electron)
 
 1. `AudioManager.startRecording()` – uses `navigator.mediaDevices.getUserMedia`.
 2. On stop → converts blob to WAV → `optimizeAudio` (16 kHz mono) → `processWithPPQAPI`.
-3. Sends `multipart/form-data` to `API_ENDPOINTS.PPQ_TRANSCRIPTION` (default `https://api.ppq.ai/audio/transcriptions` or overridden via `PPQVOICE_PPQ_BASE_URL`).
+3. Sends `multipart/form-data` to `API_ENDPOINTS.PPQ_TRANSCRIPTION` (default `https://api.ppq.ai/audio/transcriptions` or overridden via `PPQWHISPER_PPQ_BASE_URL`).
 4. On success, runs `processTranscription`, optionally piping through `ReasoningService`.
 5. Calls `window.electronAPI.pasteText` and `saveTranscription`.
 
@@ -87,7 +87,7 @@ Records are appended via IPC (`db-save-transcription`). There’s a cleanup help
 
 ## 7. Debugging
 
-- Set `PPQVOICE_DEBUG=true` (in `.env` or env var) **or** run the app with `--debug`.
+- Set `PPQWHISPER_DEBUG=true` (in `.env` or env var) **or** run the app with `--debug`.
 - Logs live in `userData/logs/debug-*.log` – the path is printed on startup when debug mode is on.
 - You can also run `npm run dev -- --debug` to flip the same switch.
 

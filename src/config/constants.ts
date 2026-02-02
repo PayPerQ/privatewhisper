@@ -56,29 +56,29 @@ const computeBaseUrl = (
 // PPQ API base URLs - different endpoints for transcription vs reasoning
 const DEFAULT_PPQ_TRANSCRIPTION_BASE = computeBaseUrl(
   [
-    env.PPQVOICE_PPQ_TRANSCRIPTION_BASE_URL as string | undefined,
-    env.PPQVOICE_PPQ_BASE_URL as string | undefined,
+    env.PPQWHISPER_PPQ_TRANSCRIPTION_BASE_URL as string | undefined,
+    env.PPQWHISPER_PPQ_BASE_URL as string | undefined,
   ],
   "https://ppq.ai/api/v1",
 );
 
 const DEFAULT_PPQ_CHAT_BASE = computeBaseUrl(
   [
-    env.PPQVOICE_PPQ_CHAT_BASE_URL as string | undefined,
-    env.PPQVOICE_PPQ_BASE_URL as string | undefined,
+    env.PPQWHISPER_PPQ_CHAT_BASE_URL as string | undefined,
+    env.PPQWHISPER_PPQ_BASE_URL as string | undefined,
   ],
   "https://api.ppq.ai",
 );
 
 // WebSocket base URL for streaming services
 const DEFAULT_PPQ_WS_BASE = computeBaseUrl(
-  [env.PPQVOICE_PPQ_WS_BASE_URL as string | undefined],
+  [env.PPQWHISPER_PPQ_WS_BASE_URL as string | undefined],
   "",
 );
 
 if (!DEFAULT_PPQ_WS_BASE) {
   throw new Error(
-    "PPQVOICE_PPQ_WS_BASE_URL environment variable is required but not set",
+    "PPQWHISPER_PPQ_WS_BASE_URL environment variable is required but not set",
   );
 }
 

@@ -363,6 +363,6 @@ export const VALIDATION_RULES = [
   "Single keys alone are not allowed (except function keys F1-F24)",
   "Uses three keys or fewer",
   "Does not mix left and right versions of the same modifier",
-  "Is not already used by another PPQ Voice shortcut",
+  "Is not already used by another PPQ Whisper shortcut",
   "Is not a reserved system shortcut",
 ] as const;

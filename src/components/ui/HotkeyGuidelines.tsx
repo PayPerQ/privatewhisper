@@ -159,7 +159,7 @@ export function HotkeyGuidelines({
             <div className="space-y-3">
               <p className="text-xs text-muted-foreground">
                 These shortcuts are reserved by {platformName} and cannot be
-                used by PPQ Voice:
+                used by PPQ Whisper:
               </p>
               <div className="max-h-48 overflow-y-auto">
                 <div className="flex flex-wrap gap-1.5">

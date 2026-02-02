@@ -75,7 +75,7 @@ export const usePermissions = (
           "No microphone was detected. Please connect a microphone and try again.";
       } else if (error.name === "NotAllowedError") {
         description = isMacOS
-          ? "Microphone permission was denied. Please go to System Settings > Privacy & Security > Microphone and enable access for PPQ Voice."
+          ? "Microphone permission was denied. Please go to System Settings > Privacy & Security > Microphone and enable access for PPQ Whisper."
           : "Microphone permission was denied. Please allow microphone access in your browser or system settings.";
       } else if (error.name === "NotReadableError") {
         description =
@@ -95,7 +95,7 @@ export const usePermissions = (
 
   const testAccessibilityPermission = useCallback(async () => {
     try {
-      await window.electronAPI.pasteText("PPQ Voice accessibility test");
+      await window.electronAPI.pasteText("PPQ Whisper accessibility test");
       setAccessibilityPermissionGranted(true);
       // No success dialog - the checkmark in the UI is sufficient feedback
     } catch (err) {
@@ -107,7 +107,7 @@ export const usePermissions = (
         showAlertDialog({
           title: "Accessibility Permissions Needed",
           description:
-            "Opening System Settings... Please add PPQ Voice to the Accessibility list and enable it, then try again.",
+            "Opening System Settings... Please add PPQ Whisper to the Accessibility list and enable it, then try again.",
         });
       } else {
         alert(

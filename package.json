@@ -1,7 +1,7 @@
 {
-  "name": "ppq-voice",
+  "name": "ppq-whisper",
   "version": "0.1.28",
-  "description": "PPQ Voice — a cloud-powered desktop dictation app with instant clean-up",
+  "description": "PPQ Whisper — a cloud-powered desktop dictation app with instant clean-up",
   "main": "main.js",
   "private": true,
   "scripts": {
@@ -42,7 +42,7 @@
     "desktop-app"
   ],
   "author": {
-    "name": "PPQ Voice Team",
+    "name": "PPQ Whisper Team",
     "email": "matt@ppq.ai"
   },
   "license": "UNLICENSED",

@@ -1,8 +1,8 @@
 const { app, globalShortcut, BrowserWindow, dialog } = require("electron");
 
 // Ensure macOS menus use the proper casing for the app name
-if (process.platform === "darwin" && app && app.getName() !== "PPQ Voice") {
-  app.setName("PPQ Voice");
+if (process.platform === "darwin" && app && app.getName() !== "PPQ Whisper") {
+  app.setName("PPQ Whisper");
 }
 
 // Import helper modules (but don't instantiate yet)
@@ -243,7 +243,7 @@ async function startApp() {
             "You can still use keyboard shortcuts like the backtick (`) or Cmd+Shift+Space. " +
             "\n\nTo enable Globe key support:\n" +
             "1. Open System Settings → Privacy & Security → Accessibility\n" +
-            "2. Add PPQ Voice to the list\n" +
+            "2. Add PPQ Whisper to the list\n" +
             "3. Restart the app\n\n" +
             `Technical details: ${error.message}`,
           buttons: ["OK"],

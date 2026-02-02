@@ -276,7 +276,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
                 className="text-2xl font-bold text-stone-900 mb-2"
                 style={{ fontFamily: "Noto Sans, sans-serif" }}
               >
-                Welcome to PPQ Voice
+                Welcome to PPQ Whisper
               </h2>
               <p
                 className="text-stone-600"
@@ -371,7 +371,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
                 Grant Permissions
               </h2>
               <p className="text-gray-600">
-                PPQ Voice needs{" "}
+                PPQ Whisper needs{" "}
                 {requiresAccessibilityPermission
                   ? "a couple of permissions"
                   : "microphone access"}{" "}

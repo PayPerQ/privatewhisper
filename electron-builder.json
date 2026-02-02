@@ -1,6 +1,6 @@
 {
   "appId": "ai.ppq.voice",
-  "productName": "PPQ Voice",
+  "productName": "PPQ Whisper",
   "directories": {
     "output": "dist"
   },
@@ -56,8 +56,8 @@
     "identity": "New Caird Technologies, Inc. (VA6H89CJ5R)",
     "extendInfo": {
       "LSUIElement": false,
-      "NSMicrophoneUsageDescription": "PPQ Voice needs microphone access for speech-to-text transcription.",
-      "NSAccessibilityUsageDescription": "PPQ Voice needs accessibility permissions to paste transcribed text into other applications."
+      "NSMicrophoneUsageDescription": "PPQ Whisper needs microphone access for speech-to-text transcription.",
+      "NSAccessibilityUsageDescription": "PPQ Whisper needs accessibility permissions to paste transcribed text into other applications."
     }
   },
   "win": {
@@ -76,7 +76,7 @@
     "createStartMenuShortcut": true
   },
   "dmg": {
-    "title": "PPQ Voice",
+    "title": "PPQ Whisper",
     "icon": "src/assets/icon.icns",
     "window": {
       "width": 540,

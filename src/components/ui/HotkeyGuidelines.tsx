@@ -11,6 +11,7 @@ import {
   normalizeHotkey,
 } from "../../utils/hotkeyValidator";
 import { formatHotkeyLabel } from "../../utils/hotkeys";
+import { useFnKeyMode } from "../../hooks/useFnKeyMode";
 
 interface HotkeyGuidelinesProps {
   platform: Platform;
@@ -35,6 +36,7 @@ function getRequirements(platform: Platform): string[] {
   const base = [
     "Use a modifier key (Ctrl, Alt, Shift) combined with another key",
     "Maximum of 3 keys in a combination",
+    "Cannot mix left and right versions of the same modifier",
     "Cannot use shortcuts reserved by your system",
   ];
 
@@ -42,6 +44,7 @@ function getRequirements(platform: Platform): string[] {
     return [
       "Use a modifier key (Ctrl, Option, Shift) combined with another key, or use the Globe key",
       "Maximum of 3 keys in a combination",
+      "Cannot mix left and right versions of the same modifier",
       "Cannot use shortcuts reserved by your system",
     ];
   }
@@ -68,6 +71,9 @@ export function HotkeyGuidelines({
   const requirements = getRequirements(platform);
   const fnNote = getFunctionKeyNote(platform);
   const platformName = getPlatformName(platform);
+
+  // Check if Fn key is required for function keys on macOS
+  const { requiresFn } = useFnKeyMode();
 
   const normalizedCurrent = normalizeHotkey(currentHotkey);
 
@@ -109,7 +115,7 @@ export function HotkeyGuidelines({
                       ${disabled ? "opacity-50 cursor-not-allowed" : ""}
                     `}
                   >
-                    {formatHotkeyLabel(example)}
+                    {formatHotkeyLabel(example, { requiresFn })}
                   </button>
                 );
               })}
@@ -161,14 +167,14 @@ export function HotkeyGuidelines({
                 These shortcuts are reserved by {platformName} and cannot be
                 used by PPQ Whisper:
               </p>
-              <div className="max-h-48 overflow-y-auto">
+              <div className="max-h-80 overflow-y-auto">
                 <div className="flex flex-wrap gap-1.5">
                   {reserved.map((shortcut, i) => (
                     <span
                       key={i}
                       className="inline-flex items-center px-2 py-1 rounded bg-muted text-muted-foreground text-xs font-mono"
                     >
-                      {formatHotkeyLabel(shortcut)}
+                      {formatHotkeyLabel(shortcut, { requiresFn })}
                     </span>
                   ))}
                 </div>

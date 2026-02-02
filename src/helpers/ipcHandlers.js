@@ -286,6 +286,30 @@ class IPCHandlers {
       }
       return { success: true };
     });
+
+    // Check if macOS "Use F1, F2, etc. keys as standard function keys" is enabled
+    // Returns true if F-keys work as standard function keys (no Fn needed)
+    // Returns false if F-keys trigger special features (Fn needed for actual F-key)
+    ipcMain.handle("get-fn-key-mode", async () => {
+      if (process.platform !== "darwin") {
+        // Non-macOS: F-keys work as standard function keys
+        return { standardFunctionKeys: true };
+      }
+
+      try {
+        const { execSync } = require("child_process");
+        // Check the macOS setting - returns 1 if F-keys are standard, 0 or error if not
+        const result = execSync(
+          "defaults read NSGlobalDomain com.apple.keyboard.fnState 2>/dev/null || echo 0",
+          { encoding: "utf8" },
+        ).trim();
+        const standardFunctionKeys = result === "1";
+        return { standardFunctionKeys };
+      } catch {
+        // Default: F-keys trigger special features (most common)
+        return { standardFunctionKeys: false };
+      }
+    });
   }
 
   broadcastToAllWindows(channel, payload) {

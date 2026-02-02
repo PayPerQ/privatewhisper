@@ -354,6 +354,13 @@ async function startApp() {
       if (!globeKeyIsDown) return;
       globeKeyIsDown = false;
 
+      // Broadcast globe-key-released for hotkey picker (allows key-up detection)
+      BrowserWindow.getAllWindows().forEach((win) => {
+        if (!win.isDestroyed()) {
+          win.webContents.send("globe-key-released");
+        }
+      });
+
       // Only send hotkey-up if not in hotkey listening mode
       if (
         !hotkeyListeningMode &&

@@ -181,6 +181,7 @@ declare global {
 
       // Globe key detection for hotkey picker (macOS only)
       onGlobeKeyDetected?: (callback: () => void) => () => void;
+      onGlobeKeyReleased?: (callback: () => void) => () => void;
 
       // Open macOS accessibility settings (macOS only)
       openAccessibilitySettings?: () => Promise<{
@@ -197,6 +198,13 @@ declare global {
       // Set hotkey listening mode - suppresses dictation trigger during hotkey selection
       setHotkeyListeningMode?: (isListening: boolean) => Promise<{
         success: boolean;
+      }>;
+
+      // Check macOS F-key mode (macOS only)
+      // standardFunctionKeys: true = F-keys work as standard (no Fn needed)
+      // standardFunctionKeys: false = F-keys trigger special features (Fn needed)
+      getFnKeyMode?: () => Promise<{
+        standardFunctionKeys: boolean;
       }>;
 
       // Update globe key listener mode based on current hotkey and mode settings (macOS only)

@@ -27,9 +27,9 @@ Want the production build? Run `npm start` to launch Electron with the prebuilt 
 
 ### `.env` keys
 
-| Key                | Required | Description                                                                                                      |
-| ------------------ | -------- | ---------------------------------------------------------------------------------------------------------------- |
-| `PPQ_API_KEY`      | ✅       | Your PPQ API key used for transcription and clean-up.                                                            |
+| Key              | Required | Description                                                                                                      |
+| ---------------- | -------- | ---------------------------------------------------------------------------------------------------------------- |
+| `PPQ_API_KEY`    | ✅       | Your PPQ API key used for transcription and clean-up.                                                            |
 | `PPQVOICE_DEBUG` | optional | `true` writes detailed logs to `~/Library/Application Support/ppq-whisper/logs` (platform-specific equivalents). |
 
 All other preferences (language, hotkeys, audio cues) can be changed inside the Control Panel UI. They persist in `localStorage` and synchronize with the renderer.
@@ -67,12 +67,12 @@ You can revisit both in **Control Panel → Settings → Permissions** if someth
 
 ## Troubleshooting
 
-| Symptom                            | Fix                                                                                                                                                                                              |
-| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| “PPQ key not found”                | Confirm `.env` + Control Panel → PPQ Cloud has a valid value.                                                                                                                                    |
-| Nothing pastes after transcription | Re-request Accessibility permission from Settings, then relaunch the app.                                                                                                                        |
+| Symptom                            | Fix                                                                                                                                                                                            |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| “PPQ key not found”                | Confirm `.env` + Control Panel → PPQ Cloud has a valid value.                                                                                                                                  |
+| Nothing pastes after transcription | Re-request Accessibility permission from Settings, then relaunch the app.                                                                                                                      |
 | Need extra logs                    | Run `PPQVOICE_DEBUG=true npm start` (or `npm run dev -- --debug`). Logs go to `%APPDATA%/ppq-whisper/logs`, `~/Library/Application Support/ppq-whisper/logs`, or `~/.config/ppq-whisper/logs`. |
-| Updater stuck                      | Use Control Panel → Settings → Updates → “Download Update” to retry, or grab the latest release from GitHub.                                                                                     |
+| Updater stuck                      | Use Control Panel → Settings → Updates → “Download Update” to retry, or grab the latest release from GitHub.                                                                                   |
 
 ## Support & Feedback
 

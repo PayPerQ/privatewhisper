@@ -3,9 +3,11 @@ export type Platform = "darwin" | "win32" | "linux";
 export type ValidationErrorCode =
   | "TOO_MANY_KEYS"
   | "NO_MODIFIER"
+  | "MODIFIER_ONLY"
   | "SIMPLE_KEY"
   | "RESERVED"
-  | "DUPLICATE";
+  | "DUPLICATE"
+  | "LEFT_RIGHT_CONFLICT";
 
 export interface ValidationResult {
   valid: boolean;
@@ -13,7 +15,34 @@ export interface ValidationResult {
   errorCode?: ValidationErrorCode;
 }
 
-const MODIFIERS = new Set(["Command", "Control", "Alt", "Shift", "Super"]);
+// Base modifier names (used for normalization and sorting)
+const BASE_MODIFIERS = new Set(["Command", "Control", "Alt", "Shift", "Super"]);
+
+// Modifiers that have Left/Right variants that cannot be mixed
+const LEFT_RIGHT_MODIFIERS = ["Control", "Alt", "Shift", "Command"] as const;
+
+// All valid modifier forms including left/right variants
+const MODIFIERS = new Set([
+  ...BASE_MODIFIERS,
+  // Left variants
+  "LeftControl",
+  "ControlLeft",
+  "LeftAlt",
+  "AltLeft",
+  "LeftShift",
+  "ShiftLeft",
+  "LeftCommand",
+  "CommandLeft",
+  // Right variants
+  "RightControl",
+  "ControlRight",
+  "RightAlt",
+  "AltRight",
+  "RightShift",
+  "ShiftRight",
+  "RightCommand",
+  "CommandRight",
+]);
 
 const SPECIAL_KEYS = new Set([
   "GLOBE",
@@ -39,6 +68,21 @@ const STANDALONE_ALLOWED = new Set(
   Array.from({ length: 24 }, (_, i) => `F${i + 1}`),
 );
 
+// Normalize left/right modifier variants to base form
+function normalizeModifier(mod: string): string {
+  for (const base of LEFT_RIGHT_MODIFIERS) {
+    if (
+      mod === `Left${base}` ||
+      mod === `${base}Left` ||
+      mod === `Right${base}` ||
+      mod === `${base}Right`
+    ) {
+      return base;
+    }
+  }
+  return mod;
+}
+
 export function normalizeHotkey(hotkey: string): string {
   const parts = hotkey.split("+");
   const modifiers: string[] = [];
@@ -46,6 +90,9 @@ export function normalizeHotkey(hotkey: string): string {
 
   for (const part of parts) {
     if (MODIFIERS.has(part)) {
+      // Normalize left/right variants to base form for comparison
+      modifiers.push(normalizeModifier(part));
+    } else if (BASE_MODIFIERS.has(part)) {
       modifiers.push(part);
     } else {
       keys.push(part);
@@ -102,6 +149,35 @@ export function validateHotkey(
     };
   }
 
+  // Check if it's modifier-only (no non-modifier key)
+  // Modifier-only shortcuts (e.g., Ctrl+Alt) are not supported because:
+  // 1. Electron's globalShortcut requires at least one non-modifier key
+  // 2. Works consistently across macOS, Windows, and Linux
+  const nonModifierKeys = parts.filter((p) => !MODIFIERS.has(p));
+  if (nonModifierKeys.length === 0) {
+    return {
+      valid: false,
+      error:
+        "Modifier-only shortcuts are not supported. Add a key like Space, K, or F9 (e.g., Ctrl+Option+Space)",
+      errorCode: "MODIFIER_ONLY",
+    };
+  }
+
+  // Check for left/right modifier mixing (e.g., LeftCtrl + RightCtrl)
+  for (const mod of LEFT_RIGHT_MODIFIERS) {
+    const hasLeft = parts.some((p) => p === `Left${mod}` || p === `${mod}Left`);
+    const hasRight = parts.some(
+      (p) => p === `Right${mod}` || p === `${mod}Right`,
+    );
+    if (hasLeft && hasRight) {
+      return {
+        valid: false,
+        error: `Cannot use both Left and Right ${mod} in the same shortcut`,
+        errorCode: "LEFT_RIGHT_CONFLICT",
+      };
+    }
+  }
+
   const normalizedHotkey = normalizeHotkey(hotkey);
   const reserved = getReservedShortcuts(platform);
   const normalizedReserved = reserved.map(normalizeHotkey);
@@ -109,7 +185,7 @@ export function validateHotkey(
   if (normalizedReserved.includes(normalizedHotkey)) {
     return {
       valid: false,
-      error: "This shortcut is reserved by the system",
+      error: `"${hotkey}" is reserved by the system`,
       errorCode: "RESERVED",
     };
   }
@@ -126,7 +202,9 @@ export function validateHotkey(
   return { valid: true };
 }
 
+// macOS reserved shortcuts - must match documentation in ppq-keyboard-shortcuts.md
 const MAC_RESERVED_SHORTCUTS = [
+  // Common Cmd shortcuts
   "Command+C",
   "Command+V",
   "Command+X",
@@ -146,6 +224,7 @@ const MAC_RESERVED_SHORTCUTS = [
   "Command+G",
   "Command+Shift+G",
   "Command+,",
+  // Navigation and Control
   "Command+Left",
   "Command+Right",
   "Command+Up",
@@ -165,6 +244,7 @@ const MAC_RESERVED_SHORTCUTS = [
   "Command+Delete",
   "Command+Shift+Delete",
   "Command+Shift+Q",
+  // Browser and Editor Style shortcuts
   "Command+B",
   "Command+I",
   "Command+U",
@@ -173,11 +253,14 @@ const MAC_RESERVED_SHORTCUTS = [
   "Command+-",
   "Command+Alt+F",
   "Command+Shift+F",
+  // Function key combinations
   "Fn+F11",
   "Fn+F12",
 ] as const;
 
+// Windows reserved shortcuts - must match documentation in ppq-keyboard-shortcuts.md
 const WINDOWS_RESERVED_SHORTCUTS = [
+  // Ctrl shortcuts
   "Control+C",
   "Control+V",
   "Control+X",
@@ -203,77 +286,118 @@ const WINDOWS_RESERVED_SHORTCUTS = [
   "Control+Shift+T",
   "Control+=",
   "Control+-",
+  // Alt shortcuts
   "Alt+Tab",
   "Alt+F4",
   "Alt+Left",
   "Alt+Right",
   "Alt+PrintScreen",
+  // Function and Navigation keys
   "F5",
   "F11",
   "Home",
   "End",
   "PrintScreen",
+  // Windows key shortcuts
+  "Super+E",
+  "Super+R",
+  "Super+L",
+  "Super+D",
+  "Super+Tab",
+  "Super+I",
+  "Super+S",
+  "Super+X",
+  "Super+P",
+  "Super+Q",
+  "Super+U",
+  "Super+B",
+  "Super+Up",
+  "Super+Down",
 ] as const;
 
+// Linux reserved shortcuts - must match documentation in ppq-keyboard-shortcuts.md
 const LINUX_RESERVED_SHORTCUTS = [
+  // Ctrl shortcuts
   "Control+C",
   "Control+V",
   "Control+X",
   "Control+Z",
-  "Control+Shift+Z",
+  "Control+Y",
+  "Control+R",
   "Control+A",
+  "Control+F",
+  "Control+G",
+  "Control+O",
   "Control+S",
   "Control+P",
   "Control+N",
+  "Control+T",
   "Control+W",
   "Control+Q",
-  "Control+F",
   "Control+H",
-  "Control+R",
-  "Control+T",
-  "Control+D",
   "Control+L",
+  "Control+Home",
+  "Control+End",
+  "Control+Backspace",
+  "Control+Delete",
+  "Control+Shift+T",
+  "Control+Shift+Q",
+  "Control+=",
+  "Control+-",
+  // Ctrl+Alt shortcuts (Desktop Environment)
   "Control+Alt+T",
   "Control+Alt+Delete",
-  "Control+Alt+F1",
-  "Control+Alt+F2",
-  "Control+Alt+F3",
-  "Control+Alt+F4",
-  "Control+Alt+F5",
-  "Control+Alt+F6",
-  "Control+Alt+F7",
-  "Control+Alt+F8",
-  "Super",
-  "Alt+Tab",
-  "Alt+Shift+Tab",
-  "Alt+F4",
-  "Alt+F2",
-  "Super+L",
-  "Super+D",
-  "Super+E",
-  "Super+A",
-  "Super+S",
+  "Control+Alt+L",
+  "Control+Alt+Escape",
   "Control+Alt+Left",
   "Control+Alt+Right",
   "Control+Alt+Up",
   "Control+Alt+Down",
-  "Super+PageUp",
-  "Super+PageDown",
-  "Super+Up",
-  "Super+Down",
-  "Super+Left",
-  "Super+Right",
+  "Control+Alt+D",
+  "Control+Alt+S",
+  "Control+Alt+Tab",
+  // Alt shortcuts
+  "Alt+Tab",
+  "Alt+Shift+Tab",
+  "Alt+F1",
+  "Alt+F2",
+  "Alt+F4",
   "Alt+F7",
   "Alt+F8",
   "Alt+F9",
   "Alt+F10",
-  "Print",
-  "Shift+Print",
-  "Alt+Print",
-  "Control+Print",
-  "Control+Shift+Print",
-  "Control+Alt+Backspace",
-  "Control+Alt+Escape",
+  "Alt+Space",
+  "Alt+Left",
+  "Alt+Right",
+  "Alt+PrintScreen",
+  // Super key shortcuts
+  "Super",
+  "Super+A",
+  "Super+D",
+  "Super+L",
+  "Super+S",
+  "Super+M",
+  "Super+Tab",
+  "Super+Space",
+  "Super+Left",
+  "Super+Right",
+  "Super+Up",
+  "Super+Down",
+  "Super+Shift+Left",
+  "Super+Shift+Right",
+  "Super+Shift+Up",
+  "Super+Shift+Down",
+  "Super+PageUp",
+  "Super+PageDown",
+  "Super+Home",
+  "Super+End",
+  // Function and Navigation keys
+  "F1",
+  "F5",
+  "F11",
+  "PrintScreen",
+  "Shift+PrintScreen",
+  "Super+PrintScreen",
 ] as const;
 
 export function getReservedShortcuts(platform: Platform): readonly string[] {
@@ -289,23 +413,22 @@ export function getReservedShortcuts(platform: Platform): readonly string[] {
   }
 }
 
+// Recommended patterns per platform - must match documentation in ppq-keyboard-shortcuts.md
 const MAC_RECOMMENDED = [
-  "Globe key — easiest option, just press once",
-  "Ctrl + Option — two modifiers, rarely conflicts with other apps",
-  "Option + Cmd — comfortable to press together",
+  "Fn (Globe key) — if you have a built-in Mac keyboard",
+  "Ctrl + Option + key — two modifiers rarely conflict with other apps",
+  "Option + Cmd + key — comfortable to press together",
   "Shift + F9 or other function key combinations",
 ] as const;
 
 const WINDOWS_RECOMMENDED = [
-  "Ctrl + Win — two modifiers, rarely conflicts with other apps",
-  "Ctrl + Alt — common pattern, easy to press",
-  "Ctrl + Shift + key — familiar from other apps",
+  "Ctrl + Win + key — two modifiers rarely conflict with other apps",
+  "Ctrl + Alt + key — common pattern, easy to press",
   "Shift + F9 or other function key combinations",
 ] as const;
 
 const LINUX_RECOMMENDED = [
-  "Ctrl + Super — two modifiers, rarely conflicts",
-  "Ctrl + Shift + key — familiar pattern",
+  "Ctrl + Super + key — two modifiers rarely conflict",
   "Super + Shift + key — if Ctrl is inconvenient",
   "Shift + F9 or other function key combinations",
 ] as const;
@@ -323,27 +446,34 @@ export function getRecommendedPatterns(platform: Platform): readonly string[] {
   }
 }
 
+// Valid examples per platform - must match documentation in ppq-keyboard-shortcuts.md
 const MAC_EXAMPLES = [
   "GLOBE",
-  "Control+Alt+Space",
-  "Alt+Command+D",
   "Control+Shift+K",
+  "Alt+F7",
+  "Control+Space",
+  "Control+Alt+M",
   "Shift+F9",
 ] as const;
 
 const WINDOWS_EXAMPLES = [
-  "Control+Alt+Space",
   "Control+Shift+K",
   "Alt+F7",
+  "Control+Space",
+  "Control+Alt+M",
   "Shift+F9",
 ] as const;
 
 const LINUX_EXAMPLES = [
-  "Super+Shift+Space",
+  "Control+Super+K",
   "Control+Shift+K",
-  "Alt+F7",
+  "Super+Shift+R",
+  "Control+Shift+Space",
   "Shift+F9",
+  "Control+Super+M",
 ] as const;
+
+// Note: Alt+F7 is reserved on Linux (used for window move), so it's not in Linux examples
 
 export function getValidExamples(platform: Platform): readonly string[] {
   switch (platform) {
@@ -358,11 +488,11 @@ export function getValidExamples(platform: Platform): readonly string[] {
   }
 }
 
+// Validation rules displayed to users - must match documentation in ppq-keyboard-shortcuts.md
 export const VALIDATION_RULES = [
-  "Uses a modifier + key combination (e.g., Ctrl+Space) or Globe/Fn key",
-  "Single keys alone are not allowed (except function keys F1-F24)",
   "Uses three keys or fewer",
-  "Does not mix left and right versions of the same modifier",
-  "Is not already used by another PPQ Whisper shortcut",
+  "Includes at least one modifier (Ctrl, Cmd, Alt, Shift) plus a non-modifier key",
+  "Does not use both the left and right version of the same modifier",
+  "Does not match another PPQ shortcut already in use",
   "Is not a reserved system shortcut",
 ] as const;

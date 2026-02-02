@@ -1,6 +1,7 @@
 import React, { useRef, useState, useCallback, useEffect } from "react";
 import { Keyboard, Loader2 } from "lucide-react";
 import { formatHotkeyLabel } from "../../utils/hotkeys";
+import { validateHotkey, type Platform } from "../../utils/hotkeyValidator";
 
 interface HotkeyInputProps {
   value: string;
@@ -147,6 +148,7 @@ export default function HotkeyInput({
   const inputRef = useRef<HTMLDivElement>(null);
   const [isListening, setIsListening] = useState(false);
   const [pendingKey, setPendingKey] = useState<string | null>(null);
+  const [validationError, setValidationError] = useState<string | null>(null);
   const isListeningRef = useRef(isListening);
   const isSavingRef = useRef(isSaving);
   const disabledRef = useRef(disabled);
@@ -203,6 +205,7 @@ export default function HotkeyInput({
       }
 
       e.preventDefault();
+      setValidationError(null);
 
       // Only process when listening
       if (!isListening || isSaving || disabled) {
@@ -222,6 +225,18 @@ export default function HotkeyInput({
 
       const mappedKey = mapKeyboardEventToHotkey(e);
       if (!mappedKey) {
+        return;
+      }
+
+      // Validate against reserved shortcuts
+      const platform = (window.electronAPI?.getPlatform?.() ??
+        "darwin") as Platform;
+      const validation = validateHotkey(mappedKey, platform);
+
+      if (!validation.valid) {
+        setValidationError(validation.error ?? "Invalid shortcut");
+        setIsListening(false);
+        inputRef.current?.blur();
         return;
       }
 
@@ -301,6 +316,10 @@ export default function HotkeyInput({
         </div>
         {!isActive && <Keyboard className="w-5 h-5 text-muted-foreground" />}
       </div>
+
+      {validationError && (
+        <p className="text-sm text-destructive">{validationError}</p>
+      )}
     </div>
   );
 }

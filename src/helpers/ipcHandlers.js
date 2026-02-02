@@ -209,12 +209,11 @@ class IPCHandlers {
         const isGlobeKey = hotkey === "GLOBE";
         const isCompoundHotkey = !isGlobeKey && hotkey.includes("+");
 
-        // Determine when we need full keyboard monitoring (keyDown/keyUp events):
-        // - Non-Globe + hold mode: need key-up detection to stop dictation
-        // - Non-Globe + simple key: need key suppression to prevent character input
-        // Globe key and compound hotkeys in toggle mode only need flagsChanged events.
-        const globeOnly =
-          isGlobeKey || (isCompoundHotkey && hotkeyMode === "toggle");
+        // Globe-only mode now works for compound hotkeys in ANY mode (including hold)
+        // because we detect modifier release via flagsChanged instead of keyUp.
+        // This eliminates the need for Input Monitoring for compound hotkeys.
+        // Only simple single-key hotkeys still require full keyboard monitoring.
+        const globeOnly = isGlobeKey || isCompoundHotkey;
 
         // Only suppress simple single-key hotkeys (e.g., backtick) to prevent
         // the character from being typed. Compound hotkeys (e.g., Control+Space)

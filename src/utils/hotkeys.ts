@@ -15,6 +15,8 @@ export function formatHotkeyLabel(hotkey?: string | null): string {
   if (hotkey.includes("+")) {
     const isMac =
       typeof navigator !== "undefined" && /Mac|Darwin/.test(navigator.platform);
+    const isWindows =
+      typeof navigator !== "undefined" && /Win/.test(navigator.platform);
     const parts = hotkey.split("+");
 
     const formattedParts = parts.map((part) => {
@@ -24,7 +26,6 @@ export function formatHotkeyLabel(hotkey?: string | null): string {
         case "Command":
           return isMac ? "Cmd" : "Ctrl";
         case "CommandOrControl":
-          // Legacy: stored before Ctrl/Cmd were separated
           return isMac ? "Cmd" : "Ctrl";
         case "Alt":
           return isMac ? "Option" : "Alt";
@@ -32,6 +33,8 @@ export function formatHotkeyLabel(hotkey?: string | null): string {
           return "Shift";
         case "Space":
           return "Space";
+        case "Super":
+          return isWindows ? "Win" : "Super";
         default:
           return part;
       }

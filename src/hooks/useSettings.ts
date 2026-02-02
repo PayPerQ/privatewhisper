@@ -26,12 +26,22 @@ export interface AppearanceSettings {
   showIconOnlyWhenActive: boolean;
 }
 
-// Default hotkey: Globe key on Mac, backtick on other platforms
-const DEFAULT_HOTKEY =
-  typeof window !== "undefined" &&
-  window.electronAPI?.getPlatform?.() === "darwin"
-    ? "GLOBE"
-    : "`";
+// Platform-specific default hotkeys that work without Input Monitoring
+function getDefaultHotkey(): string {
+  if (typeof window === "undefined") return "Control+Super";
+  const platform = window.electronAPI?.getPlatform?.();
+  switch (platform) {
+    case "darwin":
+      return "GLOBE";
+    case "win32":
+      return "Control+Super"; // Ctrl+Win
+    case "linux":
+      return "Control+Super"; // Ctrl+Super
+    default:
+      return "Control+Super";
+  }
+}
+const DEFAULT_HOTKEY = getDefaultHotkey();
 
 export function useSettings() {
   const [preferredLanguage, setPreferredLanguage] = useLocalStorage(

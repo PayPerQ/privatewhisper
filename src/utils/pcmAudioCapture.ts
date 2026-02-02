@@ -318,10 +318,10 @@ class PCMAudioCapture {
         // Disconnect the real audio source first
         this.sourceNode.disconnect();
 
-        // Create a silent buffer (one full buffer size worth of silence)
+        // Create a silent buffer (2x buffer size to ensure full flush)
         const silentBuffer = this.audioContext.createBuffer(
           1, // mono
-          AUDIO_BUFFER_CONFIG.BUFFER_SIZE_SAMPLES,
+          AUDIO_BUFFER_CONFIG.BUFFER_SIZE_SAMPLES * 2,
           this.audioContext.sampleRate,
         );
         // Buffer is already filled with zeros by default
@@ -353,7 +353,7 @@ class PCMAudioCapture {
           this.onStopComplete = null;
           resolve();
         }
-      }, 300); // Slightly longer timeout to account for audio pipeline latency
+      }, 500); // Allow ~4 buffer cycles for audio pipeline flush
     });
 
     this.cleanup();

@@ -20,15 +20,21 @@ for arg in CommandLine.arguments {
 // to avoid interfering with normal typing in other apps.
 let needsIntercept = suppressKeycode != nil
 
-// In globe-only mode, we still need to listen for keyDown/keyUp to catch synthesized
-// globe key events that might trigger the emoji picker
-let mask: CGEventMask = CGEventMask(1 << CGEventType.flagsChanged.rawValue) |
-    CGEventMask(1 << CGEventType.keyDown.rawValue) |
-    CGEventMask(1 << CGEventType.keyUp.rawValue)
+// In globe-only mode, only listen for flagsChanged to detect Globe/Fn key and modifier changes.
+// This avoids requiring Input Monitoring permission (only Accessibility needed).
+// Full keyboard monitoring (keyDown/keyUp) is only needed for simple single-key hotkeys.
+let mask: CGEventMask = globeOnly
+    ? CGEventMask(1 << CGEventType.flagsChanged.rawValue)
+    : CGEventMask(1 << CGEventType.flagsChanged.rawValue) |
+      CGEventMask(1 << CGEventType.keyDown.rawValue) |
+      CGEventMask(1 << CGEventType.keyUp.rawValue)
 
 var fnIsDown = false
 var eventTap: CFMachPort?
 let fnKeyCode: Int64 = 63
+
+// Track modifier state for compound hotkey hold-to-talk detection
+var lastModifierFlags: CGEventFlags = []
 
 // Track if we need to dismiss emoji picker (safety mechanism)
 var shouldDismissEmojiPicker = false
@@ -171,6 +177,19 @@ func eventTapCallback(proxy: CGEventTapProxy, type: CGEventType, event: CGEvent,
             newFlags.remove(.maskSecondaryFn)
             event.flags = newFlags
         }
+
+        // In globe-only mode, report modifier changes for compound hotkey detection
+        if globeOnly && keyCode != fnKeyCode {
+            let modifierMask: CGEventFlags = [.maskControl, .maskAlternate, .maskShift, .maskCommand]
+            let currentModifiers = event.flags.intersection(modifierMask)
+            if currentModifiers != lastModifierFlags {
+                let released = lastModifierFlags.subtracting(currentModifiers)
+                if !released.isEmpty {
+                    safeWrite("MODIFIER_UP:\(released.rawValue)\n")
+                }
+                lastModifierFlags = currentModifiers
+            }
+        }
     }
 
     return Unmanaged.passUnretained(event)
@@ -202,27 +221,15 @@ func dismissEmojiPickerIfNeeded() {
     }
 }
 
-// Try HID-level tap first (intercepts events earlier in the chain, before system handlers)
-// Fall back to session-level tap if HID tap fails (HID tap may require elevated privileges)
-var createdTap: CFMachPort? = nil
-
-// First attempt: HID-level event tap (highest priority, intercepts before system sees events)
-createdTap = CGEvent.tapCreate(tap: .cghidEventTap,
-                               place: .headInsertEventTap,
-                               options: needsIntercept ? .defaultTap : .listenOnly,
-                               eventsOfInterest: mask,
-                               callback: eventTapCallback,
-                               userInfo: nil)
-
-if createdTap == nil {
-    // Fallback: Session-level event tap (still effective with Accessibility permission)
-    createdTap = CGEvent.tapCreate(tap: .cgSessionEventTap,
+// Session-level event tap - only requires Accessibility permission (not Input Monitoring).
+// HID-level tap (.cghidEventTap) requires Input Monitoring permission and silently fails
+// to receive events without it, even when creation appears to succeed.
+let createdTap = CGEvent.tapCreate(tap: .cgSessionEventTap,
                                    place: .headInsertEventTap,
                                    options: needsIntercept ? .defaultTap : .listenOnly,
                                    eventsOfInterest: mask,
                                    callback: eventTapCallback,
                                    userInfo: nil)
-}
 
 guard let finalTap = createdTap else {
     FileHandle.standardError.write("Failed to create event tap\n".data(using: .utf8)!)

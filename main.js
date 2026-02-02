@@ -409,6 +409,46 @@ async function startApp() {
       }
     });
 
+    // Handle modifier release for compound hotkeys in hold mode
+    globeKeyManager.on("modifier-up", (modifierFlags) => {
+      if (currentHotkeyMode !== "hold" || hotkeyListeningMode) return;
+
+      const activeHotkey =
+        typeof hotkeyManager.getCurrentHotkey === "function"
+          ? hotkeyManager.getCurrentHotkey()
+          : null;
+
+      // Only relevant for compound hotkeys (contain "+")
+      if (!activeHotkey || !activeHotkey.includes("+")) return;
+
+      // Check if the released modifier was part of the compound hotkey
+      // macOS CGEventFlags: Control=0x40000, Alt=0x80000, Shift=0x20000, Command=0x100000
+      const modifierMap = {
+        Control: 0x40000,
+        Alt: 0x80000,
+        Shift: 0x20000,
+        Command: 0x100000,
+      };
+
+      const hotkeyModifiers = activeHotkey
+        .split("+")
+        .filter((part) =>
+          ["Control", "Alt", "Shift", "Command"].includes(part),
+        );
+
+      const releasedRelevantModifier = hotkeyModifiers.some(
+        (mod) => (modifierFlags & modifierMap[mod]) !== 0,
+      );
+
+      if (
+        releasedRelevantModifier &&
+        windowManager.mainWindow &&
+        !windowManager.mainWindow.isDestroyed()
+      ) {
+        windowManager.mainWindow.webContents.send("dictation-hotkey-up");
+      }
+    });
+
     globeKeyManager.start();
   }
 }

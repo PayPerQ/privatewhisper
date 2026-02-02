@@ -10,7 +10,9 @@ import { useHotkeyRegistration } from "../hooks/useHotkeyRegistration";
 import { formatHotkeyLabel } from "../utils/hotkeys";
 import LanguageSelector from "./ui/LanguageSelector";
 import HotkeyInput from "./ui/HotkeyInput";
+import { HotkeyGuidelines } from "./ui/HotkeyGuidelines";
 import { Toggle } from "./ui/toggle";
+import type { Platform } from "../utils/hotkeyValidator";
 import {
   Select,
   SelectContent,
@@ -83,7 +85,7 @@ export default function SettingsPage({
   );
   const [microphoneLoading, setMicrophoneLoading] = useState(false);
   const [microphoneError, setMicrophoneError] = useState("");
-  const [platform, setPlatform] = useState<string>("");
+  const [platform, setPlatform] = useState<Platform | "">("");
   const isMacOS = platform === "darwin";
   const { registerHotkey, isRegistering: isSavingHotkey } =
     useHotkeyRegistration({
@@ -211,24 +213,26 @@ export default function SettingsPage({
 
   // Get platform on mount
   useEffect(() => {
-    const detectedPlatform = window.electronAPI?.getPlatform?.() || "";
-    setPlatform(detectedPlatform);
+    const detectedPlatform = window.electronAPI?.getPlatform?.() as Platform | undefined;
+    if (detectedPlatform) {
+      setPlatform(detectedPlatform);
+    }
   }, []);
 
   // Update globe key listener mode when hotkey or hotkeyMode changes (macOS only)
-  // This determines whether we need Input Monitoring permission
   useEffect(() => {
     if (platform !== "darwin") return;
-
-    // Only need full keyboard monitoring if:
-    // - Hotkey is NOT Globe AND
-    // - Mode is "hold" (push-to-talk)
     window.electronAPI?.updateGlobeListenerMode?.(dictationKey, hotkeyMode);
   }, [platform, dictationKey, hotkeyMode]);
 
   // Check if current settings require Input Monitoring permission
+  // Only simple single-key hotkeys (non-compound, non-Globe) require Input Monitoring
+  const isCompoundHotkey = dictationKey.includes("+");
   const needsInputMonitoring =
-    isMacOS && dictationKey !== "GLOBE" && hotkeyMode === "hold";
+    isMacOS &&
+    dictationKey !== "GLOBE" &&
+    !isCompoundHotkey &&
+    hotkeyMode === "hold";
 
   // Local state for provider selection (overrides computed value)
   useEffect(() => {
@@ -603,8 +607,7 @@ export default function SettingsPage({
                   Dictation Hotkey
                 </h3>
                 <p className="text-sm text-gray-600 mb-4">
-                  Click below and press any key or combination (Ctrl+key,
-                  Alt+key) to set your hotkey.
+                  Click below and press any key combination to set your hotkey.
                 </p>
               </div>
               <div className="space-y-4">
@@ -614,6 +617,16 @@ export default function SettingsPage({
                   isSaving={isSavingHotkey}
                   showGlobeOption={isMacOS}
                 />
+
+                {/* Hotkey guidelines - platform specific */}
+                {platform && (
+                  <HotkeyGuidelines
+                    platform={platform}
+                    currentHotkey={dictationKey}
+                    onSelect={registerHotkey}
+                    disabled={isSavingHotkey}
+                  />
+                )}
 
                 {/* Hotkey mode - Mac only */}
                 {isMacOS && (

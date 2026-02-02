@@ -15,6 +15,7 @@ import TitleBar from "./TitleBar";
 import SupportDropdown from "./ui/SupportDropdown";
 import TranscriptionItem from "./ui/TranscriptionItem";
 import { ConfirmDialog, AlertDialog } from "./ui/dialog";
+import { ForcedUpdateDialog } from "./ForcedUpdateDialog";
 import { useDialogs } from "../hooks/useDialogs";
 import { useHotkey } from "../hooks/useHotkey";
 import { useToast } from "./ui/Toast";
@@ -31,6 +32,10 @@ export default function ControlPanel() {
     updateDownloaded: false,
     isDevelopment: false,
   });
+  const [updateInfo, setUpdateInfo] = useState<{
+    version?: string;
+    releaseNotes?: string;
+  }>({});
   const [isDownloading, setIsDownloading] = useState(false);
   const [isInstalling, setIsInstalling] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
@@ -57,6 +62,16 @@ export default function ControlPanel() {
       try {
         const status = await window.electronAPI.getUpdateStatus();
         setUpdateStatus(status);
+        // If an update is already available, fetch its info
+        if (status.updateAvailable || status.updateDownloaded) {
+          const updateData = await window.electronAPI.getUpdateInfo();
+          if (updateData) {
+            setUpdateInfo({
+              version: updateData.version,
+              releaseNotes: updateData.releaseNotes,
+            });
+          }
+        }
       } catch (_error) {
         // Update status not critical for app function
       }
@@ -65,8 +80,28 @@ export default function ControlPanel() {
     initializeUpdateStatus();
 
     // Set up update event listeners
-    const handleUpdateAvailable = (_event: any, _info: any) => {
+    const handleUpdateAvailable = async (_event: any, info: any) => {
       setUpdateStatus((prev) => ({ ...prev, updateAvailable: true }));
+      // Capture version and release notes from the event
+      if (info?.version) {
+        setUpdateInfo({
+          version: info.version,
+          releaseNotes: info.releaseNotes,
+        });
+      } else {
+        // Fallback: fetch from IPC if not in event payload
+        try {
+          const updateData = await window.electronAPI.getUpdateInfo();
+          if (updateData) {
+            setUpdateInfo({
+              version: updateData.version,
+              releaseNotes: updateData.releaseNotes,
+            });
+          }
+        } catch (_e) {
+          // Update info not critical
+        }
+      }
     };
 
     const handleUpdateDownloaded = (_event: any, _info: any) => {
@@ -223,9 +258,64 @@ export default function ControlPanel() {
     }
   };
 
+  const handleForcedDownload = async () => {
+    try {
+      setIsDownloading(true);
+      setDownloadProgress(0);
+      await window.electronAPI.downloadUpdate();
+    } catch (_error) {
+      setIsDownloading(false);
+      toast({
+        title: "Download Failed",
+        description: "Failed to download update. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleForcedInstall = async () => {
+    try {
+      setIsInstalling(true);
+      const result = await window.electronAPI.installUpdate();
+      if (!result?.success) {
+        setIsInstalling(false);
+        toast({
+          title: "Install Failed",
+          description:
+            result?.message ||
+            "Failed to start the installer. Please try again.",
+          variant: "destructive",
+        });
+      }
+    } catch (_error) {
+      setIsInstalling(false);
+      toast({
+        title: "Update Failed",
+        description: "Failed to install update. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Show forced update dialog when update is available (production only)
+  const showForcedUpdate =
+    !updateStatus.isDevelopment &&
+    (updateStatus.updateAvailable || updateStatus.updateDownloaded);
+
   return (
     <div className="min-h-screen bg-white">
       <ChatwootWidget />
+      <ForcedUpdateDialog
+        open={showForcedUpdate}
+        version={updateInfo.version}
+        releaseNotes={updateInfo.releaseNotes}
+        isDownloading={isDownloading}
+        isInstalling={isInstalling}
+        downloadProgress={downloadProgress}
+        updateDownloaded={updateStatus.updateDownloaded}
+        onDownload={handleForcedDownload}
+        onInstall={handleForcedInstall}
+      />
       <ConfirmDialog
         open={confirmDialog.open}
         onOpenChange={hideConfirmDialog}

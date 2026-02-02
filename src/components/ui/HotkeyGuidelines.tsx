@@ -51,7 +51,7 @@ function getRequirements(platform: Platform): string[] {
 
 function getFunctionKeyNote(platform: Platform): string | null {
   if (platform === "darwin") {
-    return "On Mac laptops, F1-F12 keys control brightness, volume, etc. by default. To use them as hotkeys, hold the Fn key while pressing, or enable \"Use F1, F2, etc. keys as standard function keys\" in System Settings > Keyboard.";
+    return 'On Mac laptops, F1-F12 keys control brightness, volume, etc. by default. To use them as hotkeys, hold the Fn key while pressing, or enable "Use F1, F2, etc. keys as standard function keys" in System Settings > Keyboard.';
   }
   return null;
 }

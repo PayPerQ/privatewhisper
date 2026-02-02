@@ -213,7 +213,9 @@ export default function SettingsPage({
 
   // Get platform on mount
   useEffect(() => {
-    const detectedPlatform = window.electronAPI?.getPlatform?.() as Platform | undefined;
+    const detectedPlatform = window.electronAPI?.getPlatform?.() as
+      | Platform
+      | undefined;
     if (detectedPlatform) {
       setPlatform(detectedPlatform);
     }

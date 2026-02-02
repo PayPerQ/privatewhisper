@@ -340,8 +340,6 @@ class StreamingTranscriptionService {
               lastInterim: this.lastInterimText.slice(-50),
             });
             this.accumulatedText += msg.text + " ";
-            // Don't clear lastInterimText here - wait for finalized to ensure
-            // all server-side processing is complete and nothing is lost
             this.callbacks.onFinalResult?.(this.accumulatedText.trim());
           } else {
             this.lastInterimText = msg.text; // Track latest interim
@@ -384,34 +382,8 @@ class StreamingTranscriptionService {
       case "finalized":
         void debugLogger.log("WS_FINALIZED", {
           accumulatedText: this.accumulatedText.trim().slice(-100),
-          lastInterimText: this.lastInterimText,
         });
-        // If we have pending interim text, check if it contains content not yet in accumulated
-        if (this.lastInterimText) {
-          const accumulated = this.accumulatedText.trim();
-          const interim = this.lastInterimText.trim();
-
-          // Only add interim if it's not already contained in accumulated text
-          // This handles the case where the final transcript was truncated
-          if (
-            !accumulated.endsWith(interim) &&
-            !accumulated.includes(interim)
-          ) {
-            // Find if interim extends beyond accumulated (shares a common prefix/overlap)
-            // For simplicity, if interim is longer and accumulated doesn't contain it, add it
-            void debugLogger.log("ADDED_PENDING_INTERIM", {
-              text: this.lastInterimText,
-              reason: "interim not found in accumulated",
-            });
-            this.accumulatedText += this.lastInterimText + " ";
-          } else {
-            void debugLogger.log("SKIPPED_PENDING_INTERIM", {
-              text: this.lastInterimText,
-              reason: "already in accumulated",
-            });
-          }
-          this.lastInterimText = "";
-        }
+        this.lastInterimText = "";
         if (this.finalizeResolver) {
           this.finalizeResolver();
           this.finalizeResolver = null;

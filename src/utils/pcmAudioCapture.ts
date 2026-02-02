@@ -47,6 +47,8 @@ class PCMAudioCapture {
   // Graceful stop support - wait for final buffer to flush
   private isStopping = false;
   private onStopComplete: (() => void) | null = null;
+  private flushSource: AudioBufferSourceNode | null = null;
+  private flushCallbacksRemaining = 0;
 
   // Track handlers for device recovery
   private trackEndedHandlers: Map<MediaStreamTrack, () => void> = new Map();
@@ -291,6 +293,12 @@ class PCMAudioCapture {
   /**
    * Stop capturing audio gracefully, waiting for the current buffer to flush.
    * This ensures no audio is lost in the ScriptProcessorNode pipeline.
+   *
+   * Uses silence injection to force an event-driven flush:
+   * 1. Disconnect real audio source
+   * 2. Inject silence to push any remaining audio through the processor
+   * 3. Wait for the onaudioprocess callback that contains the final audio
+   *
    * Returns a promise that resolves when the final chunk has been processed.
    */
   async stopAndFlush(): Promise<void> {
@@ -299,22 +307,53 @@ class PCMAudioCapture {
       return;
     }
 
-    // Signal that we're stopping - onaudioprocess will process one more chunk
+    // Signal that we're stopping - onaudioprocess will process remaining chunks
     this.isStopping = true;
 
-    // Wait for the next onaudioprocess callback to fire and complete
+    // Inject silence to force-flush any remaining audio in the processor's buffer.
+    // The ScriptProcessorNode only fires onaudioprocess when its buffer is full.
+    // By injecting silence, we push any partial real audio through immediately.
+    if (this.audioContext && this.processorNode && this.sourceNode) {
+      try {
+        // Disconnect the real audio source first
+        this.sourceNode.disconnect();
+
+        // Create a silent buffer (one full buffer size worth of silence)
+        const silentBuffer = this.audioContext.createBuffer(
+          1, // mono
+          AUDIO_BUFFER_CONFIG.BUFFER_SIZE_SAMPLES,
+          this.audioContext.sampleRate
+        );
+        // Buffer is already filled with zeros by default
+
+        // Create and connect silent source to push the remaining audio through
+        this.flushSource = this.audioContext.createBufferSource();
+        this.flushSource.buffer = silentBuffer;
+        this.flushSource.connect(this.processorNode);
+        this.flushSource.start();
+
+        void debugLogger.log("PCM_FLUSH_SILENCE_INJECTED");
+      } catch (error) {
+        void debugLogger.log("PCM_FLUSH_SILENCE_ERROR", {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+
+    // Wait for the onaudioprocess callback to fire with the flushed audio
     await new Promise<void>((resolve) => {
       this.onStopComplete = resolve;
 
-      // Safety timeout in case onaudioprocess doesn't fire (e.g., no audio input)
+      // Safety timeout in case onaudioprocess doesn't fire (e.g., audio context suspended)
       setTimeout(() => {
         if (this.isStopping) {
+          void debugLogger.log("PCM_FLUSH_TIMEOUT");
           this.isStopping = false;
           this.isCapturing = false;
           this.onStopComplete = null;
           resolve();
         }
-      }, 200);
+      }, 300); // Slightly longer timeout to account for audio pipeline latency
     });
 
     this.cleanup();
@@ -533,6 +572,17 @@ class PCMAudioCapture {
 
     // Remove track handlers
     this.unregisterTrackEndedHandlers();
+
+    // Clean up flush source if it exists
+    if (this.flushSource) {
+      try {
+        this.flushSource.stop();
+        this.flushSource.disconnect();
+      } catch {
+        // May already be stopped/disconnected
+      }
+      this.flushSource = null;
+    }
 
     if (this.processorNode) {
       this.processorNode.disconnect();

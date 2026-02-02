@@ -22,7 +22,6 @@ const builtInMicCache = {
   deviceId: "",
   valid: false,
 };
-let builtInMicListenerRegistered = false;
 let builtInMicCacheWarmedUp = false;
 
 const loadBuiltInMicCacheFromStorage = () => {
@@ -64,15 +63,6 @@ const invalidateBuiltInMicCache = ({ clearStorage = false } = {}) => {
   if (clearStorage) {
     clearBuiltInMicStorage();
   }
-};
-
-const registerBuiltInMicCacheListener = () => {
-  if (builtInMicListenerRegistered) return;
-  if (!navigator.mediaDevices?.addEventListener) return;
-  navigator.mediaDevices.addEventListener("devicechange", () => {
-    invalidateBuiltInMicCache();
-  });
-  builtInMicListenerRegistered = true;
 };
 
 loadBuiltInMicCacheFromStorage();
@@ -198,7 +188,6 @@ const logStreamDeviceInfo = (stream, context) => {
 };
 
 async function getBuiltInMicrophoneStream() {
-  registerBuiltInMicCacheListener();
   loadBuiltInMicCacheFromStorage();
 
   if (
@@ -306,7 +295,6 @@ async function getPreferredMicrophoneStream({
       logStreamDeviceInfo(stream, "preferred_device");
       return stream;
     } catch {
-      // Fallback without exact device constraint
       const stream = await getUserMediaWithFallback(
         DICTATION_AUDIO_CONSTRAINTS,
       );
@@ -348,7 +336,6 @@ const SoundWaveIcon = ({ size = 16 }) => {
   );
 };
 
-// Voice Wave Animation Component (for processing state)
 const VoiceWaveIndicator = ({ isListening }) => {
   return (
     <div className="flex items-center justify-center gap-0.5">
@@ -481,18 +468,10 @@ export default function App() {
     }
   }, [isCommandMenuOpen, isHovered, setWindowInteractivity]);
 
-  // Monitor for audio device changes (Bluetooth connect/disconnect, etc.)
-  // This helps handle AirPods disconnection gracefully during recording
   useEffect(() => {
     if (!navigator.mediaDevices?.addEventListener) return;
 
     const handleDeviceChange = async () => {
-      // If we're currently recording and the device changes, the track will end
-      // The track 'ended' event handler in pcmAudioCapture will handle this
-      // Here we just invalidate the built-in mic cache so next recording uses correct device
-      invalidateBuiltInMicCache();
-
-      // Log device change for debugging Bluetooth issues
       try {
         const devices = await navigator.mediaDevices.enumerateDevices();
         const audioInputs = devices.filter((d) => d.kind === "audioinput");
@@ -618,7 +597,6 @@ export default function App() {
       cancelRecordingRef.current = false;
       pendingStartRef.current = true;
 
-      // OPTIMISTIC UI: Show animation immediately before async operations complete
       setIsConnecting(true);
 
       // Play audio cue BEFORE mic request - this ensures the cue plays through
@@ -628,7 +606,6 @@ export default function App() {
       // music playback, users should enable "Always use built-in microphone" in settings.
       void playCue("start");
 
-      // Create AudioManager for this recording session
       const audioManager = new AudioManager(audioSettings);
       audioManagerRef.current = audioManager;
 
@@ -644,7 +621,6 @@ export default function App() {
           setInterimTranscript(text);
         },
         onStreamingStateChange: (state) => {
-          // Handle reconnecting state for UI feedback
           if (state === "reconnecting") {
             setIsReconnecting(true);
           } else if (state === "ready" || state === "streaming") {
@@ -676,12 +652,10 @@ export default function App() {
           const metrics = result.metrics;
 
           if (result.success && result.text) {
-            // Paste immediately - don't wait for database save
             metrics?.mark?.("pasteStart");
             const pastePromise = audioManager.safePaste(result.text);
             void audioManager.saveTranscription(result.text);
 
-            // Wait for paste to complete, but don't block on database save
             try {
               await pastePromise;
             } finally {
@@ -689,7 +663,6 @@ export default function App() {
             }
           }
 
-          // Log metrics for both success and failure cases
           const summary = metrics?.buildSummary
             ? metrics.buildSummary(result.success ? "pasteEnd" : "start")
             : null;

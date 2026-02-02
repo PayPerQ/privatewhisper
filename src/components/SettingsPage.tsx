@@ -324,7 +324,8 @@ export default function SettingsPage({
         showAlertDialog({
           title: "Save Failed",
           description:
-            result?.error || "We couldn't persist your API key. Please try again.",
+            result?.error ||
+            "We couldn't persist your API key. Please try again.",
         });
         return;
       }

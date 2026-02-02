@@ -322,7 +322,7 @@ class PCMAudioCapture {
         const silentBuffer = this.audioContext.createBuffer(
           1, // mono
           AUDIO_BUFFER_CONFIG.BUFFER_SIZE_SAMPLES,
-          this.audioContext.sampleRate
+          this.audioContext.sampleRate,
         );
         // Buffer is already filled with zeros by default
 

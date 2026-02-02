@@ -97,7 +97,8 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
       if (!result?.success) {
         showAlertDialog({
           title: "API Key Save Failed",
-          description: result?.error || "We couldn't save your key. Please try again.",
+          description:
+            result?.error || "We couldn't save your key. Please try again.",
         });
         return false;
       }

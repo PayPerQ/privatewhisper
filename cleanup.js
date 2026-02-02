@@ -3,7 +3,7 @@ const fs = require("fs");
 const os = require("os");
 
 const DEBUG =
-  process.env.PPQWHISPER_DEBUG === "true" || process.argv.includes("--debug");
+  process.env.PPQVOICE_DEBUG === "true" || process.argv.includes("--debug");
 
 function log(message, ...args) {
   if (DEBUG) {

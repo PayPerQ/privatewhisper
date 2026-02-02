@@ -18,11 +18,11 @@ Use debug logging when you need deeper insight into the microphone, transcriptio
 
 ```bash
 # macOS / Linux
-export PPQWHISPER_DEBUG=true
+export PPQVOICE_DEBUG=true
 open /Applications/PPQ\ Whisper.app
 
 # Windows (PowerShell)
-$env:PPQWHISPER_DEBUG="true"
+$env:PPQVOICE_DEBUG="true"
 Start-Process "C:\Program Files\PPQ Whisper\PPQ Whisper.exe"
 ```
 

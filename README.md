@@ -8,7 +8,7 @@ PPQ Whisper is a lightweight Electron desktop app that turns any text field into
 - **Automatic paste + history** – Captured text is pasted into the active app and stored locally in SQLite.
 - **AI clean-up pipeline** – PPQ cleans punctuation, lists, and formatting automatically.
 - **Cross-platform** – macOS, Windows, and Linux packages powered by Electron + Vite.
-- **Ops-friendly** – Toggle `PPQWHISPER_DEBUG=true` to write rich logs to the user data directory.
+- **Ops-friendly** – Toggle `PPQVOICE_DEBUG=true` to write rich logs to the user data directory.
 - **Zero local-model overhead** – No llama.cpp builds, Python dependencies, or multi-GB downloads.
 
 ## Quick Start
@@ -30,7 +30,7 @@ Want the production build? Run `npm start` to launch Electron with the prebuilt 
 | Key                | Required | Description                                                                                                      |
 | ------------------ | -------- | ---------------------------------------------------------------------------------------------------------------- |
 | `PPQ_API_KEY`      | ✅       | Your PPQ API key used for transcription and clean-up.                                                            |
-| `PPQWHISPER_DEBUG` | optional | `true` writes detailed logs to `~/Library/Application Support/ppq-whisper/logs` (platform-specific equivalents). |
+| `PPQVOICE_DEBUG` | optional | `true` writes detailed logs to `~/Library/Application Support/ppq-whisper/logs` (platform-specific equivalents). |
 
 All other preferences (language, hotkeys, audio cues) can be changed inside the Control Panel UI. They persist in `localStorage` and synchronize with the renderer.
 
@@ -71,10 +71,10 @@ You can revisit both in **Control Panel → Settings → Permissions** if someth
 | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | “PPQ key not found”                | Confirm `.env` + Control Panel → PPQ Cloud has a valid value.                                                                                                                                    |
 | Nothing pastes after transcription | Re-request Accessibility permission from Settings, then relaunch the app.                                                                                                                        |
-| Need extra logs                    | Run `PPQWHISPER_DEBUG=true npm start` (or `npm run dev -- --debug`). Logs go to `%APPDATA%/ppq-whisper/logs`, `~/Library/Application Support/ppq-whisper/logs`, or `~/.config/ppq-whisper/logs`. |
+| Need extra logs                    | Run `PPQVOICE_DEBUG=true npm start` (or `npm run dev -- --debug`). Logs go to `%APPDATA%/ppq-whisper/logs`, `~/Library/Application Support/ppq-whisper/logs`, or `~/.config/ppq-whisper/logs`. |
 | Updater stuck                      | Use Control Panel → Settings → Updates → “Download Update” to retry, or grab the latest release from GitHub.                                                                                     |
 
 ## Support & Feedback
 
-- Email: [support@PPQWHISPER.com](mailto:support@PPQWHISPER.com)
+- Email: [support@PPQVOICE.com](mailto:support@PPQVOICE.com)
 - Issues: [github.com/PayPerQ/ppq-voice-private/issues](https://github.com/PayPerQ/ppq-voice-private/issues)

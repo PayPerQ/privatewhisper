@@ -15,7 +15,7 @@ SUPABASE_LOG_FUNCTION_NAME=voice-logs
 SUPABASE_LOG_TABLE=voice_pipeline_logs
 
 # Optional: Verbose logging toggle
-PPQWHISPER_DEBUG=false`;
+PPQVOICE_DEBUG=false`;
 
 if (!fs.existsSync(".env")) {
   fs.writeFileSync(".env", envTemplate);

@@ -308,7 +308,28 @@ export default function SettingsPage({
         return;
       }
 
-      await window.electronAPI?.savePPQKey(trimmed);
+      // Require the IPC handler to be available
+      if (!window.electronAPI?.savePPQKey) {
+        showAlertDialog({
+          title: "Save Failed",
+          description: "Unable to save settings. Please restart the app.",
+        });
+        return;
+      }
+
+      const result = await window.electronAPI.savePPQKey(trimmed);
+
+      // Check if the save operation succeeded
+      if (!result?.success) {
+        showAlertDialog({
+          title: "Save Failed",
+          description:
+            result?.error || "We couldn't persist your API key. Please try again.",
+        });
+        return;
+      }
+
+      // Only update localStorage after .env save succeeds
       updateApiKeys({ ppqApiKey: trimmed });
 
       showAlertDialog({

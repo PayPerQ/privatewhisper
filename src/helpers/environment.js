@@ -83,62 +83,127 @@ class EnvironmentManager {
   }
 
   savePPQApiKey(key) {
+    // Validate the key before saving
+    if (!this.isValidApiKey(key)) {
+      return { success: false, error: "Invalid API key" };
+    }
+
     // Update the environment variable in memory for immediate use
     process.env.PPQ_API_KEY = key;
+
     // Persist all keys to file
-    this.saveAllKeysToEnvFile();
+    const result = this.saveAllKeysToEnvFile();
+    if (!result.success) {
+      return result;
+    }
+
     return { success: true };
   }
 
+  /**
+   * Validates that a key is non-empty and doesn't contain placeholder values.
+   */
+  isValidApiKey(key) {
+    if (typeof key !== "string") return false;
+    const trimmed = key.trim();
+    if (trimmed === "") return false;
+    if (trimmed === "your_ppq_api_key_here") return false;
+    return true;
+  }
+
+  /**
+   * Escapes a value for safe inclusion in a .env file.
+   * Handles special characters that could break parsing.
+   */
+  escapeEnvValue(value) {
+    if (typeof value !== "string") return "";
+    // If value contains special chars, wrap in double quotes and escape internal quotes
+    if (/[\s"'`$\\=]/.test(value) || value.includes("\n")) {
+      return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, "\\n")}"`;
+    }
+    return value;
+  }
+
   createProductionEnvFile(apiKey) {
-    const envPath = path.join(app.getPath("userData"), ".env");
+    try {
+      const envPath = path.join(app.getPath("userData"), ".env");
 
-    const envContent = `# PPQ Voice Environment Variables
+      // Build env content with escaped values for safety
+      let envContent = `# PPQ Voice Environment Variables
 # This file was created automatically for production use
-PPQ_API_KEY=${apiKey}
-${process.env.SUPABASE_URL ? `SUPABASE_URL=${process.env.SUPABASE_URL}\n` : ""}${process.env.SUPABASE_PUBLISHABLE_KEY ? `SUPABASE_PUBLISHABLE_KEY=${process.env.SUPABASE_PUBLISHABLE_KEY}\n` : ""}${process.env.SUPABASE_FUNCTIONS_BASE_URL ? `SUPABASE_FUNCTIONS_BASE_URL=${process.env.SUPABASE_FUNCTIONS_BASE_URL}\n` : ""}${process.env.SUPABASE_LOG_FUNCTION_NAME ? `SUPABASE_LOG_FUNCTION_NAME=${process.env.SUPABASE_LOG_FUNCTION_NAME}\n` : ""}${process.env.SUPABASE_LOG_TABLE ? `SUPABASE_LOG_TABLE=${process.env.SUPABASE_LOG_TABLE}\n` : ""}
+PPQ_API_KEY=${this.escapeEnvValue(apiKey)}
 `;
+      if (process.env.SUPABASE_URL) {
+        envContent += `SUPABASE_URL=${this.escapeEnvValue(process.env.SUPABASE_URL)}\n`;
+      }
+      if (process.env.SUPABASE_PUBLISHABLE_KEY) {
+        envContent += `SUPABASE_PUBLISHABLE_KEY=${this.escapeEnvValue(process.env.SUPABASE_PUBLISHABLE_KEY)}\n`;
+      }
+      if (process.env.SUPABASE_FUNCTIONS_BASE_URL) {
+        envContent += `SUPABASE_FUNCTIONS_BASE_URL=${this.escapeEnvValue(process.env.SUPABASE_FUNCTIONS_BASE_URL)}\n`;
+      }
+      if (process.env.SUPABASE_LOG_FUNCTION_NAME) {
+        envContent += `SUPABASE_LOG_FUNCTION_NAME=${this.escapeEnvValue(process.env.SUPABASE_LOG_FUNCTION_NAME)}\n`;
+      }
+      if (process.env.SUPABASE_LOG_TABLE) {
+        envContent += `SUPABASE_LOG_TABLE=${this.escapeEnvValue(process.env.SUPABASE_LOG_TABLE)}\n`;
+      }
 
-    fs.writeFileSync(envPath, envContent, "utf8");
+      fs.writeFileSync(envPath, envContent, "utf8");
 
-    require("dotenv").config({ path: envPath, override: true });
+      require("dotenv").config({ path: envPath, override: true });
 
-    return { success: true, path: envPath };
+      return { success: true, path: envPath };
+    } catch (error) {
+      debugLogger.error("environment", "create-env-file-failed", {
+        error: error.message,
+        stack: error.stack,
+      });
+      return { success: false, error: error.message };
+    }
   }
 
   saveAllKeysToEnvFile() {
-    const envPath = path.join(app.getPath("userData"), ".env");
+    try {
+      const envPath = path.join(app.getPath("userData"), ".env");
 
-    // Build env content with all current keys
-    let envContent = `# PPQ Voice Environment Variables
+      // Build env content with all current keys (escaped for safety)
+      let envContent = `# PPQ Voice Environment Variables
 # This file was created automatically for production use
 `;
 
-    if (process.env.PPQ_API_KEY) {
-      envContent += `PPQ_API_KEY=${process.env.PPQ_API_KEY}\n`;
-    }
-    if (process.env.SUPABASE_URL) {
-      envContent += `SUPABASE_URL=${process.env.SUPABASE_URL}\n`;
-    }
-    if (process.env.SUPABASE_PUBLISHABLE_KEY) {
-      envContent += `SUPABASE_PUBLISHABLE_KEY=${process.env.SUPABASE_PUBLISHABLE_KEY}\n`;
-    }
-    if (process.env.SUPABASE_FUNCTIONS_BASE_URL) {
-      envContent += `SUPABASE_FUNCTIONS_BASE_URL=${process.env.SUPABASE_FUNCTIONS_BASE_URL}\n`;
-    }
-    if (process.env.SUPABASE_LOG_FUNCTION_NAME) {
-      envContent += `SUPABASE_LOG_FUNCTION_NAME=${process.env.SUPABASE_LOG_FUNCTION_NAME}\n`;
-    }
-    if (process.env.SUPABASE_LOG_TABLE) {
-      envContent += `SUPABASE_LOG_TABLE=${process.env.SUPABASE_LOG_TABLE}\n`;
-    }
+      if (process.env.PPQ_API_KEY) {
+        envContent += `PPQ_API_KEY=${this.escapeEnvValue(process.env.PPQ_API_KEY)}\n`;
+      }
+      if (process.env.SUPABASE_URL) {
+        envContent += `SUPABASE_URL=${this.escapeEnvValue(process.env.SUPABASE_URL)}\n`;
+      }
+      if (process.env.SUPABASE_PUBLISHABLE_KEY) {
+        envContent += `SUPABASE_PUBLISHABLE_KEY=${this.escapeEnvValue(process.env.SUPABASE_PUBLISHABLE_KEY)}\n`;
+      }
+      if (process.env.SUPABASE_FUNCTIONS_BASE_URL) {
+        envContent += `SUPABASE_FUNCTIONS_BASE_URL=${this.escapeEnvValue(process.env.SUPABASE_FUNCTIONS_BASE_URL)}\n`;
+      }
+      if (process.env.SUPABASE_LOG_FUNCTION_NAME) {
+        envContent += `SUPABASE_LOG_FUNCTION_NAME=${this.escapeEnvValue(process.env.SUPABASE_LOG_FUNCTION_NAME)}\n`;
+      }
+      if (process.env.SUPABASE_LOG_TABLE) {
+        envContent += `SUPABASE_LOG_TABLE=${this.escapeEnvValue(process.env.SUPABASE_LOG_TABLE)}\n`;
+      }
 
-    fs.writeFileSync(envPath, envContent, "utf8");
+      fs.writeFileSync(envPath, envContent, "utf8");
 
-    // Reload the env file
-    require("dotenv").config({ path: envPath, override: true });
+      // Reload the env file
+      require("dotenv").config({ path: envPath, override: true });
 
-    return { success: true, path: envPath };
+      return { success: true, path: envPath };
+    } catch (error) {
+      debugLogger.error("environment", "save-env-file-failed", {
+        error: error.message,
+        stack: error.stack,
+      });
+      return { success: false, error: error.message };
+    }
   }
 }
 

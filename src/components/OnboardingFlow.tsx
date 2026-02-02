@@ -82,9 +82,27 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     if (!trimmedKey) return false;
 
     try {
-      if (window.electronAPI?.savePPQKey) {
-        await window.electronAPI.savePPQKey(trimmedKey);
+      // Require the IPC handler to be available
+      if (!window.electronAPI?.savePPQKey) {
+        showAlertDialog({
+          title: "API Key Save Failed",
+          description: "Unable to save settings. Please restart the app.",
+        });
+        return false;
       }
+
+      const result = await window.electronAPI.savePPQKey(trimmedKey);
+
+      // Check if the save operation succeeded
+      if (!result?.success) {
+        showAlertDialog({
+          title: "API Key Save Failed",
+          description: result?.error || "We couldn't save your key. Please try again.",
+        });
+        return false;
+      }
+
+      // Only update localStorage after .env save succeeds
       updateApiKeys({ ppqApiKey: trimmedKey });
       return true;
     } catch (_error) {

@@ -284,7 +284,7 @@ class TrayManager {
       },
       { type: "separator" },
       {
-        label: "Quit PPQ Voice",
+        label: "Quit PPQ Whisper",
         click: () => {
           debugLogger.logEvent("tray", "quit-requested", {
             origin: "tray-menu",
@@ -299,7 +299,7 @@ class TrayManager {
     if (!this.tray) return;
 
     const contextMenu = Menu.buildFromTemplate(this.buildContextMenuTemplate());
-    this.tray.setToolTip("PPQ Voice - Voice Dictation");
+    this.tray.setToolTip("PPQ Whisper - Whisper Dictation");
     this.tray.setContextMenu(contextMenu);
   }
 

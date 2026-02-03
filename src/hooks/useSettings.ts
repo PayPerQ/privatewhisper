@@ -26,12 +26,21 @@ export interface AppearanceSettings {
   showIconOnlyWhenActive: boolean;
 }
 
-// Default hotkey: Globe key on Mac, backtick on other platforms
-const DEFAULT_HOTKEY =
-  typeof window !== "undefined" &&
-  window.electronAPI?.getPlatform?.() === "darwin"
-    ? "GLOBE"
-    : "`";
+function getDefaultHotkey(): string {
+  if (typeof window === "undefined") return "Shift+F9";
+  const platform = window.electronAPI?.getPlatform?.();
+  switch (platform) {
+    case "darwin":
+      return "GLOBE";
+    case "win32":
+      return "Shift+F9";
+    case "linux":
+      return "Shift+F9";
+    default:
+      return "Shift+F9";
+  }
+}
+const DEFAULT_HOTKEY = getDefaultHotkey();
 
 export function useSettings() {
   const [preferredLanguage, setPreferredLanguage] = useLocalStorage(

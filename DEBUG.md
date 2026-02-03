@@ -1,4 +1,4 @@
-# PPQ Voice Debugging Guide
+# PPQ Whisper Debugging Guide
 
 Use debug logging when you need deeper insight into the microphone, transcription, or reasoning pipeline.
 
@@ -8,10 +8,10 @@ Use debug logging when you need deeper insight into the microphone, transcriptio
 
 ```bash
 # macOS
-/Applications/PPQ\ Voice.app/Contents/MacOS/PPQ\ Voice --debug
+/Applications/PPQ\ Whisper.app/Contents/MacOS/PPQ\ Whisper --debug
 
 # Windows
-"C:\Program Files\PPQ Voice\PPQ Voice.exe" --debug
+"C:\Program Files\PPQ Whisper\PPQ Whisper.exe" --debug
 ```
 
 ### Option 2 – Environment variable
@@ -19,20 +19,20 @@ Use debug logging when you need deeper insight into the microphone, transcriptio
 ```bash
 # macOS / Linux
 export PPQVOICE_DEBUG=true
-open /Applications/PPQ\ Voice.app
+open /Applications/PPQ\ Whisper.app
 
 # Windows (PowerShell)
 $env:PPQVOICE_DEBUG="true"
-Start-Process "C:\Program Files\PPQ Voice\PPQ Voice.exe"
+Start-Process "C:\Program Files\PPQ Whisper\PPQ Whisper.exe"
 ```
 
 Debug mode is off by default. Remove the flag/variable to disable it.
 
 ## Where Logs Live
 
-- **macOS** – `~/Library/Application Support/ppq-voice/logs/debug-<timestamp>.log`
-- **Windows** – `%APPDATA%\ppq-voice\logs\debug-<timestamp>.log`
-- **Linux** – `~/.config/ppq-voice/logs/debug-<timestamp>.log`
+- **macOS** – `~/Library/Application Support/ppq-whisper/logs/debug-<timestamp>.log`
+- **Windows** – `%APPDATA%\ppq-whisper\logs\debug-<timestamp>.log`
+- **Linux** – `~/.config/ppq-whisper/logs/debug-<timestamp>.log`
 
 Each launch in debug mode creates a new timestamped file.
 

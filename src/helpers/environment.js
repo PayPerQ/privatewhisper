@@ -129,7 +129,7 @@ class EnvironmentManager {
       const envPath = path.join(app.getPath("userData"), ".env");
 
       // Build env content with escaped values for safety
-      let envContent = `# PPQ Voice Environment Variables
+      let envContent = `# PPQ Whisper Environment Variables
 # This file was created automatically for production use
 PPQ_API_KEY=${this.escapeEnvValue(apiKey)}
 `;
@@ -168,7 +168,7 @@ PPQ_API_KEY=${this.escapeEnvValue(apiKey)}
       const envPath = path.join(app.getPath("userData"), ".env");
 
       // Build env content with all current keys (escaped for safety)
-      let envContent = `# PPQ Voice Environment Variables
+      let envContent = `# PPQ Whisper Environment Variables
 # This file was created automatically for production use
 `;
 

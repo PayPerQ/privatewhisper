@@ -4,7 +4,7 @@ const path = require("path");
 const MAIN_WINDOW_CONFIG = {
   width: 240,
   height: 240,
-  title: "Voice Recorder",
+  title: "Whisper Recorder",
   webPreferences: {
     preload: path.join(__dirname, "..", "..", "preload.js"),
     nodeIntegration: false,

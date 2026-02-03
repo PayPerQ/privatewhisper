@@ -122,6 +122,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   // Globe key detection for hotkey picker (macOS only)
   onGlobeKeyDetected: (callback) =>
     exposeListener("globe-key-detected", callback),
+  onGlobeKeyReleased: (callback) =>
+    exposeListener("globe-key-released", callback),
 
   // Open macOS accessibility settings (macOS only)
   openAccessibilitySettings: () =>
@@ -135,6 +137,12 @@ contextBridge.exposeInMainWorld("electronAPI", {
   // Set hotkey listening mode - suppresses dictation trigger during hotkey selection
   setHotkeyListeningMode: (isListening) =>
     ipcRenderer.invoke("set-hotkey-listening-mode", isListening),
+
+  // Check macOS F-key mode (macOS only)
+  // Returns { standardFunctionKeys: boolean }
+  // true = F-keys work as standard function keys (no Fn needed)
+  // false = F-keys trigger special features (Fn needed for actual F-key)
+  getFnKeyMode: () => ipcRenderer.invoke("get-fn-key-mode"),
 
   // App lifecycle - notifies renderer to clean up audio resources before quit
   onAppQuitting: (callback) => exposeListener("app-quitting", callback),

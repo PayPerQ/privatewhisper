@@ -1,8 +1,8 @@
 const { app, globalShortcut, BrowserWindow, dialog } = require("electron");
 
 // Ensure macOS menus use the proper casing for the app name
-if (process.platform === "darwin" && app && app.getName() !== "PPQ Voice") {
-  app.setName("PPQ Voice");
+if (process.platform === "darwin" && app && app.getName() !== "PPQ Whisper") {
+  app.setName("PPQ Whisper");
 }
 
 // Import helper modules (but don't instantiate yet)
@@ -243,7 +243,7 @@ async function startApp() {
             "You can still use keyboard shortcuts like the backtick (`) or Cmd+Shift+Space. " +
             "\n\nTo enable Globe key support:\n" +
             "1. Open System Settings → Privacy & Security → Accessibility\n" +
-            "2. Add PPQ Voice to the list\n" +
+            "2. Add PPQ Whisper to the list\n" +
             "3. Restart the app\n\n" +
             `Technical details: ${error.message}`,
           buttons: ["OK"],
@@ -354,6 +354,13 @@ async function startApp() {
       if (!globeKeyIsDown) return;
       globeKeyIsDown = false;
 
+      // Broadcast globe-key-released for hotkey picker (allows key-up detection)
+      BrowserWindow.getAllWindows().forEach((win) => {
+        if (!win.isDestroyed()) {
+          win.webContents.send("globe-key-released");
+        }
+      });
+
       // Only send hotkey-up if not in hotkey listening mode
       if (
         !hotkeyListeningMode &&
@@ -402,6 +409,46 @@ async function startApp() {
       if (
         activeHotkey &&
         matchesMacKeyCode(activeHotkey, keyCode) &&
+        windowManager.mainWindow &&
+        !windowManager.mainWindow.isDestroyed()
+      ) {
+        windowManager.mainWindow.webContents.send("dictation-hotkey-up");
+      }
+    });
+
+    // Handle modifier release for compound hotkeys in hold mode
+    globeKeyManager.on("modifier-up", (modifierFlags) => {
+      if (currentHotkeyMode !== "hold" || hotkeyListeningMode) return;
+
+      const activeHotkey =
+        typeof hotkeyManager.getCurrentHotkey === "function"
+          ? hotkeyManager.getCurrentHotkey()
+          : null;
+
+      // Only relevant for compound hotkeys (contain "+")
+      if (!activeHotkey || !activeHotkey.includes("+")) return;
+
+      // Check if the released modifier was part of the compound hotkey
+      // macOS CGEventFlags: Control=0x40000, Alt=0x80000, Shift=0x20000, Command=0x100000
+      const modifierMap = {
+        Control: 0x40000,
+        Alt: 0x80000,
+        Shift: 0x20000,
+        Command: 0x100000,
+      };
+
+      const hotkeyModifiers = activeHotkey
+        .split("+")
+        .filter((part) =>
+          ["Control", "Alt", "Shift", "Command"].includes(part),
+        );
+
+      const releasedRelevantModifier = hotkeyModifiers.some(
+        (mod) => (modifierFlags & modifierMap[mod]) !== 0,
+      );
+
+      if (
+        releasedRelevantModifier &&
         windowManager.mainWindow &&
         !windowManager.mainWindow.isDestroyed()
       ) {

@@ -1,10 +1,10 @@
-# PPQ Voice – Assistant Technical Notes
+# PPQ Whisper – Assistant Technical Notes
 
 Use this doc whenever you need quick architectural context while working on the repo.
 
-## 1. What PPQ Voice Does
+## 1. What PPQ Whisper Does
 
-PPQ Voice is an Electron 36 desktop app (React 19 renderer) that:
+PPQ Whisper is an Electron 36 desktop app (React 19 renderer) that:
 
 1. Listens for a global hotkey (default `\``).
 2. Records audio via the browser's `MediaRecorder`.

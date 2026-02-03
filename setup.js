@@ -1,9 +1,9 @@
 const fs = require("fs");
 const path = require("path");
 
-console.log("Setting up PPQ Voice...");
+console.log("Setting up PPQ Whisper...");
 
-const envTemplate = `# PPQ Voice Environment Variables
+const envTemplate = `# PPQ Whisper Environment Variables
 # Required: PPQ API key for transcription + clean-up
 PPQ_API_KEY=your_ppq_api_key_here
 

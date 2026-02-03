@@ -1,6 +1,8 @@
 import React, { useRef, useState, useCallback, useEffect } from "react";
 import { Keyboard, Loader2 } from "lucide-react";
 import { formatHotkeyLabel } from "../../utils/hotkeys";
+import { validateHotkey, type Platform } from "../../utils/hotkeyValidator";
+import { useFnKeyMode } from "../../hooks/useFnKeyMode";
 
 interface HotkeyInputProps {
   value: string;
@@ -12,6 +14,7 @@ interface HotkeyInputProps {
 }
 
 // Valid Electron accelerator keys (function keys)
+// Used for both e.key and e.code checking
 const VALID_FUNCTION_KEYS = new Set([
   "F1",
   "F2",
@@ -100,11 +103,13 @@ export function mapKeyboardEventToHotkey(
   const modifiers: string[] = [];
   // Map Ctrl and Cmd/Meta as separate modifiers so the user can
   // register Ctrl-based shortcuts independently of Cmd on macOS.
-  // Only map metaKey on macOS — Electron's globalShortcut doesn't
-  // support "Command" on Windows/Linux, so ignore the Win/Super key.
+  // On macOS: metaKey = Command
+  // On Windows/Linux: metaKey = Super (Windows key)
   const isMac = /Mac|Darwin/.test(navigator.platform);
   if (e.ctrlKey) modifiers.push("Control");
-  if (e.metaKey && isMac) modifiers.push("Command");
+  if (e.metaKey) {
+    modifiers.push(isMac ? "Command" : "Super");
+  }
   if (e.altKey) modifiers.push("Alt");
   if (e.shiftKey) modifiers.push("Shift");
 
@@ -117,8 +122,11 @@ export function mapKeyboardEventToHotkey(
   } else if (code.startsWith("Key") && code.length === 4) {
     // Letter keys: KeyA -> A, KeyB -> B, etc.
     mappedKey = code.charAt(3).toUpperCase();
+  } else if (VALID_FUNCTION_KEYS.has(code)) {
+    // Function keys: e.code is "F1", "F2", etc. (more reliable than e.key)
+    mappedKey = code;
   } else if (VALID_FUNCTION_KEYS.has(e.key)) {
-    // Function keys use e.key directly (F1, F2, etc.)
+    // Fallback: check e.key for function keys
     mappedKey = e.key;
   } else if (e.key === "fn" || e.key === "Function") {
     // Globe key can't have modifiers
@@ -147,9 +155,13 @@ export default function HotkeyInput({
   const inputRef = useRef<HTMLDivElement>(null);
   const [isListening, setIsListening] = useState(false);
   const [pendingKey, setPendingKey] = useState<string | null>(null);
+  const [validationError, setValidationError] = useState<string | null>(null);
   const isListeningRef = useRef(isListening);
   const isSavingRef = useRef(isSaving);
   const disabledRef = useRef(disabled);
+
+  // Check if Fn key is required for function keys on macOS
+  const { requiresFn } = useFnKeyMode();
 
   // Keep refs in sync with state/props for use in IPC callback
   useEffect(() => {
@@ -170,15 +182,43 @@ export default function HotkeyInput({
     };
   }, [isListening]);
 
-  // Listen for globe key via IPC when in listening mode (macOS only)
+  // Track if globe key is pending (pressed but not yet released)
+  // This allows Fn+F9 to register as F9 instead of GLOBE
+  const globePendingRef = useRef(false);
+
+  // Cancel any pending globe key selection (called when user presses another key)
+  const cancelGlobeSelection = useCallback(() => {
+    globePendingRef.current = false;
+  }, []);
+
+  // Listen for globe key down/up via IPC when in listening mode (macOS only)
+  // Uses key-up detection: only save GLOBE if Fn was pressed and released without any other key
   useEffect(() => {
     if (!showGlobeOption) return;
 
-    const handleGlobeKeyDetected = async () => {
+    const handleGlobeKeyDetected = () => {
       // Only process if we're currently listening for hotkey input
       if (!isListeningRef.current || isSavingRef.current || disabledRef.current)
         return;
 
+      // Mark globe as pending - will be confirmed on key-up if no other key was pressed
+      globePendingRef.current = true;
+    };
+
+    const handleGlobeKeyReleased = async () => {
+      // Only process if we're currently listening and globe was pending
+      if (
+        !isListeningRef.current ||
+        isSavingRef.current ||
+        disabledRef.current ||
+        !globePendingRef.current
+      ) {
+        globePendingRef.current = false;
+        return;
+      }
+
+      // Globe key was pressed and released without any other key - save GLOBE
+      globePendingRef.current = false;
       setPendingKey("GLOBE");
       setIsListening(false);
       inputRef.current?.blur();
@@ -187,11 +227,17 @@ export default function HotkeyInput({
       setPendingKey(null);
     };
 
-    const cleanup = window.electronAPI?.onGlobeKeyDetected?.(
+    const cleanupDetected = window.electronAPI?.onGlobeKeyDetected?.(
       handleGlobeKeyDetected,
     );
+    const cleanupReleased = window.electronAPI?.onGlobeKeyReleased?.(
+      handleGlobeKeyReleased,
+    );
+
     return () => {
-      cleanup?.();
+      cleanupDetected?.();
+      cleanupReleased?.();
+      globePendingRef.current = false;
     };
   }, [showGlobeOption, onSave]);
 
@@ -203,6 +249,11 @@ export default function HotkeyInput({
       }
 
       e.preventDefault();
+      setValidationError(null);
+
+      // Cancel any pending globe key selection - user is pressing another key
+      // This allows Fn+F9 to register as F9 instead of GLOBE
+      cancelGlobeSelection();
 
       // Only process when listening
       if (!isListening || isSaving || disabled) {
@@ -225,6 +276,18 @@ export default function HotkeyInput({
         return;
       }
 
+      // Validate against reserved shortcuts
+      const platform = (window.electronAPI?.getPlatform?.() ??
+        "darwin") as Platform;
+      const validation = validateHotkey(mappedKey, platform);
+
+      if (!validation.valid) {
+        setValidationError(validation.error ?? "Invalid shortcut");
+        setIsListening(false);
+        inputRef.current?.blur();
+        return;
+      }
+
       // Show pending state
       setPendingKey(mappedKey);
       setIsListening(false);
@@ -234,7 +297,7 @@ export default function HotkeyInput({
       await onSave(mappedKey);
       setPendingKey(null);
     },
-    [isListening, isSaving, disabled, onSave],
+    [isListening, isSaving, disabled, onSave, cancelGlobeSelection],
   );
 
   const displayKey = pendingKey || value;
@@ -275,7 +338,9 @@ export default function HotkeyInput({
               }
             `}
             >
-              {isListening ? "..." : formatHotkeyLabel(displayKey)}
+              {isListening
+                ? "..."
+                : formatHotkeyLabel(displayKey, { requiresFn })}
             </kbd>
           )}
           <div>
@@ -301,6 +366,10 @@ export default function HotkeyInput({
         </div>
         {!isActive && <Keyboard className="w-5 h-5 text-muted-foreground" />}
       </div>
+
+      {validationError && (
+        <p className="text-sm text-destructive">{validationError}</p>
+      )}
     </div>
   );
 }

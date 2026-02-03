@@ -99,6 +99,11 @@ class GlobeKeyManager extends EventEmitter {
             if (!Number.isNaN(keyCode)) {
               this.emit("key-up", keyCode);
             }
+          } else if (line.startsWith("MODIFIER_UP:")) {
+            const flags = parseInt(line.replace("MODIFIER_UP:", ""), 10);
+            if (!Number.isNaN(flags)) {
+              this.emit("modifier-up", flags);
+            }
           }
         });
     });

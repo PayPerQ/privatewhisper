@@ -132,7 +132,7 @@ class IPCHandlers {
         return {
           success: true,
           relaunch: true,
-          message: "Cleanup completed. Relaunching PPQ Voice...",
+          message: "Cleanup completed. Relaunching PPQ Whisper...",
         };
       } catch (error) {
         throw error;
@@ -209,12 +209,11 @@ class IPCHandlers {
         const isGlobeKey = hotkey === "GLOBE";
         const isCompoundHotkey = !isGlobeKey && hotkey.includes("+");
 
-        // Determine when we need full keyboard monitoring (keyDown/keyUp events):
-        // - Non-Globe + hold mode: need key-up detection to stop dictation
-        // - Non-Globe + simple key: need key suppression to prevent character input
-        // Globe key and compound hotkeys in toggle mode only need flagsChanged events.
-        const globeOnly =
-          isGlobeKey || (isCompoundHotkey && hotkeyMode === "toggle");
+        // Globe-only mode now works for compound hotkeys in ANY mode (including hold)
+        // because we detect modifier release via flagsChanged instead of keyUp.
+        // This eliminates the need for Input Monitoring for compound hotkeys.
+        // Only simple single-key hotkeys still require full keyboard monitoring.
+        const globeOnly = isGlobeKey || isCompoundHotkey;
 
         // Only suppress simple single-key hotkeys (e.g., backtick) to prevent
         // the character from being typed. Compound hotkeys (e.g., Control+Space)
@@ -286,6 +285,30 @@ class IPCHandlers {
         this.onHotkeyListeningModeChange(Boolean(isListening));
       }
       return { success: true };
+    });
+
+    // Check if macOS "Use F1, F2, etc. keys as standard function keys" is enabled
+    // Returns true if F-keys work as standard function keys (no Fn needed)
+    // Returns false if F-keys trigger special features (Fn needed for actual F-key)
+    ipcMain.handle("get-fn-key-mode", async () => {
+      if (process.platform !== "darwin") {
+        // Non-macOS: F-keys work as standard function keys
+        return { standardFunctionKeys: true };
+      }
+
+      try {
+        const { execSync } = require("child_process");
+        // Check the macOS setting - returns 1 if F-keys are standard, 0 or error if not
+        const result = execSync(
+          "defaults read NSGlobalDomain com.apple.keyboard.fnState 2>/dev/null || echo 0",
+          { encoding: "utf8" },
+        ).trim();
+        const standardFunctionKeys = result === "1";
+        return { standardFunctionKeys };
+      } catch {
+        // Default: F-keys trigger special features (most common)
+        return { standardFunctionKeys: false };
+      }
     });
   }
 

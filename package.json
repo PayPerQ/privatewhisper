@@ -1,7 +1,7 @@
 {
-  "name": "ppq-voice",
-  "version": "0.1.28",
-  "description": "PPQ Voice — a cloud-powered desktop dictation app with instant clean-up",
+  "name": "ppq-whisper",
+  "version": "0.1.29",
+  "description": "PPQ Whisper — a cloud-powered desktop dictation app with instant clean-up",
   "main": "main.js",
   "private": true,
   "scripts": {
@@ -42,7 +42,7 @@
     "desktop-app"
   ],
   "author": {
-    "name": "PPQ Voice Team",
+    "name": "PPQ Whisper Team",
     "email": "matt@ppq.ai"
   },
   "license": "UNLICENSED",
@@ -71,6 +71,7 @@
     "vite": "^6.3.5"
   },
   "dependencies": {
+    "@radix-ui/react-accordion": "^1.2.12",
     "@radix-ui/react-dialog": "^1.1.14",
     "@radix-ui/react-dropdown-menu": "^2.1.15",
     "@radix-ui/react-label": "^2.1.7",

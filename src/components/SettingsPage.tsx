@@ -10,7 +10,9 @@ import { useHotkeyRegistration } from "../hooks/useHotkeyRegistration";
 import { formatHotkeyLabel } from "../utils/hotkeys";
 import LanguageSelector from "./ui/LanguageSelector";
 import HotkeyInput from "./ui/HotkeyInput";
+import { HotkeyGuidelines } from "./ui/HotkeyGuidelines";
 import { Toggle } from "./ui/toggle";
+import type { Platform } from "../utils/hotkeyValidator";
 import {
   Select,
   SelectContent,
@@ -83,7 +85,7 @@ export default function SettingsPage({
   );
   const [microphoneLoading, setMicrophoneLoading] = useState(false);
   const [microphoneError, setMicrophoneError] = useState("");
-  const [platform, setPlatform] = useState<string>("");
+  const [platform, setPlatform] = useState<Platform | "">("");
   const isMacOS = platform === "darwin";
   const { registerHotkey, isRegistering: isSavingHotkey } =
     useHotkeyRegistration({
@@ -174,7 +176,7 @@ export default function SettingsPage({
         title: "Still Running",
         description:
           info?.message ||
-          "PPQ Voice didn't restart automatically. Please quit the app manually to finish installing the update.",
+          "PPQ Whisper didn't restart automatically. Please quit the app manually to finish installing the update.",
       });
     });
   }, [showAlertDialog]);
@@ -211,24 +213,28 @@ export default function SettingsPage({
 
   // Get platform on mount
   useEffect(() => {
-    const detectedPlatform = window.electronAPI?.getPlatform?.() || "";
-    setPlatform(detectedPlatform);
+    const detectedPlatform = window.electronAPI?.getPlatform?.() as
+      | Platform
+      | undefined;
+    if (detectedPlatform) {
+      setPlatform(detectedPlatform);
+    }
   }, []);
 
   // Update globe key listener mode when hotkey or hotkeyMode changes (macOS only)
-  // This determines whether we need Input Monitoring permission
   useEffect(() => {
     if (platform !== "darwin") return;
-
-    // Only need full keyboard monitoring if:
-    // - Hotkey is NOT Globe AND
-    // - Mode is "hold" (push-to-talk)
     window.electronAPI?.updateGlobeListenerMode?.(dictationKey, hotkeyMode);
   }, [platform, dictationKey, hotkeyMode]);
 
   // Check if current settings require Input Monitoring permission
+  // Only simple single-key hotkeys (non-compound, non-Globe) require Input Monitoring
+  const isCompoundHotkey = dictationKey.includes("+");
   const needsInputMonitoring =
-    isMacOS && dictationKey !== "GLOBE" && hotkeyMode === "hold";
+    isMacOS &&
+    dictationKey !== "GLOBE" &&
+    !isCompoundHotkey &&
+    hotkeyMode === "hold";
 
   // Local state for provider selection (overrides computed value)
   useEffect(() => {
@@ -349,7 +355,7 @@ export default function SettingsPage({
   }, [ppqApiKey, updateApiKeys, showAlertDialog]);
 
   const resetAccessibilityPermissions = () => {
-    const message = `🔄 RESET ACCESSIBILITY PERMISSIONS\n\nIf you've rebuilt or reinstalled PPQ Voice and automatic inscription isn't functioning, you may have obsolete permissions from the previous version.\n\n📋 STEP-BY-STEP RESTORATION:\n\n1️⃣ Open System Settings (or System Preferences)\n   • macOS Ventura+: Apple Menu → System Settings\n   • Older macOS: Apple Menu → System Preferences\n\n2️⃣ Navigate to Privacy & Security → Accessibility\n\n3️⃣ Look for obsolete PPQ Voice entries:\n   • Any entries named "PPQ Voice"\n   • Any entries named "Electron"\n   • Any entries with unclear or generic names\n   • Entries pointing to old application locations\n\n4️⃣ Remove ALL obsolete entries:\n   • Select each old entry\n   • Click the minus (-) button\n   • Enter your password if prompted\n\n5️⃣ Add the current PPQ Voice:\n   • Click the plus (+) button\n   • Navigate to and select the CURRENT PPQ Voice app\n   • Ensure the checkbox is ENABLED\n\n6️⃣ Restart PPQ Voice completely\n\n💡 This is very common during development when rebuilding applications!\n\nClick OK when you're ready to open System Settings.`;
+    const message = `🔄 RESET ACCESSIBILITY PERMISSIONS\n\nIf you've rebuilt or reinstalled PPQ Whisper and automatic inscription isn't functioning, you may have obsolete permissions from the previous version.\n\n📋 STEP-BY-STEP RESTORATION:\n\n1️⃣ Open System Settings (or System Preferences)\n   • macOS Ventura+: Apple Menu → System Settings\n   • Older macOS: Apple Menu → System Preferences\n\n2️⃣ Navigate to Privacy & Security → Accessibility\n\n3️⃣ Look for obsolete PPQ Whisper entries:\n   • Any entries named "PPQ Whisper"\n   • Any entries named "Electron"\n   • Any entries with unclear or generic names\n   • Entries pointing to old application locations\n\n4️⃣ Remove ALL obsolete entries:\n   • Select each old entry\n   • Click the minus (-) button\n   • Enter your password if prompted\n\n5️⃣ Add the current PPQ Whisper:\n   • Click the plus (+) button\n   • Navigate to and select the CURRENT PPQ Whisper app\n   • Ensure the checkbox is ENABLED\n\n6️⃣ Restart PPQ Whisper completely\n\n💡 This is very common during development when rebuilding applications!\n\nClick OK when you're ready to open System Settings.`;
 
     showConfirmDialog({
       title: "Reset Accessibility Permissions",
@@ -381,7 +387,7 @@ export default function SettingsPage({
                   App Updates
                 </h3>
                 <p className="text-sm text-gray-600 mb-4">
-                  Keep PPQ Voice up to date with the latest features and
+                  Keep PPQ Whisper up to date with the latest features and
                   improvements.
                 </p>
               </div>
@@ -543,7 +549,7 @@ export default function SettingsPage({
                             showAlertDialog({
                               title: "Installing Update",
                               description:
-                                "PPQ Voice will restart automatically to finish installing the newest version.",
+                                "PPQ Whisper will restart automatically to finish installing the newest version.",
                             });
                           } catch (error: any) {
                             setInstallInitiated(false);
@@ -603,8 +609,7 @@ export default function SettingsPage({
                   Dictation Hotkey
                 </h3>
                 <p className="text-sm text-gray-600 mb-4">
-                  Click below and press any key or combination (Ctrl+key,
-                  Alt+key) to set your hotkey.
+                  Click below and press any key combination to set your hotkey.
                 </p>
               </div>
               <div className="space-y-4">
@@ -614,6 +619,16 @@ export default function SettingsPage({
                   isSaving={isSavingHotkey}
                   showGlobeOption={isMacOS}
                 />
+
+                {/* Hotkey guidelines - platform specific */}
+                {platform && (
+                  <HotkeyGuidelines
+                    platform={platform}
+                    currentHotkey={dictationKey}
+                    onSelect={registerHotkey}
+                    disabled={isSavingHotkey}
+                  />
+                )}
 
                 {/* Hotkey mode - Mac only */}
                 {isMacOS && (
@@ -688,7 +703,7 @@ export default function SettingsPage({
                           "Hold to talk" with non-Globe keys requires Input
                           Monitoring permission to detect key release. Go to
                           System Settings → Privacy & Security → Input
-                          Monitoring and enable PPQ Voice.
+                          Monitoring and enable PPQ Whisper.
                         </p>
                         <p className="text-xs mt-2">
                           <strong>Tip:</strong> Use the Globe key (🌐) for
@@ -708,7 +723,7 @@ export default function SettingsPage({
                   Microphone
                 </h3>
                 <p className="text-sm text-gray-600 mb-4">
-                  Choose which microphone PPQ Voice uses for recording.
+                  Choose which microphone PPQ Whisper uses for recording.
                 </p>
               </div>
               <div className="space-y-4">
@@ -918,10 +933,10 @@ export default function SettingsPage({
             <div className="border-t pt-8">
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                  About PPQ Voice
+                  About PPQ Whisper
                 </h3>
                 <p className="text-sm text-gray-600 mb-6">
-                  PPQ Voice converts your speech to text using AI. Press your
+                  PPQ Whisper converts your speech to text using AI. Press your
                   hotkey, speak, and we'll type what you said wherever your
                   cursor is.
                 </p>
@@ -964,7 +979,7 @@ export default function SettingsPage({
                       showConfirmDialog({
                         title: "⚠️ DANGER: Cleanup App Data",
                         description:
-                          "This will permanently delete ALL PPQ Voice data including:\n\n• Database and transcriptions\n• Local storage settings\n• Cached logs and preferences\n• Environment files\n\nThe app will relaunch after cleanup.\n\nYou will need to manually remove app permissions in System Settings.\n\nThis action cannot be undone. Are you sure?",
+                          "This will permanently delete ALL PPQ Whisper data including:\n\n• Database and transcriptions\n• Local storage settings\n• Cached logs and preferences\n• Environment files\n\nThe app will relaunch after cleanup.\n\nYou will need to manually remove app permissions in System Settings.\n\nThis action cannot be undone. Are you sure?",
                         onConfirm: () => {
                           window.electronAPI
                             ?.cleanupApp()
@@ -973,7 +988,7 @@ export default function SettingsPage({
                                 title: "Cleanup Completed",
                                 description:
                                   result?.message ||
-                                  "✅ Cleanup completed! Relaunching PPQ Voice...",
+                                  "✅ Cleanup completed! Relaunching PPQ Whisper...",
                               });
                             })
                             .catch((error) => {
@@ -994,7 +1009,7 @@ export default function SettingsPage({
                   </Button>
                   <p className="text-xs text-gray-500">
                     Full reset: wipes transcriptions, settings, logs, and saved
-                    keys. You’ll need to set up PPQ Voice again.
+                    keys. You’ll need to set up PPQ Whisper again.
                   </p>
                 </div>
               </div>

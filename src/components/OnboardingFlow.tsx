@@ -26,6 +26,7 @@ import { useHotkeyRegistration } from "../hooks/useHotkeyRegistration";
 import { formatHotkeyLabel } from "../utils/hotkeys";
 import LanguageSelector from "./ui/LanguageSelector";
 import HotkeyInput from "./ui/HotkeyInput";
+import { HotkeyGuidelines } from "./ui/HotkeyGuidelines";
 
 interface OnboardingFlowProps {
   onComplete: () => void;
@@ -52,7 +53,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
 
   const [apiKey, setApiKey] = useState(ppqApiKey);
   const detectedPlatform = window.electronAPI?.getPlatform?.() || "";
-  const defaultHotkey = detectedPlatform === "darwin" ? "GLOBE" : "`";
+  const defaultHotkey = detectedPlatform === "darwin" ? "GLOBE" : "Shift+F9";
   const [hotkey, setHotkey] = useState(dictationKey || defaultHotkey);
   const isMacOS = detectedPlatform === "darwin";
   // Accessibility permissions are only required on macOS - auto-granted on Windows/Linux
@@ -276,7 +277,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
                 className="text-2xl font-bold text-stone-900 mb-2"
                 style={{ fontFamily: "Noto Sans, sans-serif" }}
               >
-                Welcome to PPQ Voice
+                Welcome to PPQ Whisper
               </h2>
               <p
                 className="text-stone-600"
@@ -371,7 +372,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
                 Grant Permissions
               </h2>
               <p className="text-gray-600">
-                PPQ Voice needs{" "}
+                PPQ Whisper needs{" "}
                 {requiresAccessibilityPermission
                   ? "a couple of permissions"
                   : "microphone access"}{" "}
@@ -427,6 +428,8 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
               isSaving={isRegisteringHotkey}
               showGlobeOption={isMacOS}
             />
+
+            <HotkeyGuidelines />
 
             {/* Practice section */}
             <div className="bg-accent/50 p-6 rounded-xl border border-accent">

@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 @theme {
-  /* PPQ Voice Brand Colors - Orange Theme */
+  /* PPQ Whisper Brand Colors - Orange Theme */
   --color-primary: #fd4623;
   --color-primary-hover: #e63e1f;
   --color-primary-active: #cf361a;
@@ -162,7 +162,7 @@
   }
 }
 
-/* PPQ Voice Brand Typography */
+/* PPQ Whisper Brand Typography */
 .brand-heading {
   font-family:
     "Noto Sans",
@@ -352,4 +352,31 @@ a:hover {
 
 .text-brand-link {
   color: #2e3659;
+}
+
+/* Accordion animations */
+@keyframes accordion-down {
+  from {
+    height: 0;
+  }
+  to {
+    height: var(--radix-accordion-content-height);
+  }
+}
+
+@keyframes accordion-up {
+  from {
+    height: var(--radix-accordion-content-height);
+  }
+  to {
+    height: 0;
+  }
+}
+
+.animate-accordion-down {
+  animation: accordion-down 0.2s ease-out;
+}
+
+.animate-accordion-up {
+  animation: accordion-up 0.2s ease-out;
 }

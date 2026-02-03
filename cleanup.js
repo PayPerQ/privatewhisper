@@ -31,10 +31,10 @@ log("Cleaning development database...");
 try {
   const userDataPath =
     process.platform === "darwin"
-      ? path.join(os.homedir(), "Library", "Application Support", "ppq-voice")
+      ? path.join(os.homedir(), "Library", "Application Support", "ppq-whisper")
       : process.platform === "win32"
-        ? path.join(process.env.APPDATA || os.homedir(), "ppq-voice")
-        : path.join(os.homedir(), ".config", "ppq-voice");
+        ? path.join(process.env.APPDATA || os.homedir(), "ppq-whisper")
+        : path.join(os.homedir(), ".config", "ppq-whisper");
 
   const devDbPath = path.join(userDataPath, "transcriptions-dev.db");
 

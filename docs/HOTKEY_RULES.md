@@ -6,23 +6,23 @@ This document describes how hotkey selection and registration works in PPQ Whisp
 
 The hotkey system uses **Electron's `globalShortcut` API** for cross-platform keyboard registration. Key files:
 
-| File | Purpose |
-|------|---------|
-| `src/helpers/hotkeyManager.js` | Global shortcut registration |
-| `src/helpers/globeKeyManager.js` | macOS Globe/Fn key native listener |
-| `src/utils/hotkeyValidator.ts` | Validation + reserved shortcuts |
-| `src/components/ui/HotkeyInput.tsx` | UI hotkey picker |
-| `src/hooks/useSettings.ts` | Persistent storage |
+| File                                | Purpose                            |
+| ----------------------------------- | ---------------------------------- |
+| `src/helpers/hotkeyManager.js`      | Global shortcut registration       |
+| `src/helpers/globeKeyManager.js`    | macOS Globe/Fn key native listener |
+| `src/utils/hotkeyValidator.ts`      | Validation + reserved shortcuts    |
+| `src/components/ui/HotkeyInput.tsx` | UI hotkey picker                   |
+| `src/hooks/useSettings.ts`          | Persistent storage                 |
 
 ---
 
 ## Platform-Specific Defaults
 
-| Platform | Default Hotkey |
-|----------|---------------|
-| macOS | `GLOBE` (Fn key) |
-| Windows | `Control+Super` (Ctrl+Win) |
-| Linux | `Control+Super` |
+| Platform | Default Hotkey   |
+| -------- | ---------------- |
+| macOS    | `GLOBE` (Fn key) |
+| Windows  | `Shift+F9`       |
+| Linux    | `Shift+F9`       |
 
 ---
 
@@ -73,13 +73,13 @@ The hotkey system uses **Electron's `globalShortcut` API** for cross-platform ke
 
 The `hotkeyValidator.ts` enforces these rules:
 
-| Rule | Error Code |
-|------|------------|
-| Maximum 3 keys | `TOO_MANY_KEYS` |
-| Requires modifier + non-modifier (except F1-F24) | `SIMPLE_KEY` |
+| Rule                                                      | Error Code            |
+| --------------------------------------------------------- | --------------------- |
+| Maximum 3 keys                                            | `TOO_MANY_KEYS`       |
+| Requires modifier + non-modifier (except F1-F24)          | `SIMPLE_KEY`          |
 | Cannot mix left/right variants (e.g., LeftCtrl+RightCtrl) | `LEFT_RIGHT_CONFLICT` |
-| Cannot use modifier-only shortcuts (e.g., Ctrl+Alt alone) | `MODIFIER_ONLY` |
-| Cannot use reserved system shortcuts | `RESERVED` |
+| Cannot use modifier-only shortcuts (e.g., Ctrl+Alt alone) | `MODIFIER_ONLY`       |
+| Cannot use reserved system shortcuts                      | `RESERVED`            |
 
 ---
 
@@ -92,7 +92,7 @@ Each platform has 40-60+ reserved shortcuts that **cannot** be used:
 ```
 Cmd+C, Cmd+V, Cmd+X, Cmd+Z, Cmd+A, Cmd+S, Cmd+Q, Cmd+W, Cmd+N, Cmd+O,
 Cmd+P, Cmd+F, Cmd+H, Cmd+M, Cmd+Tab, Cmd+Space, Cmd+Shift+3, Cmd+Shift+4,
-Cmd+Shift+5, Cmd+Option+Esc, Fn+F11, Fn+F12, Control+Up, Control+Down,
+Cmd+Shift+5, Cmd+Option+Esc, F11, F12, Control+Up, Control+Down,
 Control+Left, Control+Right, etc.
 ```
 
@@ -116,12 +116,12 @@ Ctrl+Z, Ctrl+A, Ctrl+S, Super+L, Super+A, etc.
 
 ## Hotkey Modes
 
-| Mode | Behavior |
-|------|----------|
+| Mode                 | Behavior                                        |
+| -------------------- | ----------------------------------------------- |
 | **Toggle** (default) | Press hotkey once to start, press again to stop |
-| **Hold-to-talk** | Hold hotkey to record, release to stop |
+| **Hold-to-talk**     | Hold hotkey to record, release to stop          |
 
-**Note:** Hold-to-talk only works with compound hotkeys (not single keys) to avoid system-wide triggering issues.
+**Platform Note:** Hold-to-talk is **macOS only**. Windows and Linux always use toggle mode due to platform limitations with key-up detection.
 
 ---
 
@@ -131,7 +131,7 @@ Ctrl+Z, Ctrl+A, Ctrl+S, Super+L, Super+A, etc.
 2. **F-keys** require Fn on most Macs (unless user changes system settings)
 3. **Reserved system shortcuts** are blocked — attempting to use them shows an error
 4. **Modifier-only shortcuts** (e.g., just Ctrl+Shift) are not allowed
-5. **Hold-to-talk mode** doesn't work with simple single-key hotkeys
+5. **Hold-to-talk mode** is macOS only — Windows and Linux use toggle mode
 6. **Globe key on non-Mac** — not available (Windows/Linux don't have this key)
 7. **More than 3 keys** in a combination — not supported
 
@@ -159,17 +159,17 @@ Ctrl+Z, Ctrl+A, Ctrl+S, Super+L, Super+A, etc.
 
 ### Windows
 
-- Ctrl+Win (default)
-- Ctrl+Shift+D
-- Win+Shift+Space
+- Shift+F9 — default, simple and reliable
+- Ctrl+Shift+Space
 - Ctrl+Alt+Space
+- F9
 
 ### Linux
 
-- Ctrl+Super (default)
-- Ctrl+Shift+D
+- Shift+F9 — default, simple and reliable
+- Ctrl+Shift+Space
 - Super+Shift+Space
-- Ctrl+Alt+Space
+- F9
 
 ---
 
@@ -186,12 +186,12 @@ The app uses `e.code` for layout-independent mapping (works with AZERTY, QWERTY,
 
 ### IPC Communication
 
-| Handler | Purpose |
-|---------|---------|
-| `update-hotkey` | Register new hotkey |
-| `set-hotkey-listening-mode` | Pause dictation while selecting hotkey |
-| `update-globe-listener-mode` | Configure Globe key listener mode |
-| `get-fn-key-mode` | Check macOS F-key system preference |
+| Handler                      | Purpose                                |
+| ---------------------------- | -------------------------------------- |
+| `update-hotkey`              | Register new hotkey                    |
+| `set-hotkey-listening-mode`  | Pause dictation while selecting hotkey |
+| `update-globe-listener-mode` | Configure Globe key listener mode      |
+| `get-fn-key-mode`            | Check macOS F-key system preference    |
 
 ### Storage
 

@@ -40,10 +40,10 @@ All other preferences (language, hotkeys, audio cues) can be changed inside the 
 ### Default Hotkeys by Platform
 
 | Platform | Default Hotkey |
-|----------|---------------|
-| macOS | Globe (Fn) key |
-| Windows | Ctrl+Win |
-| Linux | Ctrl+Super |
+| -------- | -------------- |
+| macOS    | Globe (Fn) key |
+| Windows  | Ctrl+Win       |
+| Linux    | Ctrl+Super     |
 
 ### Hotkey Modes
 
@@ -53,11 +53,13 @@ All other preferences (language, hotkeys, audio cues) can be changed inside the 
 ### Platform Notes
 
 **macOS:**
+
 - Globe key works without Input Monitoring permission
 - Single-key hotkeys (like backtick) require Input Monitoring permission
 - Compound hotkeys (Ctrl+K) work without extra permissions
 
 **Windows/Linux:**
+
 - No special permissions required
 - Super key (Windows key) supported in combinations
 
@@ -65,16 +67,16 @@ For full hotkey documentation, see [docs/HOTKEY_RULES.md](docs/HOTKEY_RULES.md).
 
 ## NPM Scripts
 
-| Script          | Purpose                                                              |
-| --------------- | -------------------------------------------------------------------- |
-| `npm run dev`   | Runs Vite + Electron with live reload.                               |
-| `npm start`     | Launches Electron in production mode (expects a built renderer).     |
-| `npm run build` | Builds the renderer and packages the desktop app for the current OS. |
-| `npm run pack`  | Prepares an unsigned directory build (great for quick installs).     |
-| `npm run lint`  | Runs ESLint on the renderer source (`src/`).                         |
-| `npm run typecheck` | Runs TypeScript type checking.                                   |
-| `npm run format` | Runs Prettier to format code.                                       |
-| `npm run clean` | Sweeps `dist/`, `src/dist/`, and resets the dev SQLite DB.           |
+| Script              | Purpose                                                              |
+| ------------------- | -------------------------------------------------------------------- |
+| `npm run dev`       | Runs Vite + Electron with live reload.                               |
+| `npm start`         | Launches Electron in production mode (expects a built renderer).     |
+| `npm run build`     | Builds the renderer and packages the desktop app for the current OS. |
+| `npm run pack`      | Prepares an unsigned directory build (great for quick installs).     |
+| `npm run lint`      | Runs ESLint on the renderer source (`src/`).                         |
+| `npm run typecheck` | Runs TypeScript type checking.                                       |
+| `npm run format`    | Runs Prettier to format code.                                        |
+| `npm run clean`     | Sweeps `dist/`, `src/dist/`, and resets the dev SQLite DB.           |
 
 ## Building Installers
 

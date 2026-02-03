@@ -253,9 +253,9 @@ const MAC_RESERVED_SHORTCUTS = [
   "Command+-",
   "Command+Alt+F",
   "Command+Shift+F",
-  // Function key combinations
-  "Fn+F11",
-  "Fn+F12",
+  // Function keys (F11/F12 are Mission Control/Show Desktop on macOS)
+  "F11",
+  "F12",
 ] as const;
 
 // Windows reserved shortcuts - must match documentation in ppq-keyboard-shortcuts.md
@@ -422,15 +422,15 @@ const MAC_RECOMMENDED = [
 ] as const;
 
 const WINDOWS_RECOMMENDED = [
-  "Ctrl + Win + key — two modifiers rarely conflict with other apps",
+  "Shift + F9 — default, simple and reliable",
   "Ctrl + Alt + key — common pattern, easy to press",
-  "Shift + F9 or other function key combinations",
+  "Ctrl + Shift + key — widely supported",
 ] as const;
 
 const LINUX_RECOMMENDED = [
-  "Ctrl + Super + key — two modifiers rarely conflict",
+  "Shift + F9 — default, simple and reliable",
+  "Ctrl + Shift + key — widely supported",
   "Super + Shift + key — if Ctrl is inconvenient",
-  "Shift + F9 or other function key combinations",
 ] as const;
 
 export function getRecommendedPatterns(platform: Platform): readonly string[] {
@@ -457,20 +457,19 @@ const MAC_EXAMPLES = [
 ] as const;
 
 const WINDOWS_EXAMPLES = [
+  "Shift+F9",
   "Control+Shift+K",
   "Alt+F7",
   "Control+Space",
   "Control+Alt+M",
-  "Shift+F9",
 ] as const;
 
 const LINUX_EXAMPLES = [
-  "Control+Super+K",
+  "Shift+F9",
   "Control+Shift+K",
+  "Control+Super+K",
   "Super+Shift+R",
   "Control+Shift+Space",
-  "Shift+F9",
-  "Control+Super+M",
 ] as const;
 
 // Note: Alt+F7 is reserved on Linux (used for window move), so it's not in Linux examples

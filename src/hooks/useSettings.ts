@@ -26,19 +26,18 @@ export interface AppearanceSettings {
   showIconOnlyWhenActive: boolean;
 }
 
-// Platform-specific default hotkeys that work without Input Monitoring
 function getDefaultHotkey(): string {
-  if (typeof window === "undefined") return "Control+Super";
+  if (typeof window === "undefined") return "Shift+F9";
   const platform = window.electronAPI?.getPlatform?.();
   switch (platform) {
     case "darwin":
       return "GLOBE";
     case "win32":
-      return "Control+Super"; // Ctrl+Win
+      return "Shift+F9";
     case "linux":
-      return "Control+Super"; // Ctrl+Super
+      return "Shift+F9";
     default:
-      return "Control+Super";
+      return "Shift+F9";
   }
 }
 const DEFAULT_HOTKEY = getDefaultHotkey();

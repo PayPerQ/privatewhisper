@@ -429,7 +429,12 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
               showGlobeOption={isMacOS}
             />
 
-            <HotkeyGuidelines />
+            <HotkeyGuidelines
+              platform={detectedPlatform as "darwin" | "win32" | "linux"}
+              currentHotkey={hotkey}
+              onSelect={registerHotkey}
+              disabled={isRegisteringHotkey}
+            />
 
             {/* Practice section */}
             <div className="bg-accent/50 p-6 rounded-xl border border-accent">

@@ -75,7 +75,7 @@ export function HotkeyGuidelines({
   // Check if Fn key is required for function keys on macOS
   const { requiresFn } = useFnKeyMode();
 
-  const normalizedCurrent = normalizeHotkey(currentHotkey);
+  const normalizedCurrent = normalizeHotkey(currentHotkey || "");
 
   const isActive = (hotkey: string) => {
     return normalizeHotkey(hotkey) === normalizedCurrent;

@@ -992,9 +992,14 @@ export default function SettingsPage({
                               });
                             })
                             .catch((error) => {
+                              const isOldVersion = error.message?.includes(
+                                "No handler registered",
+                              );
                               showAlertDialog({
                                 title: "Cleanup Failed",
-                                description: `❌ Cleanup failed: ${error.message}`,
+                                description: isOldVersion
+                                  ? "This feature requires a newer version of PPQ Whisper. Please update to the latest version and try again."
+                                  : `❌ Cleanup failed: ${error.message}`,
                               });
                             });
                         },

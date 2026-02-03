@@ -84,6 +84,7 @@ function normalizeModifier(mod: string): string {
 }
 
 export function normalizeHotkey(hotkey: string): string {
+  if (!hotkey) return "";
   const parts = hotkey.split("+");
   const modifiers: string[] = [];
   const keys: string[] = [];
@@ -110,6 +111,14 @@ export function validateHotkey(
   platform: Platform,
   existingHotkeys: string[] = [],
 ): ValidationResult {
+  if (!hotkey) {
+    return {
+      valid: false,
+      error: "No hotkey provided",
+      errorCode: "SIMPLE_KEY",
+    };
+  }
+
   if (hotkey === "GLOBE") {
     return { valid: true };
   }

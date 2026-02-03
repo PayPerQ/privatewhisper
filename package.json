@@ -1,6 +1,6 @@
 {
   "name": "ppq-whisper",
-  "version": "0.1.29",
+  "version": "0.1.30",
   "description": "PPQ Whisper — a cloud-powered desktop dictation app with instant clean-up",
   "main": "main.js",
   "private": true,

@@ -8,9 +8,9 @@ The hotkey system uses **Electron's `globalShortcut` API** for cross-platform ke
 
 | File                                | Purpose                            |
 | ----------------------------------- | ---------------------------------- |
-| `src/helpers/hotkeyManager.js`      | Global shortcut registration       |
+| `src/helpers/hotkeyManager.js`      | Global hotkey registration         |
 | `src/helpers/globeKeyManager.js`    | macOS Globe/Fn key native listener |
-| `src/utils/hotkeyValidator.ts`      | Validation + reserved shortcuts    |
+| `src/utils/hotkeyValidator.ts`      | Validation + forbidden hotkeys     |
 | `src/components/ui/HotkeyInput.tsx` | UI hotkey picker                   |
 | `src/hooks/useSettings.ts`          | Persistent storage                 |
 
@@ -65,7 +65,7 @@ The hotkey system uses **Electron's `globalShortcut` API** for cross-platform ke
 
 - **Super key** works normally
 - No special permissions required
-- Desktop environment shortcuts are reserved (Ctrl+Alt+T for terminal, etc.)
+- Desktop environment hotkeys are reserved (Ctrl+Alt+T for terminal, etc.)
 
 ---
 
@@ -78,14 +78,14 @@ The `hotkeyValidator.ts` enforces these rules:
 | Maximum 3 keys                                            | `TOO_MANY_KEYS`       |
 | Requires modifier + non-modifier (except F1-F24)          | `SIMPLE_KEY`          |
 | Cannot mix left/right variants (e.g., LeftCtrl+RightCtrl) | `LEFT_RIGHT_CONFLICT` |
-| Cannot use modifier-only shortcuts (e.g., Ctrl+Alt alone) | `MODIFIER_ONLY`       |
-| Cannot use reserved system shortcuts                      | `RESERVED`            |
+| Cannot use modifier-only hotkeys (e.g., Ctrl+Alt alone)   | `MODIFIER_ONLY`       |
+| Cannot use reserved system hotkeys                        | `RESERVED`            |
 
 ---
 
-## Reserved Shortcuts (Blocked)
+## Forbidden Hotkeys (Blocked)
 
-Each platform has 40-60+ reserved shortcuts that **cannot** be used:
+Each platform has 40-60+ reserved hotkeys that **cannot** be used:
 
 ### macOS
 
@@ -129,8 +129,8 @@ Ctrl+Z, Ctrl+A, Ctrl+S, Super+L, Super+A, etc.
 
 1. **Single-key hotkeys on macOS** require Input Monitoring permission (except Globe key)
 2. **F-keys** require Fn on most Macs (unless user changes system settings)
-3. **Reserved system shortcuts** are blocked — attempting to use them shows an error
-4. **Modifier-only shortcuts** (e.g., just Ctrl+Shift) are not allowed
+3. **Reserved system hotkeys** are blocked — attempting to use them shows an error
+4. **Modifier-only hotkeys** (e.g., just Ctrl+Shift) are not allowed
 5. **Hold-to-talk mode** is macOS only — Windows and Linux use toggle mode
 6. **Globe key on non-Mac** — not available (Windows/Linux don't have this key)
 7. **More than 3 keys** in a combination — not supported

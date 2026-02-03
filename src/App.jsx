@@ -9,7 +9,10 @@ import { useSettings } from "./hooks/useSettings";
 import AudioManager from "./helpers/audioManager";
 import StreamingTranscriptionService from "./services/StreamingTranscriptionService";
 import createDebugLogger from "./utils/debugLoggerRenderer";
-import { acquireSharedAudioContext } from "./utils/sharedAudioContext";
+import {
+  acquireSharedAudioContext,
+  warmSharedAudioContext,
+} from "./utils/sharedAudioContext";
 
 const MIN_HOLD_DURATION_MS = 200;
 const pipelineLogger = createDebugLogger("pipeline");
@@ -543,6 +546,9 @@ export default function App() {
   useEffect(() => {
     // Warm built-in mic cache immediately (no delay - just reads existing permission state)
     void warmBuiltInMicCache();
+
+    // Warm AudioContext to prevent Bluetooth audio interruption on first recording
+    void warmSharedAudioContext();
 
     // Warm WebSocket connection on initial mount (delayed to not block startup)
     const warmTimer = setTimeout(() => {

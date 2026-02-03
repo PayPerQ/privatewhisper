@@ -8,7 +8,7 @@ PPQ Whisper is a lightweight Electron desktop app that turns any text field into
 - **Automatic paste + history** – Captured text is pasted into the active app and stored locally in SQLite.
 - **AI clean-up pipeline** – PPQ cleans punctuation, lists, and formatting automatically.
 - **Cross-platform** – macOS, Windows, and Linux packages powered by Electron + Vite.
-- **Flexible hotkeys** – Globe key on macOS, customizable shortcuts on all platforms.
+- **Flexible hotkeys** – Globe key on macOS, customizable hotkeys on all platforms.
 - **Ops-friendly** – Toggle `PPQVOICE_DEBUG=true` to write rich logs to the user data directory.
 - **Zero local-model overhead** – No llama.cpp builds, Python dependencies, or multi-GB downloads.
 
@@ -95,7 +95,7 @@ PPQ Whisper needs two macOS permissions (Windows/Linux equivalents are requested
 
 1. **Microphone** – required for recording audio.
 2. **Accessibility** – needed so the app can paste transcriptions for you.
-3. **Input Monitoring** (macOS only) – required only for single-key hotkeys (not needed for Globe key or compound shortcuts).
+3. **Input Monitoring** (macOS only) – required only for single-key hotkeys (not needed for Globe key or compound hotkeys).
 
 You can revisit permissions in **Control Panel → Settings → Permissions** if something stops working. The onboarding wizard also walks through granting them.
 
@@ -109,7 +109,7 @@ Renderer (React/Vite)
 
 Main process (Electron)
  ├─ main.js ................ bootstraps managers + windows
- ├─ hotkeyManager.js ....... global shortcut registration
+ ├─ hotkeyManager.js ....... global hotkey registration
  ├─ globeKeyManager.js ..... macOS Globe/Fn key native listener
  ├─ database.js ............ wraps better-sqlite3 for transcription history
  └─ updater.js ............. electron-updater wiring for GitHub releases
@@ -121,7 +121,7 @@ Main process (Electron)
 | ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | "PPQ key not found"                | Confirm `.env` + Control Panel → PPQ Cloud has a valid value.                                                                                                                                  |
 | Nothing pastes after transcription | Re-request Accessibility permission from Settings, then relaunch the app.                                                                                                                      |
-| Hotkey not working                 | Check if another app is using the same shortcut. Try a different hotkey in Settings.                                                                                                           |
+| Hotkey not working                 | Check if another app is using the same hotkey. Try a different hotkey in Settings.                                                                                                             |
 | Need extra logs                    | Run `PPQVOICE_DEBUG=true npm start` (or `npm run dev -- --debug`). Logs go to `%APPDATA%/ppq-whisper/logs`, `~/Library/Application Support/ppq-whisper/logs`, or `~/.config/ppq-whisper/logs`. |
 | Updater stuck                      | Use Control Panel → Settings → Updates → "Download Update" to retry, or grab the latest release from GitHub.                                                                                   |
 

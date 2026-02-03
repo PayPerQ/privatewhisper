@@ -128,7 +128,7 @@ export function validateHotkey(
   if (parts.length > 3) {
     return {
       valid: false,
-      error: "Shortcuts are limited to 3 keys",
+      error: "Hotkeys are limited to 3 keys",
       errorCode: "TOO_MANY_KEYS",
     };
   }
@@ -141,7 +141,7 @@ export function validateHotkey(
       return {
         valid: false,
         error:
-          "Single-key shortcuts are not supported. Use a modifier (Ctrl, Cmd, Alt, Shift) + key combination.",
+          "Single-key hotkeys are not supported. Use a modifier (Ctrl, Cmd, Alt, Shift) + key combination.",
         errorCode: "SIMPLE_KEY",
       };
     }
@@ -159,7 +159,7 @@ export function validateHotkey(
   }
 
   // Check if it's modifier-only (no non-modifier key)
-  // Modifier-only shortcuts (e.g., Ctrl+Alt) are not supported because:
+  // Modifier-only hotkeys (e.g., Ctrl+Alt) are not supported because:
   // 1. Electron's globalShortcut requires at least one non-modifier key
   // 2. Works consistently across macOS, Windows, and Linux
   const nonModifierKeys = parts.filter((p) => !MODIFIERS.has(p));
@@ -167,7 +167,7 @@ export function validateHotkey(
     return {
       valid: false,
       error:
-        "Modifier-only shortcuts are not supported. Add a key like Space, K, or F9 (e.g., Ctrl+Option+Space)",
+        "Modifier-only hotkeys are not supported. Add a key like Space, K, or F9 (e.g., Ctrl+Option+Space)",
       errorCode: "MODIFIER_ONLY",
     };
   }
@@ -181,17 +181,17 @@ export function validateHotkey(
     if (hasLeft && hasRight) {
       return {
         valid: false,
-        error: `Cannot use both Left and Right ${mod} in the same shortcut`,
+        error: `Cannot use both Left and Right ${mod} in the same hotkey`,
         errorCode: "LEFT_RIGHT_CONFLICT",
       };
     }
   }
 
   const normalizedHotkey = normalizeHotkey(hotkey);
-  const reserved = getReservedShortcuts(platform);
-  const normalizedReserved = reserved.map(normalizeHotkey);
+  const forbidden = getForbiddenHotkeys(platform);
+  const normalizedForbidden = forbidden.map(normalizeHotkey);
 
-  if (normalizedReserved.includes(normalizedHotkey)) {
+  if (normalizedForbidden.includes(normalizedHotkey)) {
     return {
       valid: false,
       error: `"${hotkey}" is reserved by the system`,
@@ -203,7 +203,7 @@ export function validateHotkey(
   if (normalizedExisting.includes(normalizedHotkey)) {
     return {
       valid: false,
-      error: "This shortcut is already in use",
+      error: "This hotkey is already in use",
       errorCode: "DUPLICATE",
     };
   }
@@ -211,9 +211,9 @@ export function validateHotkey(
   return { valid: true };
 }
 
-// macOS reserved shortcuts - must match documentation in ppq-keyboard-shortcuts.md
-const MAC_RESERVED_SHORTCUTS = [
-  // Common Cmd shortcuts
+// macOS forbidden hotkeys - must match documentation in ppq-keyboard-shortcuts.md
+const MAC_FORBIDDEN_HOTKEYS = [
+  // Common Cmd hotkeys
   "Command+C",
   "Command+V",
   "Command+X",
@@ -253,7 +253,7 @@ const MAC_RESERVED_SHORTCUTS = [
   "Command+Delete",
   "Command+Shift+Delete",
   "Command+Shift+Q",
-  // Browser and Editor Style shortcuts
+  // Browser and Editor Style hotkeys
   "Command+B",
   "Command+I",
   "Command+U",
@@ -267,9 +267,9 @@ const MAC_RESERVED_SHORTCUTS = [
   "F12",
 ] as const;
 
-// Windows reserved shortcuts - must match documentation in ppq-keyboard-shortcuts.md
-const WINDOWS_RESERVED_SHORTCUTS = [
-  // Ctrl shortcuts
+// Windows forbidden hotkeys - must match documentation in ppq-keyboard-shortcuts.md
+const WINDOWS_FORBIDDEN_HOTKEYS = [
+  // Ctrl hotkeys
   "Control+C",
   "Control+V",
   "Control+X",
@@ -295,7 +295,7 @@ const WINDOWS_RESERVED_SHORTCUTS = [
   "Control+Shift+T",
   "Control+=",
   "Control+-",
-  // Alt shortcuts
+  // Alt hotkeys
   "Alt+Tab",
   "Alt+F4",
   "Alt+Left",
@@ -307,7 +307,7 @@ const WINDOWS_RESERVED_SHORTCUTS = [
   "Home",
   "End",
   "PrintScreen",
-  // Windows key shortcuts
+  // Windows key hotkeys
   "Super+E",
   "Super+R",
   "Super+L",
@@ -324,9 +324,9 @@ const WINDOWS_RESERVED_SHORTCUTS = [
   "Super+Down",
 ] as const;
 
-// Linux reserved shortcuts - must match documentation in ppq-keyboard-shortcuts.md
-const LINUX_RESERVED_SHORTCUTS = [
-  // Ctrl shortcuts
+// Linux forbidden hotkeys - must match documentation in ppq-keyboard-shortcuts.md
+const LINUX_FORBIDDEN_HOTKEYS = [
+  // Ctrl hotkeys
   "Control+C",
   "Control+V",
   "Control+X",
@@ -353,7 +353,7 @@ const LINUX_RESERVED_SHORTCUTS = [
   "Control+Shift+Q",
   "Control+=",
   "Control+-",
-  // Ctrl+Alt shortcuts (Desktop Environment)
+  // Ctrl+Alt hotkeys (Desktop Environment)
   "Control+Alt+T",
   "Control+Alt+Delete",
   "Control+Alt+L",
@@ -365,7 +365,7 @@ const LINUX_RESERVED_SHORTCUTS = [
   "Control+Alt+D",
   "Control+Alt+S",
   "Control+Alt+Tab",
-  // Alt shortcuts
+  // Alt hotkeys
   "Alt+Tab",
   "Alt+Shift+Tab",
   "Alt+F1",
@@ -379,7 +379,7 @@ const LINUX_RESERVED_SHORTCUTS = [
   "Alt+Left",
   "Alt+Right",
   "Alt+PrintScreen",
-  // Super key shortcuts
+  // Super key hotkeys
   "Super",
   "Super+A",
   "Super+D",
@@ -409,18 +409,21 @@ const LINUX_RESERVED_SHORTCUTS = [
   "Super+PrintScreen",
 ] as const;
 
-export function getReservedShortcuts(platform: Platform): readonly string[] {
+export function getForbiddenHotkeys(platform: Platform): readonly string[] {
   switch (platform) {
     case "darwin":
-      return MAC_RESERVED_SHORTCUTS;
+      return MAC_FORBIDDEN_HOTKEYS;
     case "win32":
-      return WINDOWS_RESERVED_SHORTCUTS;
+      return WINDOWS_FORBIDDEN_HOTKEYS;
     case "linux":
-      return LINUX_RESERVED_SHORTCUTS;
+      return LINUX_FORBIDDEN_HOTKEYS;
     default:
       return [];
   }
 }
+
+// Alias for backwards compatibility
+export const getReservedHotkeys = getForbiddenHotkeys;
 
 // Recommended patterns per platform - must match documentation in ppq-keyboard-shortcuts.md
 const MAC_RECOMMENDED = [
@@ -501,6 +504,6 @@ export const VALIDATION_RULES = [
   "Uses three keys or fewer",
   "Includes at least one modifier (Ctrl, Cmd, Alt, Shift) plus a non-modifier key",
   "Does not use both the left and right version of the same modifier",
-  "Does not match another PPQ shortcut already in use",
-  "Is not a reserved system shortcut",
+  "Does not match another PPQ hotkey already in use",
+  "Is not a reserved system hotkey",
 ] as const;

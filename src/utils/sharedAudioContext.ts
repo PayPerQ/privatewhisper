@@ -5,8 +5,46 @@ const debugLogger = createDebugLogger("shared-audio-context");
 
 let sharedAudioContext: AudioContext | null = null;
 let sharedContextUsers = 0;
+let deviceChangeListenerRegistered = false;
+
+export const invalidateSharedAudioContext = async (): Promise<void> => {
+  if (!sharedAudioContext) return;
+
+  if (sharedContextUsers > 0) {
+    void debugLogger.log("AUDIO_CONTEXT_INVALIDATE_SKIPPED", {
+      reason: "in_use",
+      users: sharedContextUsers,
+    });
+    return;
+  }
+
+  void debugLogger.log("AUDIO_CONTEXT_INVALIDATING", {
+    state: sharedAudioContext.state,
+  });
+
+  try {
+    await sharedAudioContext.close();
+  } catch {
+    // Ignore close errors
+  }
+  sharedAudioContext = null;
+};
+
+const registerDeviceChangeListener = (): void => {
+  if (deviceChangeListenerRegistered) return;
+  if (!navigator.mediaDevices?.addEventListener) return;
+
+  navigator.mediaDevices.addEventListener("devicechange", () => {
+    void debugLogger.log("AUDIO_DEVICE_CHANGE_DETECTED");
+    void invalidateSharedAudioContext();
+  });
+
+  deviceChangeListenerRegistered = true;
+  void debugLogger.log("AUDIO_DEVICE_CHANGE_LISTENER_REGISTERED");
+};
 
 const ensureSharedAudioContext = async (): Promise<AudioContext> => {
+  registerDeviceChangeListener();
   if (!sharedAudioContext || sharedAudioContext.state === "closed") {
     const AudioContextClass =
       window.AudioContext ||
@@ -22,6 +60,13 @@ const ensureSharedAudioContext = async (): Promise<AudioContext> => {
 
     sharedAudioContext = new AudioContextClass({
       sampleRate: TARGET_SAMPLE_RATE,
+    });
+
+    sharedAudioContext.addEventListener("statechange", () => {
+      void debugLogger.log("AUDIO_CONTEXT_STATE_CHANGED", {
+        state: sharedAudioContext?.state,
+        users: sharedContextUsers,
+      });
     });
   }
 

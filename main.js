@@ -240,7 +240,7 @@ async function startApp() {
           message: "Globe Key Detection Unavailable",
           detail:
             "The Globe key (🌐) detection feature requires system accessibility permissions. " +
-            "You can still use keyboard shortcuts like the backtick (`) or Cmd+Shift+Space. " +
+            "You can still use keyboard hotkeys like the backtick (`) or Cmd+Shift+Space. " +
             "\n\nTo enable Globe key support:\n" +
             "1. Open System Settings → Privacy & Security → Accessibility\n" +
             "2. Add PPQ Whisper to the list\n" +

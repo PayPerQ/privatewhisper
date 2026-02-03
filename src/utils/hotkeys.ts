@@ -12,7 +12,7 @@ export function hasFunctionKey(hotkey: string): boolean {
  * Handles modifier combinations like "CommandOrControl+N" -> "Ctrl+N" or "Cmd+N"
  *
  * @param hotkey - The hotkey string to format
- * @param options.requiresFn - If true, prepend "Fn+" for function key shortcuts (macOS)
+ * @param options.requiresFn - If true, prepend "Fn+" for function key hotkeys (macOS)
  */
 export function formatHotkeyLabel(
   hotkey?: string | null,

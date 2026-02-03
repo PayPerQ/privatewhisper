@@ -102,7 +102,7 @@ export function mapKeyboardEventToHotkey(
   // Build modifier prefix
   const modifiers: string[] = [];
   // Map Ctrl and Cmd/Meta as separate modifiers so the user can
-  // register Ctrl-based shortcuts independently of Cmd on macOS.
+  // register Ctrl-based hotkeys independently of Cmd on macOS.
   // On macOS: metaKey = Command
   // On Windows/Linux: metaKey = Super (Windows key)
   const isMac = /Mac|Darwin/.test(navigator.platform);
@@ -276,13 +276,13 @@ export default function HotkeyInput({
         return;
       }
 
-      // Validate against reserved shortcuts
+      // Validate against forbidden hotkeys
       const platform = (window.electronAPI?.getPlatform?.() ??
         "darwin") as Platform;
       const validation = validateHotkey(mappedKey, platform);
 
       if (!validation.valid) {
-        setValidationError(validation.error ?? "Invalid shortcut");
+        setValidationError(validation.error ?? "Invalid hotkey");
         setIsListening(false);
         inputRef.current?.blur();
         return;

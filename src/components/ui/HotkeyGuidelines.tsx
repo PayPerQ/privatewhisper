@@ -7,7 +7,7 @@ import {
 import {
   type Platform,
   getValidExamples,
-  getReservedShortcuts,
+  getForbiddenHotkeys,
   normalizeHotkey,
 } from "../../utils/hotkeyValidator";
 import { formatHotkeyLabel } from "../../utils/hotkeys";
@@ -37,7 +37,7 @@ function getRequirements(platform: Platform): string[] {
     "Use a modifier key (Ctrl, Alt, Shift) combined with another key",
     "Maximum of 3 keys in a combination",
     "Cannot mix left and right versions of the same modifier",
-    "Cannot use shortcuts reserved by your system",
+    "Cannot use forbidden system hotkeys",
   ];
 
   if (platform === "darwin") {
@@ -45,7 +45,7 @@ function getRequirements(platform: Platform): string[] {
       "Use a modifier key (Ctrl, Option, Shift) combined with another key, or use the Globe key",
       "Maximum of 3 keys in a combination",
       "Cannot mix left and right versions of the same modifier",
-      "Cannot use shortcuts reserved by your system",
+      "Cannot use forbidden system hotkeys",
     ];
   }
 
@@ -67,7 +67,7 @@ export function HotkeyGuidelines({
   className = "",
 }: HotkeyGuidelinesProps) {
   const examples = getValidExamples(platform);
-  const reserved = getReservedShortcuts(platform);
+  const forbidden = getForbiddenHotkeys(platform);
   const requirements = getRequirements(platform);
   const fnNote = getFunctionKeyNote(platform);
   const platformName = getPlatformName(platform);
@@ -86,14 +86,14 @@ export function HotkeyGuidelines({
       className={`rounded-lg border border-border bg-muted/20 overflow-hidden ${className}`}
     >
       <Accordion type="single" collapsible className="w-full">
-        {/* Suggested Shortcuts */}
+        {/* Suggested Hotkeys */}
         <AccordionItem value="suggested" className="border-b-0">
           <AccordionTrigger className="px-4 py-3 text-sm hover:no-underline hover:bg-muted/50">
-            <span className="font-medium">Suggested shortcuts</span>
+            <span className="font-medium">Suggested hotkeys</span>
           </AccordionTrigger>
           <AccordionContent className="px-4 pb-4">
             <p className="text-xs text-muted-foreground mb-3">
-              Click to select a shortcut:
+              Click to select a hotkey:
             </p>
             <div className="flex flex-wrap gap-2">
               {examples.map((example, i) => {
@@ -154,27 +154,27 @@ export function HotkeyGuidelines({
           </AccordionContent>
         </AccordionItem>
 
-        {/* Reserved Shortcuts */}
-        <AccordionItem value="reserved" className="border-t">
+        {/* Forbidden Hotkeys */}
+        <AccordionItem value="forbidden" className="border-t">
           <AccordionTrigger className="px-4 py-3 text-sm hover:no-underline hover:bg-muted/50">
             <span className="font-medium">
-              Reserved shortcuts ({reserved.length})
+              Forbidden hotkeys ({forbidden.length})
             </span>
           </AccordionTrigger>
           <AccordionContent className="px-4 pb-4">
             <div className="space-y-3">
               <p className="text-xs text-muted-foreground">
-                These shortcuts are reserved by {platformName} and cannot be
-                used by PPQ Whisper:
+                These hotkeys are reserved by {platformName} and cannot be used
+                by PPQ Whisper:
               </p>
               <div className="max-h-80 overflow-y-auto">
                 <div className="flex flex-wrap gap-1.5">
-                  {reserved.map((shortcut, i) => (
+                  {forbidden.map((hotkey, i) => (
                     <span
                       key={i}
                       className="inline-flex items-center px-2 py-1 rounded bg-muted text-muted-foreground text-xs font-mono"
                     >
-                      {formatHotkeyLabel(shortcut, { requiresFn })}
+                      {formatHotkeyLabel(hotkey, { requiresFn })}
                     </span>
                   ))}
                 </div>

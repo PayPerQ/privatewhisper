@@ -6,7 +6,7 @@ class HotkeyManager {
     this.isInitialized = false;
   }
 
-  setupShortcuts(hotkey = "`", callback) {
+  setupHotkey(hotkey = "`", callback) {
     if (!callback) {
       throw new Error("Callback function is required for hotkey setup");
     }
@@ -56,7 +56,7 @@ class HotkeyManager {
         };
       }
     } catch (error) {
-      console.error("Error setting up shortcuts:", error);
+      console.error("Error setting up hotkey:", error);
       return { success: false, error: error.message };
     }
   }
@@ -67,7 +67,7 @@ class HotkeyManager {
     }
 
     // Set up default hotkey first
-    this.setupShortcuts("`", callback);
+    this.setupHotkey("`", callback);
 
     // Listen for window to be ready, then get saved hotkey
     mainWindow.webContents.once("did-finish-load", () => {
@@ -93,7 +93,7 @@ class HotkeyManager {
       `);
 
       if (savedHotkey && savedHotkey !== "`") {
-        const result = this.setupShortcuts(savedHotkey, callback);
+        const result = this.setupHotkey(savedHotkey, callback);
         if (!result.success) {
           console.warn(
             `Failed to restore saved hotkey "${savedHotkey}": ${result.error}. Default hotkey remains active.`,
@@ -111,7 +111,7 @@ class HotkeyManager {
     }
 
     try {
-      const result = this.setupShortcuts(hotkey, callback);
+      const result = this.setupHotkey(hotkey, callback);
       if (result.success) {
         return { success: true, message: `Hotkey updated to: ${hotkey}` };
       } else {

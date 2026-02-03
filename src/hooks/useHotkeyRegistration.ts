@@ -9,6 +9,8 @@ interface UseHotkeyRegistrationOptions {
 interface UseHotkeyRegistrationReturn {
   registerHotkey: (key: string) => Promise<boolean>;
   isRegistering: boolean;
+  hasError: boolean;
+  clearError: () => void;
 }
 
 /**
@@ -19,7 +21,12 @@ export function useHotkeyRegistration(
   options: UseHotkeyRegistrationOptions = {},
 ): UseHotkeyRegistrationReturn {
   const [isRegistering, setIsRegistering] = useState(false);
+  const [hasError, setHasError] = useState(false);
   const { toast } = useToast();
+
+  const clearError = useCallback(() => {
+    setHasError(false);
+  }, []);
 
   const registerHotkey = useCallback(
     async (newKey: string): Promise<boolean> => {
@@ -28,6 +35,7 @@ export function useHotkeyRegistration(
         const result = await window.electronAPI?.updateHotkey(newKey);
 
         if (!result?.success) {
+          setHasError(true);
           toast({
             title: "Hotkey Not Registered",
             description:
@@ -38,6 +46,7 @@ export function useHotkeyRegistration(
           return false;
         }
 
+        setHasError(false);
         toast({
           title: "Hotkey Saved",
           description: `Now using ${formatHotkeyLabel(newKey)} for dictation`,
@@ -49,6 +58,7 @@ export function useHotkeyRegistration(
         return true;
       } catch (error) {
         console.error("Failed to register hotkey:", error);
+        setHasError(true);
         toast({
           title: "Error",
           description: "Failed to register hotkey. Please try again.",
@@ -62,5 +72,5 @@ export function useHotkeyRegistration(
     [toast, options],
   );
 
-  return { registerHotkey, isRegistering };
+  return { registerHotkey, isRegistering, hasError, clearError };
 }

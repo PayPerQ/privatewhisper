@@ -1,6 +1,13 @@
 import React, { useState, useCallback, useEffect } from "react";
 import { Button } from "./ui/button";
-import { RefreshCw, Download, Mic, Shield, Keyboard } from "lucide-react";
+import {
+  RefreshCw,
+  Download,
+  Mic,
+  Shield,
+  Keyboard,
+  HelpCircle,
+} from "lucide-react";
 import ApiKeyInput from "./ui/ApiKeyInput";
 import { ConfirmDialog, AlertDialog } from "./ui/dialog";
 import { useSettings } from "../hooks/useSettings";
@@ -11,6 +18,7 @@ import { formatHotkeyLabel } from "../utils/hotkeys";
 import LanguageSelector from "./ui/LanguageSelector";
 import HotkeyInput from "./ui/HotkeyInput";
 import { HotkeyGuidelines } from "./ui/HotkeyGuidelines";
+import { HotkeyHelpDialog } from "./ui/HotkeyHelpDialog";
 import { Toggle } from "./ui/toggle";
 import type { Platform } from "../utils/hotkeyValidator";
 import {
@@ -91,6 +99,7 @@ export default function SettingsPage({
     useHotkeyRegistration({
       onSuccess: setDictationKey,
     });
+  const [hotkeyHelpOpen, setHotkeyHelpOpen] = useState(false);
   const openApiDocs = useCallback(() => {
     window.electronAPI?.openExternal?.("https://ppq.ai/api-docs");
   }, []);
@@ -605,9 +614,21 @@ export default function SettingsPage({
             {/* Hotkey Section */}
             <div className="border-t pt-8">
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                  Dictation Hotkey
-                </h3>
+                <div className="flex items-center gap-2 mb-2">
+                  <h3 className="text-lg font-semibold text-gray-900">
+                    Dictation Hotkey
+                  </h3>
+                  {platform && (
+                    <button
+                      type="button"
+                      onClick={() => setHotkeyHelpOpen(true)}
+                      className="text-muted-foreground hover:text-foreground transition-colors"
+                      aria-label="Hotkey help"
+                    >
+                      <HelpCircle className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
                 <p className="text-sm text-gray-600 mb-4">
                   Click below and press any key combination to set your hotkey.
                 </p>
@@ -1101,6 +1122,14 @@ export default function SettingsPage({
         description={alertDialog.description}
         onOk={() => {}}
       />
+
+      {platform && (
+        <HotkeyHelpDialog
+          open={hotkeyHelpOpen}
+          onOpenChange={setHotkeyHelpOpen}
+          platform={platform}
+        />
+      )}
 
       {renderSectionContent()}
     </>

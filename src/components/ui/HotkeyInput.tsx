@@ -11,6 +11,8 @@ interface HotkeyInputProps {
   disabled?: boolean;
   showGlobeOption?: boolean;
   className?: string;
+  /** Called when a validation error occurs (e.g., forbidden hotkey) */
+  onValidationError?: () => void;
 }
 
 // Valid Electron accelerator keys (function keys)
@@ -151,6 +153,7 @@ export default function HotkeyInput({
   disabled = false,
   showGlobeOption = false,
   className = "",
+  onValidationError,
 }: HotkeyInputProps) {
   const inputRef = useRef<HTMLDivElement>(null);
   const [isListening, setIsListening] = useState(false);
@@ -285,6 +288,7 @@ export default function HotkeyInput({
         setValidationError(validation.error ?? "Invalid hotkey");
         setIsListening(false);
         inputRef.current?.blur();
+        onValidationError?.();
         return;
       }
 

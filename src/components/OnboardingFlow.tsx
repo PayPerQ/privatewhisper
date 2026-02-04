@@ -31,6 +31,7 @@ import { formatHotkeyLabel } from "../utils/hotkeys";
 import LanguageSelector from "./ui/LanguageSelector";
 import HotkeyInput from "./ui/HotkeyInput";
 import { HotkeyGuidelines } from "./ui/HotkeyGuidelines";
+import { PPQ_WEBSITE_URL } from "../config/constants";
 
 interface OnboardingFlowProps {
   onComplete: () => void;
@@ -79,11 +80,11 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
   const userChangedHotkeyRef = useRef(false);
   const permissionsHook = usePermissions(showAlertDialog);
   const openApiDocs = useCallback(() => {
-    window.electronAPI?.openExternal?.("https://ppq.ai/api-docs");
+    window.electronAPI?.openExternal?.(`${PPQ_WEBSITE_URL}/api-docs`);
   }, []);
 
   const openWhisperOnboarding = useCallback(() => {
-    window.electronAPI?.openExternal?.("https://ppq.ai/whisper-onboarding");
+    window.electronAPI?.openExternal?.(`${PPQ_WEBSITE_URL}/whisper-onboarding`);
   }, []);
 
   const persistApiKey = useCallback(async () => {

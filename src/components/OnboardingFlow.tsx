@@ -82,6 +82,10 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     window.electronAPI?.openExternal?.("https://ppq.ai/api-docs");
   }, []);
 
+  const openWhisperOnboarding = useCallback(() => {
+    window.electronAPI?.openExternal?.("https://ppq.ai/whisper-onboarding");
+  }, []);
+
   const persistApiKey = useCallback(async () => {
     const trimmedKey = apiKey.trim();
     if (!trimmedKey) return false;
@@ -122,9 +126,9 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
 
   const steps = [
     { title: "Welcome", icon: Sparkles },
-    { title: "API Key", icon: Key },
     { title: "Language", icon: Globe },
     { title: "Permissions", icon: Shield },
+    { title: "API Key", icon: Key },
     { title: "Hotkey", icon: Keyboard },
   ];
 
@@ -232,7 +236,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
       return;
     }
 
-    if (currentStep === 1) {
+    if (currentStep === 3) {
       const saved = await persistApiKey();
       if (!saved) {
         return;
@@ -242,7 +246,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     const newStep = currentStep + 1;
     setCurrentStep(newStep);
 
-    // Show dictation panel when moving from permissions step (3) to hotkey step (4)
+    // Show dictation panel when moving from API Key step (3) to hotkey step (4)
     if (currentStep === 3 && newStep === 4) {
       if (window.electronAPI?.showDictationPanel) {
         window.electronAPI.showDictationPanel();
@@ -303,100 +307,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
           </div>
         );
 
-      case 1: // API Key
-        return (
-          <div className="space-y-8">
-            <div className="text-center">
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">
-                Add Your API Key
-              </h2>
-              <p className="text-gray-600">
-                Enter your PPQ API key to enable voice transcription.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-3xl mx-auto">
-              {/* Existing user - Enter key */}
-              <div className="space-y-4 p-6 bg-white border border-border rounded-2xl shadow-sm">
-                <div className="flex items-center gap-3">
-                  <Key className="w-8 h-8 text-primary" />
-                  <div>
-                    <h3 className="font-semibold text-foreground">
-                      I have a key
-                    </h3>
-                  </div>
-                </div>
-                <ApiKeyInput
-                  apiKey={apiKey}
-                  setApiKey={setApiKey}
-                  label="PPQ API Key"
-                  helpText={
-                    <span className="text-xs text-muted-foreground">
-                      Existing users can retrieve their key{" "}
-                      <button
-                        type="button"
-                        className="text-link underline hover:opacity-80"
-                        onClick={openApiDocs}
-                      >
-                        here
-                      </button>
-                      .
-                    </span>
-                  }
-                />
-              </div>
-
-              {/* New user - Get a key */}
-              <div className="space-y-4 p-6 bg-white border border-border rounded-2xl shadow-sm">
-                <div className="flex items-center gap-3">
-                  <img src={flame2} alt="" className="w-8 h-8" />
-                  <div>
-                    <h3 className="font-semibold text-foreground">
-                      I need a key
-                    </h3>
-                  </div>
-                </div>
-
-                <div className="space-y-2 text-sm text-stone-600">
-                  <p className="text-sm font-medium text-neutral-700">Pay-as-you-go. No subscriptions.</p>
-                  <ul className="space-y-1 text-xs">
-                    <li>Users spend an average of only ~$2.75/month!</li>
-                    <li>Maximum charge in a 30-day window is $8!</li>
-                    <li>Automatic topups optional</li>
-                  </ul>
-                </div>
-
-                <div className="flex items-center justify-center gap-4 py-2">
-                  <img
-                    src={visaMcLogo}
-                    alt="Visa and Mastercard accepted"
-                    className="h-6 object-contain"
-                  />
-                  <img
-                    src={cryptoLogos}
-                    alt="Crypto payments accepted"
-                    className="h-6 object-contain"
-                  />
-                </div>
-
-                <p className="text-xs text-stone-600 text-center">
-                  Deposit as little as $5 with card or 10¢ with crypto
-                </p>
-
-                <Button
-                  onClick={openApiDocs}
-                  variant="outline"
-                  className="w-full"
-                >
-                  Get a Key
-                  <ExternalLink className="w-4 h-4 ml-2" />
-                </Button>
-              </div>
-            </div>
-          </div>
-        );
-
-      case 2: // Language
+      case 1: // Language
         return (
           <div className="space-y-8">
             <div className="text-center">
@@ -438,7 +349,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
           </div>
         );
 
-      case 3: // Permissions
+      case 2: // Permissions
         return (
           <div className="space-y-6">
             <div className="text-center">
@@ -475,6 +386,99 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
                   buttonText="Test & Grant"
                 />
               )}
+            </div>
+          </div>
+        );
+
+      case 3: // API Key
+        return (
+          <div className="space-y-8">
+            <div className="text-center">
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                Add Your API Key
+              </h2>
+              <p className="text-gray-600">
+                Enter your PPQ API key to enable voice transcription.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-3xl mx-auto">
+              {/* Existing user - Enter key */}
+              <div className="space-y-4 p-6 bg-white border border-border rounded-2xl shadow-sm">
+                <div className="flex items-center gap-3">
+                  <Key className="w-8 h-8 text-primary" />
+                  <div>
+                    <h3 className="font-semibold text-foreground">
+                      I have a key
+                    </h3>
+                  </div>
+                </div>
+                <ApiKeyInput
+                  apiKey={apiKey}
+                  setApiKey={setApiKey}
+                  label="PPQ API Key"
+                  helpText={
+                    <span className="text-xs text-muted-foreground">
+                      Existing PPQ users can retrieve their key{" "}
+                      <button
+                        type="button"
+                        className="text-link underline hover:opacity-80"
+                        onClick={openApiDocs}
+                      >
+                        here
+                      </button>
+                      .
+                    </span>
+                  }
+                />
+              </div>
+
+              {/* New user - Get a key */}
+              <div className="space-y-4 p-6 bg-white border border-border rounded-2xl shadow-sm">
+                <div className="flex items-center gap-3">
+                  <img src={flame2} alt="" className="w-8 h-8" />
+                  <div>
+                    <h3 className="font-semibold text-foreground">
+                      I need a key
+                    </h3>
+                  </div>
+                </div>
+
+                <div className="space-y-2 text-sm text-stone-600">
+                  <p className="text-sm font-medium text-neutral-700">Pay-as-you-go. No expensive subscriptions.</p>
+                  <ul className="space-y-1 text-xs">
+                    <li>Users spend an average of only ~$2.75/month!</li>
+                    <li>Maximum charge in a 30-day window is $6!</li>
+                    <li>Automatic topups optional</li>
+                  </ul>
+                </div>
+
+                <div className="flex items-center justify-center gap-4 py-2">
+                  <img
+                    src={visaMcLogo}
+                    alt="Visa and Mastercard accepted"
+                    className="h-6 object-contain"
+                  />
+                  <img
+                    src={cryptoLogos}
+                    alt="Crypto payments accepted"
+                    className="h-6 object-contain"
+                  />
+                </div>
+
+                <p className="text-xs text-stone-600 text-center">
+                  Deposit as little as $5 with card or 10¢ with crypto
+                </p>
+
+                <Button
+                  onClick={openWhisperOnboarding}
+                  variant="outline"
+                  className="w-full"
+                >
+                  Get a Key
+                  <ExternalLink className="w-4 h-4 ml-2" />
+                </Button>
+              </div>
             </div>
           </div>
         );
@@ -564,19 +568,19 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
         canAdvance = true;
         break;
       case 1:
-        canAdvance = apiKey.trim().length > 0;
-        break;
-      case 2:
         // Language selection - always allow proceeding (auto-detect is valid)
         canAdvance = true;
         break;
-      case 3:
+      case 2:
         // On macOS, both mic and accessibility permissions are required
         // On Windows/Linux, only mic permission is needed (accessibility is auto-granted)
         canAdvance = requiresAccessibilityPermission
           ? permissionsHook.micPermissionGranted &&
             permissionsHook.accessibilityPermissionGranted
           : permissionsHook.micPermissionGranted;
+        break;
+      case 3:
+        canAdvance = apiKey.trim().length > 0;
         break;
       case 4:
         // Combined hotkey + practice step - just need a valid hotkey

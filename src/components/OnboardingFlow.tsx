@@ -15,6 +15,8 @@ import {
   ExternalLink,
 } from "lucide-react";
 import flame2 from "../assets/flame2.png";
+import visaMcLogo from "../assets/visa_mc_background_transparent.png";
+import cryptoLogos from "../assets/crypto_payment_logos.png";
 import TitleBar from "./TitleBar";
 import ApiKeyInput from "./ui/ApiKeyInput";
 import PermissionCard from "./ui/PermissionCard";
@@ -330,7 +332,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
                   label="PPQ API Key"
                   helpText={
                     <span className="text-xs text-muted-foreground">
-                      Retrieve your key from PPQ.AI{" "}
+                      Existing users can retrieve their key{" "}
                       <button
                         type="button"
                         className="text-link underline hover:opacity-80"
@@ -347,7 +349,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
               {/* New user - Get a key */}
               <div className="space-y-4 p-6 bg-white border border-border rounded-2xl shadow-sm">
                 <div className="flex items-center gap-3">
-                  <Sparkles className="w-8 h-8 text-primary" />
+                  <img src={flame2} alt="" className="w-8 h-8" />
                   <div>
                     <h3 className="font-semibold text-foreground">
                       I need a key
@@ -356,13 +358,30 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
                 </div>
 
                 <div className="space-y-2 text-sm text-stone-600">
-                  <p>Pay-as-you-go. No subscriptions.</p>
+                  <p className="text-sm font-medium text-neutral-700">Pay-as-you-go. No subscriptions.</p>
                   <ul className="space-y-1 text-xs">
-                    <li>Crypto: as low as 10¢</li>
-                    <li>Credit card: from $5</li>
-                    <li>Avg. spend: ~$2.75/month</li>
+                    <li>Users spend an average of only ~$2.75/month!</li>
+                    <li>Maximum charge in a 30-day window is $8!</li>
+                    <li>Automatic topups optional</li>
                   </ul>
                 </div>
+
+                <div className="flex items-center justify-center gap-4 py-2">
+                  <img
+                    src={visaMcLogo}
+                    alt="Visa and Mastercard accepted"
+                    className="h-6 object-contain"
+                  />
+                  <img
+                    src={cryptoLogos}
+                    alt="Crypto payments accepted"
+                    className="h-6 object-contain"
+                  />
+                </div>
+
+                <p className="text-xs text-stone-600 text-center">
+                  Deposit as little as $5 with card or 10¢ with crypto
+                </p>
 
                 <Button
                   onClick={openApiDocs}

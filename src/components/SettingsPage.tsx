@@ -33,7 +33,7 @@ import {
 import type { UpdateInfoResult } from "../types/electron";
 import { useDictionary } from "../stores/dictionaryStore";
 
-export type SettingsSectionType = "general" | "transcription" | "dictionary";
+export type SettingsSectionType = "general" | "preferences" | "transcription" | "dictionary";
 
 const SYSTEM_DEFAULT_DEVICE_ID = "__system_default__";
 
@@ -671,301 +671,6 @@ export default function SettingsPage({
               </div>
             </div>
 
-            {/* Hotkey Section */}
-            <div className="border-t pt-8">
-              <div>
-                <div className="flex items-center gap-2 mb-2">
-                  <h3 className="text-lg font-semibold text-gray-900">
-                    Dictation Hotkey
-                  </h3>
-                  {platform && (
-                    <button
-                      type="button"
-                      onClick={() => setHotkeyHelpOpen(true)}
-                      className="text-muted-foreground hover:text-foreground transition-colors"
-                      aria-label="Hotkey help"
-                    >
-                      <HelpCircle className="w-4 h-4" />
-                    </button>
-                  )}
-                </div>
-                <p className="text-sm text-gray-600 mb-4">
-                  Click below and press any key combination to set your hotkey.
-                </p>
-              </div>
-              <div className="space-y-4">
-                <HotkeyInput
-                  value={dictationKey}
-                  onSave={registerHotkey}
-                  isSaving={isSavingHotkey}
-                  showGlobeOption={isMacOS}
-                />
-
-                {/* Hotkey guidelines - platform specific */}
-                {platform && (
-                  <HotkeyGuidelines
-                    platform={platform}
-                    currentHotkey={dictationKey}
-                    onSelect={registerHotkey}
-                    disabled={isSavingHotkey}
-                  />
-                )}
-
-                {/* Hotkey mode - Mac only */}
-                {isMacOS && (
-                  <div className="space-y-3 pt-2">
-                    <label className="block text-sm font-medium text-gray-700">
-                      Activation Style
-                    </label>
-                    <div className="grid grid-cols-2 gap-3">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setHotkeyMode("toggle");
-                          window.electronAPI?.updateHotkeyMode?.("toggle");
-                        }}
-                        className={`
-                          relative p-4 rounded-xl border-2 transition-all duration-200 text-left
-                          ${
-                            hotkeyMode === "toggle"
-                              ? "border-primary bg-primary/5 ring-2 ring-primary/20"
-                              : "border-border bg-muted/30 hover:border-primary/50"
-                          }
-                        `}
-                      >
-                        {hotkeyMode === "toggle" && (
-                          <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-primary" />
-                        )}
-                        <div
-                          className={`font-semibold ${hotkeyMode === "toggle" ? "text-primary" : "text-foreground"}`}
-                        >
-                          Press once
-                        </div>
-                        <div className="text-xs text-muted-foreground mt-1">
-                          Tap to start, tap again to stop
-                        </div>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setHotkeyMode("hold");
-                          window.electronAPI?.updateHotkeyMode?.("hold");
-                        }}
-                        className={`
-                          relative p-4 rounded-xl border-2 transition-all duration-200 text-left
-                          ${
-                            hotkeyMode === "hold"
-                              ? "border-primary bg-primary/5 ring-2 ring-primary/20"
-                              : "border-border bg-muted/30 hover:border-primary/50"
-                          }
-                        `}
-                      >
-                        {hotkeyMode === "hold" && (
-                          <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-primary" />
-                        )}
-                        <div
-                          className={`font-semibold ${hotkeyMode === "hold" ? "text-primary" : "text-foreground"}`}
-                        >
-                          Hold to talk
-                        </div>
-                        <div className="text-xs text-muted-foreground mt-1">
-                          Hold while speaking, release to stop
-                        </div>
-                      </button>
-                    </div>
-
-                    {/* Warning for non-Globe + hold mode requiring Input Monitoring */}
-                    {needsInputMonitoring && (
-                      <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-                        <div className="font-medium mb-1">
-                          Input Monitoring Required
-                        </div>
-                        <p className="text-xs">
-                          "Hold to talk" with non-Globe keys requires Input
-                          Monitoring permission to detect key release. Go to
-                          System Settings → Privacy & Security → Input
-                          Monitoring and enable PPQ Whisper.
-                        </p>
-                        <p className="text-xs mt-2">
-                          <strong>Tip:</strong> Use the Globe key (🌐) for
-                          hold-to-talk without this extra permission.
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Microphone Section */}
-            <div className="border-t pt-8">
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                  Microphone
-                </h3>
-                <p className="text-sm text-gray-600 mb-4">
-                  Choose which microphone PPQ Whisper uses for recording.
-                </p>
-              </div>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between p-4 bg-neutral-50 rounded-lg">
-                  <div>
-                    <p className="text-sm font-medium text-neutral-800">
-                      Always default to built-in microphone
-                    </p>
-                    <p className="text-xs text-neutral-600">
-                      Recommended for the lowest latency and most consistent
-                      quality.
-                    </p>
-                  </div>
-                  <Toggle
-                    checked={alwaysUseBuiltInMic}
-                    onChange={(checked) => setAlwaysUseBuiltInMic(checked)}
-                  />
-                </div>
-                {!alwaysUseBuiltInMic && (
-                  <div className="space-y-3">
-                    <div>
-                      <div className="flex items-center justify-between">
-                        <p className="text-sm font-medium text-neutral-800">
-                          Preferred microphone
-                        </p>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={loadMicrophones}
-                          disabled={microphoneLoading}
-                        >
-                          <RefreshCw
-                            className={microphoneLoading ? "animate-spin" : ""}
-                            size={14}
-                          />
-                          Refresh
-                        </Button>
-                      </div>
-                      <div className="mt-2">
-                        <Select
-                          value={
-                            preferredMicrophoneId || SYSTEM_DEFAULT_DEVICE_ID
-                          }
-                          onValueChange={(value) =>
-                            setPreferredMicrophoneId(
-                              value === SYSTEM_DEFAULT_DEVICE_ID ? "" : value,
-                            )
-                          }
-                        >
-                          <SelectTrigger className="w-full bg-white">
-                            <SelectValue
-                              placeholder={
-                                microphoneLoading
-                                  ? "Loading microphones..."
-                                  : "Select a microphone"
-                              }
-                            />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value={SYSTEM_DEFAULT_DEVICE_ID}>
-                              System default
-                            </SelectItem>
-                            {microphoneDevices.length === 0 ? (
-                              <SelectItem value="no-mics" disabled>
-                                No microphones found
-                              </SelectItem>
-                            ) : (
-                              microphoneDevices.map((device, index) => (
-                                <SelectItem
-                                  key={device.deviceId}
-                                  value={device.deviceId}
-                                >
-                                  {device.label?.trim() ||
-                                    `Microphone ${index + 1}`}
-                                </SelectItem>
-                              ))
-                            )}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      {microphoneError && (
-                        <p className="text-xs text-rose-600 mt-2">
-                          {microphoneError}
-                        </p>
-                      )}
-                      {!microphoneError &&
-                        microphoneDevices.length > 0 &&
-                        !hasLabeledMicrophones && (
-                          <p className="text-xs text-neutral-500 mt-2">
-                            Grant microphone permission to see device names.
-                          </p>
-                        )}
-                      {!microphoneError && preferredMicrophoneMissing && (
-                        <p className="text-xs text-neutral-500 mt-2">
-                          The selected microphone isn't available. We'll use the
-                          system default instead.
-                        </p>
-                      )}
-                    </div>
-                    <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
-                      External microphones may introduce latency or reduce audio
-                      quality.
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Audio Cues Section */}
-            <div className="border-t pt-8">
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                  Audio Cues
-                </h3>
-                <p className="text-sm text-gray-600 mb-4">
-                  Play a short sound when recording starts and when processing
-                  begins.
-                </p>
-                <div className="flex items-center justify-between p-4 bg-neutral-50 rounded-lg">
-                  <div>
-                    <p className="text-sm font-medium text-neutral-800">
-                      Recording Sounds
-                    </p>
-                    <p className="text-xs text-neutral-600">
-                      Toggle start/stop indicator sounds.
-                    </p>
-                  </div>
-                  <Toggle
-                    checked={audioCuesEnabled}
-                    onChange={(checked) => setAudioCuesEnabled(checked)}
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Appearance Section */}
-            <div className="border-t pt-8">
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                  Appearance
-                </h3>
-                <p className="text-sm text-gray-600 mb-4">
-                  Customize how the voice icon appears on your screen.
-                </p>
-                <div className="flex items-center justify-between p-4 bg-neutral-50 rounded-lg">
-                  <div>
-                    <p className="text-sm font-medium text-neutral-800">
-                      Show Icon Only When Active
-                    </p>
-                    <p className="text-xs text-neutral-600">
-                      Hide the icon unless the hotkey is pressed.
-                    </p>
-                  </div>
-                  <Toggle
-                    checked={showIconOnlyWhenActive}
-                    onChange={(checked) => setShowIconOnlyWhenActive(checked)}
-                  />
-                </div>
-              </div>
-            </div>
-
             {/* Permissions Section */}
             <div className="border-t pt-8">
               <div>
@@ -1103,6 +808,337 @@ export default function SettingsPage({
           </div>
         );
 
+      case "preferences":
+        return (
+          <div className="space-y-8">
+            {/* Language Section */}
+            <div className="space-y-6">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  Language
+                </h3>
+                <p className="text-sm text-gray-600 mb-4">
+                  Set your preferred language for transcription.
+                </p>
+              </div>
+              <div className="space-y-4 p-4 bg-neutral-50 rounded-lg">
+                <div>
+                  <p className="text-sm font-medium text-neutral-800 mb-2">
+                    Preferred Language
+                  </p>
+                  <LanguageSelector
+                    value={preferredLanguage}
+                    onChange={(value) => {
+                      setPreferredLanguage(value);
+                      updateTranscriptionSettings({ preferredLanguage: value });
+                    }}
+                    className="w-full"
+                  />
+                </div>
+                <p className="text-xs text-neutral-600">
+                  Whisper will bias toward this language for faster, more
+                  accurate transcripts. Leave on Auto for multilingual
+                  workflows.
+                </p>
+              </div>
+            </div>
+
+            {/* Audio Cues Section */}
+            <div className="border-t pt-8">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  Audio Cues
+                </h3>
+                <p className="text-sm text-gray-600 mb-4">
+                  Play a short sound when recording starts and when processing
+                  begins.
+                </p>
+                <div className="flex items-center justify-between p-4 bg-neutral-50 rounded-lg">
+                  <div>
+                    <p className="text-sm font-medium text-neutral-800">
+                      Recording Sounds
+                    </p>
+                    <p className="text-xs text-neutral-600">
+                      Toggle start/stop indicator sounds.
+                    </p>
+                  </div>
+                  <Toggle
+                    checked={audioCuesEnabled}
+                    onChange={(checked) => setAudioCuesEnabled(checked)}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Appearance Section */}
+            <div className="border-t pt-8">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  Floating Icon Appearance
+                </h3>
+                <p className="text-sm text-gray-600 mb-4">
+                  Customize how the floating icon appears on your screen.
+                </p>
+                <div className="flex items-center justify-between p-4 bg-neutral-50 rounded-lg">
+                  <div>
+                    <p className="text-sm font-medium text-neutral-800">
+                      Hide icon when inactive
+                    </p>
+                    <p className="text-xs text-neutral-600">
+                      Only show the icon when the transcription is happening.
+                    </p>
+                  </div>
+                  <Toggle
+                    checked={showIconOnlyWhenActive}
+                    onChange={(checked) => setShowIconOnlyWhenActive(checked)}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Hotkey Section */}
+            <div className="border-t pt-8">
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <h3 className="text-lg font-semibold text-gray-900">
+                    Dictation Hotkey
+                  </h3>
+                  {platform && (
+                    <button
+                      type="button"
+                      onClick={() => setHotkeyHelpOpen(true)}
+                      className="text-muted-foreground hover:text-foreground transition-colors"
+                      aria-label="Hotkey help"
+                    >
+                      <HelpCircle className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+                <p className="text-sm text-gray-600 mb-4">
+                  Click below and press any key combination to set your hotkey.
+                </p>
+              </div>
+              <div className="space-y-4">
+                <HotkeyInput
+                  value={dictationKey}
+                  onSave={registerHotkey}
+                  isSaving={isSavingHotkey}
+                  showGlobeOption={isMacOS}
+                />
+
+                {/* Hotkey guidelines - platform specific */}
+                {platform && (
+                  <HotkeyGuidelines
+                    platform={platform}
+                    currentHotkey={dictationKey}
+                    onSelect={registerHotkey}
+                    disabled={isSavingHotkey}
+                  />
+                )}
+
+                {/* Hotkey mode - Mac only */}
+                {isMacOS && (
+                  <div className="space-y-3 pt-2">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Hotkey Activation Style
+                    </label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setHotkeyMode("toggle");
+                          window.electronAPI?.updateHotkeyMode?.("toggle");
+                        }}
+                        className={`
+                          relative p-4 rounded-xl border-2 transition-all duration-200 text-left
+                          ${
+                            hotkeyMode === "toggle"
+                              ? "border-primary bg-primary/5 ring-2 ring-primary/20"
+                              : "border-border bg-muted/30 hover:border-primary/50"
+                          }
+                        `}
+                      >
+                        {hotkeyMode === "toggle" && (
+                          <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-primary" />
+                        )}
+                        <div
+                          className={`font-semibold ${hotkeyMode === "toggle" ? "text-primary" : "text-foreground"}`}
+                        >
+                          Press once
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-1">
+                          Tap to start, tap again to stop
+                        </div>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setHotkeyMode("hold");
+                          window.electronAPI?.updateHotkeyMode?.("hold");
+                        }}
+                        className={`
+                          relative p-4 rounded-xl border-2 transition-all duration-200 text-left
+                          ${
+                            hotkeyMode === "hold"
+                              ? "border-primary bg-primary/5 ring-2 ring-primary/20"
+                              : "border-border bg-muted/30 hover:border-primary/50"
+                          }
+                        `}
+                      >
+                        {hotkeyMode === "hold" && (
+                          <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-primary" />
+                        )}
+                        <div
+                          className={`font-semibold ${hotkeyMode === "hold" ? "text-primary" : "text-foreground"}`}
+                        >
+                          Hold to talk
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-1">
+                          Hold while speaking, release to stop
+                        </div>
+                      </button>
+                    </div>
+
+                    {/* Warning for non-Globe + hold mode requiring Input Monitoring */}
+                    {needsInputMonitoring && (
+                      <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                        <div className="font-medium mb-1">
+                          Input Monitoring Required
+                        </div>
+                        <p className="text-xs">
+                          "Hold to talk" with non-Globe keys requires Input
+                          Monitoring permission to detect key release. Go to
+                          System Settings → Privacy & Security → Input
+                          Monitoring and enable PPQ Whisper.
+                        </p>
+                        <p className="text-xs mt-2">
+                          <strong>Tip:</strong> Use the Globe key (🌐) for
+                          hold-to-talk without this extra permission.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Microphone Section */}
+            <div className="border-t pt-8">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  Microphone
+                </h3>
+                <p className="text-sm text-gray-600 mb-4">
+                  Choose which microphone PPQ Whisper uses for recording.
+                </p>
+              </div>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between p-4 bg-neutral-50 rounded-lg">
+                  <div>
+                    <p className="text-sm font-medium text-neutral-800">
+                      Always default to built-in microphone
+                    </p>
+                    <p className="text-xs text-neutral-600">
+                      Built-in microphone strongly recommended for best experience
+                    </p>
+                  </div>
+                  <Toggle
+                    checked={alwaysUseBuiltInMic}
+                    onChange={(checked) => setAlwaysUseBuiltInMic(checked)}
+                  />
+                </div>
+                {!alwaysUseBuiltInMic && (
+                  <div className="space-y-3">
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-medium text-neutral-800">
+                          Preferred microphone
+                        </p>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={loadMicrophones}
+                          disabled={microphoneLoading}
+                        >
+                          <RefreshCw
+                            className={microphoneLoading ? "animate-spin" : ""}
+                            size={14}
+                          />
+                          Refresh
+                        </Button>
+                      </div>
+                      <div className="mt-2">
+                        <Select
+                          value={
+                            preferredMicrophoneId || SYSTEM_DEFAULT_DEVICE_ID
+                          }
+                          onValueChange={(value) =>
+                            setPreferredMicrophoneId(
+                              value === SYSTEM_DEFAULT_DEVICE_ID ? "" : value,
+                            )
+                          }
+                        >
+                          <SelectTrigger className="w-full bg-white">
+                            <SelectValue
+                              placeholder={
+                                microphoneLoading
+                                  ? "Loading microphones..."
+                                  : "Select a microphone"
+                              }
+                            />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value={SYSTEM_DEFAULT_DEVICE_ID}>
+                              System default
+                            </SelectItem>
+                            {microphoneDevices.length === 0 ? (
+                              <SelectItem value="no-mics" disabled>
+                                No microphones found
+                              </SelectItem>
+                            ) : (
+                              microphoneDevices.map((device, index) => (
+                                <SelectItem
+                                  key={device.deviceId}
+                                  value={device.deviceId}
+                                >
+                                  {device.label?.trim() ||
+                                    `Microphone ${index + 1}`}
+                                </SelectItem>
+                              ))
+                            )}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      {microphoneError && (
+                        <p className="text-xs text-rose-600 mt-2">
+                          {microphoneError}
+                        </p>
+                      )}
+                      {!microphoneError &&
+                        microphoneDevices.length > 0 &&
+                        !hasLabeledMicrophones && (
+                          <p className="text-xs text-neutral-500 mt-2">
+                            Grant microphone permission to see device names.
+                          </p>
+                        )}
+                      {!microphoneError && preferredMicrophoneMissing && (
+                        <p className="text-xs text-neutral-500 mt-2">
+                          The selected microphone isn't available. We'll use the
+                          system default instead.
+                        </p>
+                      )}
+                    </div>
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+                      External microphones may introduce latency or reduce audio
+                      quality.
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+
       case "transcription":
         return (
           <div className="space-y-6">
@@ -1111,7 +1147,7 @@ export default function SettingsPage({
                 API Key
               </h3>
               <p className="text-sm text-gray-600">
-                Manage your PPQ API key and language preferences here.
+                Manage your PPQ API key here.
               </p>
             </div>
 
@@ -1137,22 +1173,6 @@ export default function SettingsPage({
               <Button onClick={saveApiKey} className="w-full">
                 Save API Key
               </Button>
-            </div>
-
-            <div className="space-y-4 p-4 bg-gray-50 border border-gray-200 rounded-xl">
-              <h4 className="font-medium text-gray-900">Preferred Language</h4>
-              <LanguageSelector
-                value={preferredLanguage}
-                onChange={(value) => {
-                  setPreferredLanguage(value);
-                  updateTranscriptionSettings({ preferredLanguage: value });
-                }}
-                className="w-full"
-              />
-              <p className="text-xs text-gray-600">
-                Whisper will bias toward this language for faster, more accurate
-                transcripts. Leave on Auto for multilingual workflows.
-              </p>
             </div>
           </div>
         );

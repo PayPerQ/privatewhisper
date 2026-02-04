@@ -6,12 +6,12 @@ import {
   ChevronRight,
   ChevronLeft,
   Check,
-  Settings,
   Mic,
   Key,
   Shield,
   Keyboard,
   Sparkles,
+  Globe,
 } from "lucide-react";
 import TitleBar from "./TitleBar";
 import ApiKeyInput from "./ui/ApiKeyInput";
@@ -118,23 +118,24 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
 
   const steps = [
     { title: "Welcome", icon: Sparkles },
-    { title: "Setup", icon: Settings },
+    { title: "API Key", icon: Key },
+    { title: "Language", icon: Globe },
     { title: "Permissions", icon: Shield },
     { title: "Hotkey", icon: Keyboard },
   ];
 
   useEffect(() => {
-    if (currentStep === 3 && practiceTextareaRef.current) {
+    if (currentStep === 4 && practiceTextareaRef.current) {
       practiceTextareaRef.current.focus();
     }
   }, [currentStep]);
 
-  // Auto-register the default hotkey when entering step 3 (hotkey step)
+  // Auto-register the default hotkey when entering step 4 (hotkey step)
   // This ensures the default Globe key (or any default) works immediately
   // without requiring the user to explicitly select it first
   // Note: This is silent (no toast) - user can still manually change it
   useEffect(() => {
-    if (currentStep !== 3) return;
+    if (currentStep !== 4) return;
     if (!window.electronAPI?.updateHotkey) return;
     // Prevent double-invoke in React.StrictMode
     if (autoRegisterInFlightRef.current) return;
@@ -171,7 +172,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     };
 
     void autoRegisterDefaultHotkey();
-    // Only run when entering step 3, not when hotkey changes
+    // Only run when entering step 4, not when hotkey changes
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentStep]);
 
@@ -237,8 +238,8 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     const newStep = currentStep + 1;
     setCurrentStep(newStep);
 
-    // Show dictation panel when moving from permissions step (2) to hotkey step (3)
-    if (currentStep === 2 && newStep === 3) {
+    // Show dictation panel when moving from permissions step (3) to hotkey step (4)
+    if (currentStep === 3 && newStep === 4) {
       if (window.electronAPI?.showDictationPanel) {
         window.electronAPI.showDictationPanel();
       }
@@ -298,7 +299,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
           </div>
         );
 
-      case 1: // Setup
+      case 1: // API Key
         return (
           <div className="space-y-8">
             <div className="text-center">
@@ -306,12 +307,11 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
                 Add Your API Key
               </h2>
               <p className="text-gray-600">
-                Use your PPQ API key and choose the language you primarily
-                speak.
+                Enter your PPQ API key to enable voice transcription.
               </p>
             </div>
 
-            <div className="grid gap-6 md:grid-cols-2">
+            <div className="max-w-md mx-auto">
               <div className="space-y-4 p-6 bg-white border border-border rounded-2xl shadow-sm">
                 <div className="flex items-center gap-3">
                   <Key className="w-8 h-8 text-primary" />
@@ -327,24 +327,46 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
                   label="PPQ API Key"
                   helpText={
                     <span className="text-xs text-muted-foreground">
-                      Need a key?{" "}
+                      Already a PPQ user? Retrieve your key from PPQ.AI{" "}
                       <button
                         type="button"
                         className="text-link underline hover:opacity-80"
                         onClick={openApiDocs}
                       >
-                        Get it from ppq.ai
+                        here
                       </button>
                       .
                     </span>
                   }
                 />
               </div>
+            </div>
+          </div>
+        );
 
+      case 2: // Language
+        return (
+          <div className="space-y-8">
+            <div className="text-center">
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                Choose Your Language
+              </h2>
+              <p className="text-gray-600">
+                Select the language you primarily speak for better transcription
+                accuracy.
+              </p>
+            </div>
+
+            <div className="max-w-md mx-auto">
               <div className="space-y-4 p-6 bg-white border border-stone-200 rounded-2xl shadow-sm">
-                <h3 className="font-semibold text-stone-900">
-                  Preferred Language
-                </h3>
+                <div className="flex items-center gap-3">
+                  <Globe className="w-8 h-8 text-primary" />
+                  <div>
+                    <h3 className="font-semibold text-stone-900">
+                      Preferred Language
+                    </h3>
+                  </div>
+                </div>
                 <p className="text-sm text-stone-600">
                   Transcription is fastest when it knows what to expect. You can
                   change this later in Settings.
@@ -364,7 +386,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
           </div>
         );
 
-      case 2: // Permissions
+      case 3: // Permissions
         return (
           <div className="space-y-6">
             <div className="text-center">
@@ -405,7 +427,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
           </div>
         );
 
-      case 3: // Choose Hotkey & Practice (combined step)
+      case 4: // Choose Hotkey & Practice (combined step)
         return (
           <div
             className="space-y-6"
@@ -493,6 +515,10 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
         canAdvance = apiKey.trim().length > 0;
         break;
       case 2:
+        // Language selection - always allow proceeding (auto-detect is valid)
+        canAdvance = true;
+        break;
+      case 3:
         // On macOS, both mic and accessibility permissions are required
         // On Windows/Linux, only mic permission is needed (accessibility is auto-granted)
         canAdvance = requiresAccessibilityPermission
@@ -500,7 +526,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
             permissionsHook.accessibilityPermissionGranted
           : permissionsHook.micPermissionGranted;
         break;
-      case 3:
+      case 4:
         // Combined hotkey + practice step - just need a valid hotkey
         canAdvance = hotkey.trim() !== "";
         break;

@@ -6,6 +6,7 @@ import { LoadingDots } from "./components/ui/LoadingDots";
 import { useHotkey } from "./hooks/useHotkey";
 import { useWindowDrag } from "./hooks/useWindowDrag";
 import { useSettings } from "./hooks/useSettings";
+import { useDictionary } from "./stores/dictionaryStore";
 import AudioManager from "./helpers/audioManager";
 import StreamingTranscriptionService from "./services/StreamingTranscriptionService";
 import createDebugLogger from "./utils/debugLoggerRenderer";
@@ -17,6 +18,7 @@ import {
 const MIN_HOLD_DURATION_MS = 200;
 const pipelineLogger = createDebugLogger("pipeline");
 const audioDeviceLogger = createDebugLogger("audio-device");
+const appLogger = createDebugLogger("app");
 const BUILT_IN_MIC_LABEL =
   /built[- ]?in|internal|macbook|imac|mac mini|mac studio|mac pro/i;
 const BUILT_IN_MIC_STORAGE_KEY = "builtInMicDeviceId";
@@ -394,6 +396,7 @@ export default function App() {
   const pendingStartRef = useRef(false);
   const recordingStartedAtRef = useRef(null);
   const lastAudioDurationMsRef = useRef(null);
+  const audioSettingsRef = useRef(null);
   const [shouldShowIconDelayed, setShouldShowIconDelayed] = useState(false);
   const showIconTimeoutRef = useRef(null);
   const {
@@ -406,6 +409,9 @@ export default function App() {
     preferredMicrophoneId,
     showIconOnlyWhenActive,
   } = useSettings();
+
+  // Load dictionary terms
+  const { items: dictionaryTerms } = useDictionary();
 
   // Hold-to-talk only works on macOS (requires native key-up detection)
   const isMacOS = window.electronAPI?.getPlatform?.() === "darwin";
@@ -432,12 +438,23 @@ export default function App() {
     };
   }, [setHotkeyMode]);
 
-  const audioSettings = useMemo(
-    () => ({
+  const audioSettings = useMemo(() => {
+    const dictionary = dictionaryTerms.map((t) => t.term);
+    void appLogger.log("AUDIO_SETTINGS_COMPUTED", {
       preferredLanguage,
-    }),
-    [preferredLanguage],
-  );
+      dictionaryCount: dictionary.length,
+      dictionaryPreview: dictionary.slice(0, 5),
+    });
+    return {
+      preferredLanguage,
+      dictionary,
+    };
+  }, [preferredLanguage, dictionaryTerms]);
+
+  // Keep ref in sync with audioSettings to avoid stale closures in hotkey handlers
+  useEffect(() => {
+    audioSettingsRef.current = audioSettings;
+  }, [audioSettings]);
 
   const setWindowInteractivity = React.useCallback((shouldCapture) => {
     window.electronAPI?.setMainWindowInteractivity?.(shouldCapture);
@@ -597,7 +614,14 @@ export default function App() {
       // music playback, users should enable "Always use built-in microphone" in settings.
       void playCue("start");
 
-      const audioManager = new AudioManager(audioSettings);
+      // Use ref to avoid stale closure - audioSettings may have changed since hotkey handler was registered
+      const currentAudioSettings = audioSettingsRef.current || audioSettings;
+      void appLogger.log("START_RECORDING", {
+        dictionaryCount: currentAudioSettings.dictionary?.length ?? 0,
+        dictionaryPreview: currentAudioSettings.dictionary?.slice(0, 5) ?? [],
+      });
+
+      const audioManager = new AudioManager(currentAudioSettings);
       audioManagerRef.current = audioManager;
 
       audioManager.setCallbacks({

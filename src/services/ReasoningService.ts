@@ -57,10 +57,30 @@ class ReasoningService {
     text: string,
     model: string,
     config: ReasoningConfig = {},
+    dictionary: string[] = [],
   ) {
     // IMPORTANT: This prompt is designed to prevent prompt injection attacks.
     // The user's transcription is wrapped in XML tags and the LLM is explicitly
     // instructed to treat it as raw data, not as instructions.
+    const dictionarySection =
+      dictionary.length > 0
+        ? `
+CRITICAL - CUSTOM VOCABULARY (HIGHEST PRIORITY):
+The user has defined the following terms as their preferred spellings. You MUST use these EXACT spellings whenever you detect these words or similar-sounding words in the transcription:
+
+${dictionary.map((term) => `• "${term}"`).join("\n")}
+
+Rules for custom vocabulary:
+1. NEVER "correct" or change the spelling of these terms - the user's spelling IS the correct spelling
+2. NEVER substitute similar words, synonyms, or "standard" spellings
+3. If you hear something that sounds like one of these terms, use the EXACT spelling from this list
+4. These terms override any dictionary, grammar rules, or "common" spellings you know
+5. Brand names, technical terms, and proper nouns in this list are INTENTIONALLY spelled this way
+
+Example: If "PayPerQ" is in the list and you hear "pay per queue" or "paper q", output "PayPerQ" exactly.
+`
+        : "";
+
     const systemPrompt = `You are an AI assistant named "PPQ", integrated into a speech-to-text dictation application. Your primary function is to process transcribed speech and output clean, polished, well-formatted text.
 
 CORE RESPONSIBILITY:
@@ -74,6 +94,7 @@ Your job is ALWAYS to clean up transcribed speech. This is your default behavior
 - Maintaining the speaker's natural voice, tone, vocabulary, and intent
 - Preserving technical terms, proper nouns, names, and specialized jargon exactly as spoken
 - Keeping the same level of formality (casual speech stays casual, formal stays formal)
+${dictionarySection}
 
 SMART FORMATTING:
 Apply intelligent formatting based on content context. Use your judgment to make the output readable and well-structured:
@@ -286,6 +307,7 @@ You are processing transcribed speech, so expect imperfect input. Your goal is t
     text: string,
     modelId: string,
     config: ReasoningConfig = {},
+    dictionary: string[] = [],
   ): Promise<ReasoningResult> {
     if (this.isProcessing) {
       throw new Error("Already processing a request");
@@ -301,7 +323,12 @@ You are processing transcribed speech, so expect imperfect input. Your goal is t
     try {
       const apiKey = await apiKeyManager.getApiKey();
 
-      const requestBody = this.buildRequestBody(text, modelId, config);
+      const requestBody = this.buildRequestBody(
+        text,
+        modelId,
+        config,
+        dictionary,
+      );
 
       void debugLogger.log("PPQ_REASONING_REQUEST", {
         endpoint: API_ENDPOINTS.PPQ_CHAT,
@@ -309,6 +336,9 @@ You are processing transcribed speech, so expect imperfect input. Your goal is t
         maxTokens: requestBody.max_tokens,
         temperature: requestBody.temperature,
         textLength: text.length,
+        dictionaryTermsCount: dictionary.length,
+        dictionaryTermsPreview: dictionary.slice(0, 5),
+        dictionaryIncludedInPrompt: dictionary.length > 0,
         hasApiKey: !!apiKey,
         apiKeyPrefix: apiKey ? `${apiKey.substring(0, 8)}...` : "none",
       });

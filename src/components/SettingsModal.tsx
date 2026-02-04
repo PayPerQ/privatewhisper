@@ -1,5 +1,5 @@
 import React from "react";
-import { Settings, Key } from "lucide-react";
+import { Settings, Key, BookOpen } from "lucide-react";
 import SidebarModal, { SidebarItem } from "./ui/SidebarModal";
 import SettingsPage, { SettingsSectionType } from "./SettingsPage";
 
@@ -15,6 +15,7 @@ export default function SettingsModal({
   const sidebarItems: SidebarItem<SettingsSectionType>[] = [
     { id: "general", label: "General", icon: Settings },
     { id: "transcription", label: "API Key", icon: Key },
+    { id: "dictionary", label: "Dictionary", icon: BookOpen },
   ];
 
   const [activeSection, setActiveSection] =

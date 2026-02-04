@@ -7,6 +7,7 @@ import {
   Shield,
   Keyboard,
   HelpCircle,
+  X,
 } from "lucide-react";
 import ApiKeyInput from "./ui/ApiKeyInput";
 import { ConfirmDialog, AlertDialog } from "./ui/dialog";
@@ -20,6 +21,7 @@ import HotkeyInput from "./ui/HotkeyInput";
 import { HotkeyGuidelines } from "./ui/HotkeyGuidelines";
 import { HotkeyHelpDialog } from "./ui/HotkeyHelpDialog";
 import { Toggle } from "./ui/toggle";
+import { Input } from "./ui/input";
 import type { Platform } from "../utils/hotkeyValidator";
 import {
   Select,
@@ -29,8 +31,9 @@ import {
   SelectValue,
 } from "./ui/select";
 import type { UpdateInfoResult } from "../types/electron";
+import { useDictionary } from "../stores/dictionaryStore";
 
-export type SettingsSectionType = "general" | "transcription";
+export type SettingsSectionType = "general" | "transcription" | "dictionary";
 
 const SYSTEM_DEFAULT_DEVICE_ID = "__system_default__";
 
@@ -103,6 +106,63 @@ export default function SettingsPage({
   const openApiDocs = useCallback(() => {
     window.electronAPI?.openExternal?.("https://ppq.ai/api-docs");
   }, []);
+
+  // Dictionary state and handlers
+  const { items: dictionaryTerms, isLoading: dictionaryLoading } =
+    useDictionary();
+  const [newTerm, setNewTerm] = useState("");
+  const [isAddingTerm, setIsAddingTerm] = useState(false);
+
+  const handleAddTerm = useCallback(async () => {
+    const trimmed = newTerm.trim();
+    if (!trimmed || isAddingTerm) return;
+
+    setIsAddingTerm(true);
+    try {
+      const result = await window.electronAPI?.addDictionaryTerm?.(trimmed);
+      if (result?.success) {
+        setNewTerm("");
+        if (result.duplicate) {
+          showAlertDialog({
+            title: "Term Exists",
+            description: `"${trimmed}" is already in your dictionary.`,
+          });
+        }
+      }
+    } catch (error: any) {
+      showAlertDialog({
+        title: "Failed to Add Term",
+        description: error?.message || "Could not add term to dictionary.",
+      });
+    } finally {
+      setIsAddingTerm(false);
+    }
+  }, [newTerm, isAddingTerm, showAlertDialog]);
+
+  const handleRemoveTerm = useCallback(async (id: number) => {
+    try {
+      await window.electronAPI?.removeDictionaryTerm?.(id);
+    } catch (error) {
+      console.error("Failed to remove term:", error);
+    }
+  }, []);
+
+  const handleClearDictionary = useCallback(() => {
+    showConfirmDialog({
+      title: "Clear Dictionary",
+      description:
+        "This will remove all terms from your custom dictionary. This action cannot be undone.",
+      confirmText: "Clear All",
+      onConfirm: async () => {
+        try {
+          await window.electronAPI?.clearDictionary?.();
+        } catch (error) {
+          console.error("Failed to clear dictionary:", error);
+        }
+      },
+      variant: "destructive",
+    });
+  }, [showConfirmDialog]);
 
   const isUpdateAvailable =
     !updateStatus.isDevelopment &&
@@ -1092,6 +1152,105 @@ export default function SettingsPage({
               <p className="text-xs text-gray-600">
                 Whisper will bias toward this language for faster, more accurate
                 transcripts. Leave on Auto for multilingual workflows.
+              </p>
+            </div>
+          </div>
+        );
+
+      case "dictionary":
+        return (
+          <div className="space-y-6">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                Custom Dictionary
+              </h3>
+              <p className="text-sm text-gray-600">
+                Add words, names, and phrases that the transcription should
+                recognize. These terms improve accuracy for brand names,
+                technical jargon, and proper nouns.
+              </p>
+            </div>
+
+            <div className="space-y-4 p-4 bg-gray-50 border border-gray-200 rounded-xl">
+              {/* Add term input */}
+              <div className="flex gap-2">
+                <Input
+                  value={newTerm}
+                  onChange={(e) => setNewTerm(e.target.value)}
+                  placeholder="Add a term (e.g., company name, jargon)"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleAddTerm();
+                    }
+                  }}
+                  disabled={isAddingTerm || dictionaryTerms.length >= 100}
+                  className="flex-1"
+                />
+                <Button
+                  onClick={handleAddTerm}
+                  disabled={
+                    !newTerm.trim() ||
+                    isAddingTerm ||
+                    dictionaryTerms.length >= 100
+                  }
+                >
+                  {isAddingTerm ? "Adding..." : "Add"}
+                </Button>
+              </div>
+
+              {/* Term list */}
+              {dictionaryLoading ? (
+                <p className="text-sm text-gray-500">Loading dictionary...</p>
+              ) : dictionaryTerms.length === 0 ? (
+                <p className="text-sm text-gray-500">
+                  No terms added yet. Add words and phrases to improve
+                  transcription accuracy.
+                </p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {dictionaryTerms.map((item) => (
+                    <span
+                      key={item.id}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 bg-white border border-gray-200 rounded-full text-sm text-gray-700"
+                    >
+                      {item.term}
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveTerm(item.id)}
+                        className="ml-0.5 text-gray-400 hover:text-gray-600 transition-colors"
+                        aria-label={`Remove ${item.term}`}
+                      >
+                        <X size={14} />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {dictionaryTerms.length > 0 && (
+                <div className="flex items-center justify-between pt-2 border-t border-gray-200">
+                  <p className="text-xs text-gray-500">
+                    {dictionaryTerms.length}/100 terms
+                  </p>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleClearDictionary}
+                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                  >
+                    Clear All
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
+              <p className="font-medium mb-1">How it works</p>
+              <p className="text-xs">
+                Dictionary terms are sent to the transcription API as hints,
+                improving recognition of uncommon words. They're also included
+                in the post-processing prompt to preserve exact spelling.
               </p>
             </div>
           </div>

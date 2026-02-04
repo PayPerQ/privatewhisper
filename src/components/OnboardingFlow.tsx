@@ -12,7 +12,9 @@ import {
   Keyboard,
   Sparkles,
   Globe,
+  ExternalLink,
 } from "lucide-react";
+import flame2 from "../assets/flame2.png";
 import TitleBar from "./TitleBar";
 import ApiKeyInput from "./ui/ApiKeyInput";
 import PermissionCard from "./ui/PermissionCard";
@@ -271,7 +273,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
             style={{ fontFamily: "Noto Sans, sans-serif" }}
           >
             <div className="w-16 h-16 mx-auto bg-accent rounded-full flex items-center justify-center">
-              <Sparkles className="w-8 h-8 text-primary" />
+              <img src={flame2} alt="" className="w-10 h-10" />
             </div>
             <div>
               <h2
@@ -311,13 +313,14 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
               </p>
             </div>
 
-            <div className="max-w-md mx-auto">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-3xl mx-auto">
+              {/* Existing user - Enter key */}
               <div className="space-y-4 p-6 bg-white border border-border rounded-2xl shadow-sm">
                 <div className="flex items-center gap-3">
                   <Key className="w-8 h-8 text-primary" />
                   <div>
                     <h3 className="font-semibold text-foreground">
-                      PPQ API Key
+                      I have a key
                     </h3>
                   </div>
                 </div>
@@ -327,7 +330,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
                   label="PPQ API Key"
                   helpText={
                     <span className="text-xs text-muted-foreground">
-                      Already a PPQ user? Retrieve your key from PPQ.AI{" "}
+                      Retrieve your key from PPQ.AI{" "}
                       <button
                         type="button"
                         className="text-link underline hover:opacity-80"
@@ -339,6 +342,36 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
                     </span>
                   }
                 />
+              </div>
+
+              {/* New user - Get a key */}
+              <div className="space-y-4 p-6 bg-white border border-border rounded-2xl shadow-sm">
+                <div className="flex items-center gap-3">
+                  <Sparkles className="w-8 h-8 text-primary" />
+                  <div>
+                    <h3 className="font-semibold text-foreground">
+                      I need a key
+                    </h3>
+                  </div>
+                </div>
+
+                <div className="space-y-2 text-sm text-stone-600">
+                  <p>Pay-as-you-go. No subscriptions.</p>
+                  <ul className="space-y-1 text-xs">
+                    <li>Crypto: as low as 10¢</li>
+                    <li>Credit card: from $5</li>
+                    <li>Avg. spend: ~$2.75/month</li>
+                  </ul>
+                </div>
+
+                <Button
+                  onClick={openApiDocs}
+                  variant="outline"
+                  className="w-full"
+                >
+                  Get a Key
+                  <ExternalLink className="w-4 h-4 ml-2" />
+                </Button>
               </div>
             </div>
           </div>

@@ -69,10 +69,10 @@ export function useSettings() {
   );
   const [hotkeyMode, setHotkeyMode] = useLocalStorage<HotkeyMode>(
     "hotkeyMode",
-    "toggle",
+    "hold",
     {
       serialize: String,
-      deserialize: (value) => (value === "hold" ? "hold" : "toggle"),
+      deserialize: (value) => (value === "toggle" ? "toggle" : "hold"),
     },
   );
 

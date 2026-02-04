@@ -811,93 +811,8 @@ export default function SettingsPage({
       case "preferences":
         return (
           <div className="space-y-8">
-            {/* Language Section */}
-            <div className="space-y-6">
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                  Language
-                </h3>
-                <p className="text-sm text-gray-600 mb-4">
-                  Set your preferred language for transcription.
-                </p>
-              </div>
-              <div className="space-y-4 p-4 bg-neutral-50 rounded-lg">
-                <div>
-                  <p className="text-sm font-medium text-neutral-800 mb-2">
-                    Preferred Language
-                  </p>
-                  <LanguageSelector
-                    value={preferredLanguage}
-                    onChange={(value) => {
-                      setPreferredLanguage(value);
-                      updateTranscriptionSettings({ preferredLanguage: value });
-                    }}
-                    className="w-full"
-                  />
-                </div>
-                <p className="text-xs text-neutral-600">
-                  Whisper will bias toward this language for faster, more
-                  accurate transcripts. Leave on Auto for multilingual
-                  workflows.
-                </p>
-              </div>
-            </div>
-
-            {/* Audio Cues Section */}
-            <div className="border-t pt-8">
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                  Audio Cues
-                </h3>
-                <p className="text-sm text-gray-600 mb-4">
-                  Play a short sound when recording starts and when processing
-                  begins.
-                </p>
-                <div className="flex items-center justify-between p-4 bg-neutral-50 rounded-lg">
-                  <div>
-                    <p className="text-sm font-medium text-neutral-800">
-                      Recording Sounds
-                    </p>
-                    <p className="text-xs text-neutral-600">
-                      Toggle start/stop indicator sounds.
-                    </p>
-                  </div>
-                  <Toggle
-                    checked={audioCuesEnabled}
-                    onChange={(checked) => setAudioCuesEnabled(checked)}
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Appearance Section */}
-            <div className="border-t pt-8">
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                  Floating Icon Appearance
-                </h3>
-                <p className="text-sm text-gray-600 mb-4">
-                  Customize how the floating icon appears on your screen.
-                </p>
-                <div className="flex items-center justify-between p-4 bg-neutral-50 rounded-lg">
-                  <div>
-                    <p className="text-sm font-medium text-neutral-800">
-                      Hide icon when inactive
-                    </p>
-                    <p className="text-xs text-neutral-600">
-                      Only show the icon when the transcription is happening.
-                    </p>
-                  </div>
-                  <Toggle
-                    checked={showIconOnlyWhenActive}
-                    onChange={(checked) => setShowIconOnlyWhenActive(checked)}
-                  />
-                </div>
-              </div>
-            </div>
-
             {/* Hotkey Section */}
-            <div className="border-t pt-8">
+            <div className="space-y-6">
               <div>
                 <div className="flex items-center gap-2 mb-2">
                   <h3 className="text-lg font-semibold text-gray-900">
@@ -946,33 +861,6 @@ export default function SettingsPage({
                       <button
                         type="button"
                         onClick={() => {
-                          setHotkeyMode("toggle");
-                          window.electronAPI?.updateHotkeyMode?.("toggle");
-                        }}
-                        className={`
-                          relative p-4 rounded-xl border-2 transition-all duration-200 text-left
-                          ${
-                            hotkeyMode === "toggle"
-                              ? "border-primary bg-primary/5 ring-2 ring-primary/20"
-                              : "border-border bg-muted/30 hover:border-primary/50"
-                          }
-                        `}
-                      >
-                        {hotkeyMode === "toggle" && (
-                          <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-primary" />
-                        )}
-                        <div
-                          className={`font-semibold ${hotkeyMode === "toggle" ? "text-primary" : "text-foreground"}`}
-                        >
-                          Press once
-                        </div>
-                        <div className="text-xs text-muted-foreground mt-1">
-                          Tap to start, tap again to stop
-                        </div>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
                           setHotkeyMode("hold");
                           window.electronAPI?.updateHotkeyMode?.("hold");
                         }}
@@ -997,6 +885,33 @@ export default function SettingsPage({
                           Hold while speaking, release to stop
                         </div>
                       </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setHotkeyMode("toggle");
+                          window.electronAPI?.updateHotkeyMode?.("toggle");
+                        }}
+                        className={`
+                          relative p-4 rounded-xl border-2 transition-all duration-200 text-left
+                          ${
+                            hotkeyMode === "toggle"
+                              ? "border-primary bg-primary/5 ring-2 ring-primary/20"
+                              : "border-border bg-muted/30 hover:border-primary/50"
+                          }
+                        `}
+                      >
+                        {hotkeyMode === "toggle" && (
+                          <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-primary" />
+                        )}
+                        <div
+                          className={`font-semibold ${hotkeyMode === "toggle" ? "text-primary" : "text-foreground"}`}
+                        >
+                          Press once
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-1">
+                          Tap to start, tap again to stop
+                        </div>
+                      </button>
                     </div>
 
                     {/* Warning for non-Globe + hold mode requiring Input Monitoring */}
@@ -1019,6 +934,90 @@ export default function SettingsPage({
                     )}
                   </div>
                 )}
+              </div>
+            </div>
+
+            {/* Language Section */}
+            <div className="border-t pt-8">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  Language
+                </h3>
+                <p className="text-sm text-gray-600 mb-4">
+                  Set your preferred language for transcription.
+                </p>
+              </div>
+              <div className="space-y-4 p-4 bg-neutral-50 rounded-lg">
+                <div>
+                  <p className="text-sm font-medium text-neutral-800 mb-2">
+                    Preferred Language
+                  </p>
+                  <LanguageSelector
+                    value={preferredLanguage}
+                    onChange={(value) => {
+                      setPreferredLanguage(value);
+                      updateTranscriptionSettings({ preferredLanguage: value });
+                    }}
+                    className="w-full"
+                  />
+                </div>
+                <p className="text-xs text-neutral-600">
+                  Whisper will bias toward this language for faster, more
+                  accurate transcripts. Leave on Auto for multilingual
+                  workflows.
+                </p>
+              </div>
+            </div>
+
+            {/* Audio Cues Section */}
+            <div className="border-t pt-8">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  Play Sound
+                </h3>
+                <p className="text-sm text-gray-600 mb-4">
+                  Play audio cues when recording starts and stops.
+                </p>
+                <div className="flex items-center justify-between p-4 bg-neutral-50 rounded-lg">
+                  <div>
+                    <p className="text-sm font-medium text-neutral-800">
+                      Recording Sounds
+                    </p>
+                    <p className="text-xs text-neutral-600">
+                      Toggle start/stop indicator sounds.
+                    </p>
+                  </div>
+                  <Toggle
+                    checked={audioCuesEnabled}
+                    onChange={(checked) => setAudioCuesEnabled(checked)}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Appearance Section */}
+            <div className="border-t pt-8">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  Floating Icon Appearance
+                </h3>
+                <p className="text-sm text-gray-600 mb-4">
+                  Customize how the floating icon appears on your screen.
+                </p>
+                <div className="flex items-center justify-between p-4 bg-neutral-50 rounded-lg">
+                  <div>
+                    <p className="text-sm font-medium text-neutral-800">
+                      Hide icon when inactive
+                    </p>
+                    <p className="text-xs text-neutral-600">
+                      Only show the icon when the transcription is happening.
+                    </p>
+                  </div>
+                  <Toggle
+                    checked={showIconOnlyWhenActive}
+                    onChange={(checked) => setShowIconOnlyWhenActive(checked)}
+                  />
+                </div>
               </div>
             </div>
 

@@ -54,6 +54,7 @@ class StreamingTranscriptionService {
   private maxReconnectAttempts = CONNECTION_CONFIG.MAX_RECONNECT_ATTEMPTS;
   private language: string = "multi";
   private keyterms: string[] = [];
+  private mipOptOut: boolean = true; // Default: opted out of MIP (no discount, data stays private)
   private finalized = false;
 
   // Cached credentials for reconnection
@@ -104,6 +105,11 @@ class StreamingTranscriptionService {
         truncated: this.keyterms.length > 5,
       });
     }
+  }
+
+  setMipOptOut(optOut: boolean): void {
+    this.mipOptOut = optOut;
+    void debugLogger.log("MIP_OPT_OUT_CONFIGURED", { optOut });
   }
 
   getState(): StreamingState {
@@ -456,14 +462,20 @@ class StreamingTranscriptionService {
         this.setState("authenticating");
 
         // Send authentication message with optional tool_id for creator payouts
-        const authMessage: { type: string; api_key: string; tool_id?: string } =
-          {
-            type: "auth",
-            api_key: apiKey,
-          };
+        // Include mip_opt_out in auth so horse-power uses it when connecting to Deepgram
+        const authMessage: {
+          type: string;
+          api_key: string;
+          tool_id?: string;
+          mip_opt_out?: boolean;
+        } = {
+          type: "auth",
+          api_key: apiKey,
+        };
         if (toolId) {
           authMessage.tool_id = toolId;
         }
+        authMessage.mip_opt_out = this.mipOptOut;
         this.ws?.send(JSON.stringify(authMessage));
       };
 
@@ -583,28 +595,31 @@ class StreamingTranscriptionService {
         // Start keepalive mechanism
         this.startKeepalive();
 
-        // Send config if we have non-default language or keyterms
-        if (this.language !== "multi" || this.keyterms.length > 0) {
-          const config: {
-            type: string;
-            language?: string;
-            keyterms?: string[];
-          } = {
-            type: "config",
-          };
-          if (this.language !== "multi") {
-            config.language = this.language;
-          }
-          if (this.keyterms.length > 0) {
-            config.keyterms = this.keyterms;
-          }
-          void debugLogger.log("STREAMING_CONFIG_SENT", {
-            language: config.language ?? "multi",
-            keytermsCount: config.keyterms?.length ?? 0,
-            keytermsPreview: config.keyterms?.slice(0, 5),
-          });
-          this.ws?.send(JSON.stringify(config));
+        // Send config if we have non-default language, keyterms, or MIP opt-out setting
+        // Always send config to ensure mip_opt_out is passed
+        const config: {
+          type: string;
+          language?: string;
+          keyterms?: string[];
+          mip_opt_out?: boolean;
+        } = {
+          type: "config",
+        };
+        if (this.language !== "multi") {
+          config.language = this.language;
         }
+        if (this.keyterms.length > 0) {
+          config.keyterms = this.keyterms;
+        }
+        // Always include mip_opt_out in config
+        config.mip_opt_out = this.mipOptOut;
+        void debugLogger.log("STREAMING_CONFIG_SENT", {
+          language: config.language ?? "multi",
+          keytermsCount: config.keyterms?.length ?? 0,
+          keytermsPreview: config.keyterms?.slice(0, 5),
+          mipOptOut: config.mip_opt_out,
+        });
+        this.ws?.send(JSON.stringify(config));
 
         resolve();
         return;

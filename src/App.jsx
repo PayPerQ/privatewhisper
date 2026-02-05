@@ -408,6 +408,7 @@ export default function App() {
     alwaysUseBuiltInMic,
     preferredMicrophoneId,
     showIconOnlyWhenActive,
+    mipOptOut,
   } = useSettings();
 
   // Load dictionary terms
@@ -444,12 +445,14 @@ export default function App() {
       preferredLanguage,
       dictionaryCount: dictionary.length,
       dictionaryPreview: dictionary.slice(0, 5),
+      mipOptOut,
     });
     return {
       preferredLanguage,
       dictionary,
+      mipOptOut,
     };
-  }, [preferredLanguage, dictionaryTerms]);
+  }, [preferredLanguage, dictionaryTerms, mipOptOut]);
 
   // Keep ref in sync with audioSettings to avoid stale closures in hotkey handlers
   useEffect(() => {
@@ -616,12 +619,25 @@ export default function App() {
 
       // Use ref to avoid stale closure - audioSettings may have changed since hotkey handler was registered
       const currentAudioSettings = audioSettingsRef.current || audioSettings;
+
+      // Read mipOptOut directly from localStorage to get the latest value
+      // This fixes a bug where changes in SettingsPage don't propagate to App's React state
+      // because useSettings() creates separate state instances and storage events only fire for other windows
+      const storedMipOptOut = localStorage.getItem("mipOptOut");
+      const latestMipOptOut = storedMipOptOut !== "false"; // Default true if not set
+
+      const settingsWithLatestMip = {
+        ...currentAudioSettings,
+        mipOptOut: latestMipOptOut,
+      };
+
       void appLogger.log("START_RECORDING", {
-        dictionaryCount: currentAudioSettings.dictionary?.length ?? 0,
-        dictionaryPreview: currentAudioSettings.dictionary?.slice(0, 5) ?? [],
+        dictionaryCount: settingsWithLatestMip.dictionary?.length ?? 0,
+        dictionaryPreview: settingsWithLatestMip.dictionary?.slice(0, 5) ?? [],
+        mipOptOut: latestMipOptOut,
       });
 
-      const audioManager = new AudioManager(currentAudioSettings);
+      const audioManager = new AudioManager(settingsWithLatestMip);
       audioManagerRef.current = audioManager;
 
       audioManager.setCallbacks({

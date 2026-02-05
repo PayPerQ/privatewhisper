@@ -22,6 +22,10 @@ export interface AudioSettings {
   preferredMicrophoneId: string;
 }
 
+export interface PrivacySettings {
+  mipOptOut: boolean; // Opt out of Deepgram Model Improvement Partnership (default: true = opted out)
+}
+
 export interface AppearanceSettings {
   showIconOnlyWhenActive: boolean;
 }
@@ -112,6 +116,16 @@ export function useSettings() {
     },
   );
 
+  // Privacy settings - MIP opt-out (default: true = opted out, data stays private)
+  const [mipOptOut, setMipOptOut] = useLocalStorage(
+    "mipOptOut",
+    true,
+    {
+      serialize: String,
+      deserialize: (value) => value !== "false",
+    },
+  );
+
   // Batch operations
   const updateTranscriptionSettings = useCallback(
     (settings: Partial<TranscriptionSettings>) => {
@@ -168,6 +182,15 @@ export function useSettings() {
     [setShowIconOnlyWhenActive],
   );
 
+  const updatePrivacySettings = useCallback(
+    (settings: Partial<PrivacySettings>) => {
+      if (settings.mipOptOut !== undefined) {
+        setMipOptOut(settings.mipOptOut);
+      }
+    },
+    [setMipOptOut],
+  );
+
   return {
     preferredLanguage,
     ppqApiKey,
@@ -177,6 +200,7 @@ export function useSettings() {
     alwaysUseBuiltInMic,
     preferredMicrophoneId,
     showIconOnlyWhenActive,
+    mipOptOut,
     setPreferredLanguage,
     setPpqApiKey,
     setDictationKey,
@@ -185,10 +209,12 @@ export function useSettings() {
     setAlwaysUseBuiltInMic,
     setPreferredMicrophoneId,
     setShowIconOnlyWhenActive,
+    setMipOptOut,
     updateTranscriptionSettings,
     updateApiKeys,
     updateHotkeySettings,
     updateAudioSettings,
     updateAppearanceSettings,
+    updatePrivacySettings,
   };
 }

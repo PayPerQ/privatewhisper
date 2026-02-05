@@ -63,6 +63,7 @@ export default function SettingsPage({
     alwaysUseBuiltInMic,
     preferredMicrophoneId,
     showIconOnlyWhenActive,
+    mipOptOut,
     setPreferredLanguage,
     setPpqApiKey,
     setDictationKey,
@@ -71,6 +72,7 @@ export default function SettingsPage({
     setAlwaysUseBuiltInMic,
     setPreferredMicrophoneId,
     setShowIconOnlyWhenActive,
+    setMipOptOut,
     updateTranscriptionSettings,
     updateApiKeys,
   } = useSettings();
@@ -1133,6 +1135,40 @@ export default function SettingsPage({
                     </div>
                   </div>
                 )}
+              </div>
+            </div>
+
+            {/* Privacy Section */}
+            <div className="border-t pt-8">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  Privacy
+                </h3>
+                <p className="text-sm text-gray-600 mb-4">
+                  Control how your audio data is used.
+                </p>
+                <div className="flex items-center justify-between p-4 bg-neutral-50 rounded-lg">
+                  <div>
+                    <p className="text-sm font-medium text-neutral-800">
+                      Keep audio data private
+                    </p>
+                    <p className="text-xs text-neutral-600">
+                      When enabled, your audio is not used for AI model training.
+                    </p>
+                  </div>
+                  <Toggle
+                    checked={mipOptOut}
+                    onChange={(checked) => setMipOptOut(checked)}
+                  />
+                </div>
+                <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-800 mt-4">
+                  <p className="font-medium mb-1">Model Improvement Partnership</p>
+                  <p>
+                    When enabled (default), your audio stays private and is not trained on or retained by PPQ's speech-to-text provider. Disable this option
+                    to allow your audio to be used for model training from our provider and receive a ~45%
+                    discount on transcription costs. Lastly, your audio is never trained on or retained by PPQ under any circumstance.
+                  </p>
+                </div>
               </div>
             </div>
           </div>

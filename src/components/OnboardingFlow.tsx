@@ -521,11 +521,11 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
                 Try it out!
               </h3>
               <p className="text-sm text-accent-foreground mb-4">
-                Click in the text area below, press{" "}
+                Click in the text area below, hold{" "}
                 <kbd className="bg-white px-2 py-1 rounded text-xs font-mono border border-border">
                   {readableHotkey}
                 </kbd>{" "}
-                to start recording, speak, then press it again to stop.
+                to start recording, speak, then release it to stop.
               </p>
 
               <div className="space-y-3">

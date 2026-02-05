@@ -25,6 +25,14 @@ class DatabaseManager {
         )
       `);
 
+      this.db.exec(`
+        CREATE TABLE IF NOT EXISTS dictionary (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          term TEXT NOT NULL UNIQUE,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+
       debugLogger.logEvent("database", "initialized", {
         dbFile: dbFileName,
         dbPath,
@@ -179,6 +187,107 @@ class DatabaseManager {
       debugLogger.error("database", "cleanup-failed", {
         error: error.message,
       });
+    }
+  }
+
+  getDictionary() {
+    try {
+      if (!this.db) {
+        throw new Error("Database not initialized");
+      }
+      const stmt = this.db.prepare(
+        "SELECT * FROM dictionary ORDER BY created_at DESC",
+      );
+      const terms = stmt.all();
+      debugLogger.logEvent("database", "dictionary-loaded", {
+        resultCount: terms.length,
+      });
+      return terms;
+    } catch (error) {
+      debugLogger.error("database", "dictionary-load-failed", {
+        error: error.message,
+      });
+      throw error;
+    }
+  }
+
+  addDictionaryTerm(term) {
+    try {
+      if (!this.db) {
+        throw new Error("Database not initialized");
+      }
+      const content = typeof term === "string" ? term.trim() : "";
+      if (!content) {
+        return { success: false, error: "Empty term" };
+      }
+      const stmt = this.db.prepare(
+        "INSERT OR IGNORE INTO dictionary (term) VALUES (?)",
+      );
+      const result = stmt.run(content);
+
+      if (result.changes === 0) {
+        // Term already exists
+        const existing = this.db
+          .prepare("SELECT * FROM dictionary WHERE term = ?")
+          .get(content);
+        return { success: true, term: existing, duplicate: true };
+      }
+
+      const inserted = this.db
+        .prepare("SELECT * FROM dictionary WHERE id = ?")
+        .get(result.lastInsertRowid);
+
+      debugLogger.logEvent("database", "dictionary-term-added", {
+        id: result.lastInsertRowid,
+        term: content,
+      });
+
+      return { success: true, term: inserted };
+    } catch (error) {
+      debugLogger.error("database", "dictionary-add-failed", {
+        error: error.message,
+      });
+      throw error;
+    }
+  }
+
+  removeDictionaryTerm(id) {
+    try {
+      if (!this.db) {
+        throw new Error("Database not initialized");
+      }
+      const stmt = this.db.prepare("DELETE FROM dictionary WHERE id = ?");
+      const result = stmt.run(id);
+      debugLogger.logEvent("database", "dictionary-term-removed", {
+        id,
+        affectedRows: result.changes,
+      });
+      return { success: result.changes > 0, id };
+    } catch (error) {
+      debugLogger.error("database", "dictionary-remove-failed", {
+        id,
+        error: error.message,
+      });
+      throw error;
+    }
+  }
+
+  clearDictionary() {
+    try {
+      if (!this.db) {
+        throw new Error("Database not initialized");
+      }
+      const stmt = this.db.prepare("DELETE FROM dictionary");
+      const result = stmt.run();
+      debugLogger.logEvent("database", "dictionary-cleared", {
+        cleared: result.changes,
+      });
+      return { cleared: result.changes, success: true };
+    } catch (error) {
+      debugLogger.error("database", "dictionary-clear-failed", {
+        error: error.message,
+      });
+      throw error;
     }
   }
 }

@@ -53,6 +53,7 @@ class StreamingTranscriptionService {
   private reconnectAttempts = 0;
   private maxReconnectAttempts = CONNECTION_CONFIG.MAX_RECONNECT_ATTEMPTS;
   private language: string = "multi";
+  private keyterms: string[] = [];
   private finalized = false;
 
   // Cached credentials for reconnection
@@ -91,6 +92,18 @@ class StreamingTranscriptionService {
 
   setLanguage(language: string): void {
     this.language = language === "auto" ? "multi" : language;
+  }
+
+  setKeyterms(terms: string[]): void {
+    // Limit to 100 terms (Deepgram limit)
+    this.keyterms = terms.slice(0, 100);
+    if (this.keyterms.length > 0) {
+      void debugLogger.log("KEYTERMS_CONFIGURED", {
+        count: this.keyterms.length,
+        terms: this.keyterms.slice(0, 5), // Log first 5 for verification
+        truncated: this.keyterms.length > 5,
+      });
+    }
   }
 
   getState(): StreamingState {
@@ -570,10 +583,27 @@ class StreamingTranscriptionService {
         // Start keepalive mechanism
         this.startKeepalive();
 
-        if (this.language !== "multi") {
-          this.ws?.send(
-            JSON.stringify({ type: "config", language: this.language }),
-          );
+        // Send config if we have non-default language or keyterms
+        if (this.language !== "multi" || this.keyterms.length > 0) {
+          const config: {
+            type: string;
+            language?: string;
+            keyterms?: string[];
+          } = {
+            type: "config",
+          };
+          if (this.language !== "multi") {
+            config.language = this.language;
+          }
+          if (this.keyterms.length > 0) {
+            config.keyterms = this.keyterms;
+          }
+          void debugLogger.log("STREAMING_CONFIG_SENT", {
+            language: config.language ?? "multi",
+            keytermsCount: config.keyterms?.length ?? 0,
+            keytermsPreview: config.keyterms?.slice(0, 5),
+          });
+          this.ws?.send(JSON.stringify(config));
         }
 
         resolve();

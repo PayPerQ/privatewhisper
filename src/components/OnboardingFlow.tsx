@@ -6,13 +6,17 @@ import {
   ChevronRight,
   ChevronLeft,
   Check,
-  Settings,
   Mic,
   Key,
   Shield,
   Keyboard,
   Sparkles,
+  Globe,
+  ExternalLink,
 } from "lucide-react";
+import flame2 from "../assets/flame2.png";
+import visaMcLogo from "../assets/visa_mc_background_transparent.png";
+import cryptoLogos from "../assets/crypto_payment_logos.png";
 import TitleBar from "./TitleBar";
 import ApiKeyInput from "./ui/ApiKeyInput";
 import PermissionCard from "./ui/PermissionCard";
@@ -27,6 +31,7 @@ import { formatHotkeyLabel } from "../utils/hotkeys";
 import LanguageSelector from "./ui/LanguageSelector";
 import HotkeyInput from "./ui/HotkeyInput";
 import { HotkeyGuidelines } from "./ui/HotkeyGuidelines";
+import { PPQ_WEBSITE_URL } from "../config/constants";
 
 interface OnboardingFlowProps {
   onComplete: () => void;
@@ -75,7 +80,11 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
   const userChangedHotkeyRef = useRef(false);
   const permissionsHook = usePermissions(showAlertDialog);
   const openApiDocs = useCallback(() => {
-    window.electronAPI?.openExternal?.("https://ppq.ai/api-docs");
+    window.electronAPI?.openExternal?.(`${PPQ_WEBSITE_URL}/api-docs`);
+  }, []);
+
+  const openWhisperOnboarding = useCallback(() => {
+    window.electronAPI?.openExternal?.(`${PPQ_WEBSITE_URL}/whisper-onboarding`);
   }, []);
 
   const persistApiKey = useCallback(async () => {
@@ -118,23 +127,24 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
 
   const steps = [
     { title: "Welcome", icon: Sparkles },
-    { title: "Setup", icon: Settings },
+    { title: "Language", icon: Globe },
     { title: "Permissions", icon: Shield },
+    { title: "API Key", icon: Key },
     { title: "Hotkey", icon: Keyboard },
   ];
 
   useEffect(() => {
-    if (currentStep === 3 && practiceTextareaRef.current) {
+    if (currentStep === 4 && practiceTextareaRef.current) {
       practiceTextareaRef.current.focus();
     }
   }, [currentStep]);
 
-  // Auto-register the default hotkey when entering step 3 (hotkey step)
+  // Auto-register the default hotkey when entering step 4 (hotkey step)
   // This ensures the default Globe key (or any default) works immediately
   // without requiring the user to explicitly select it first
   // Note: This is silent (no toast) - user can still manually change it
   useEffect(() => {
-    if (currentStep !== 3) return;
+    if (currentStep !== 4) return;
     if (!window.electronAPI?.updateHotkey) return;
     // Prevent double-invoke in React.StrictMode
     if (autoRegisterInFlightRef.current) return;
@@ -171,7 +181,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     };
 
     void autoRegisterDefaultHotkey();
-    // Only run when entering step 3, not when hotkey changes
+    // Only run when entering step 4, not when hotkey changes
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentStep]);
 
@@ -227,7 +237,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
       return;
     }
 
-    if (currentStep === 1) {
+    if (currentStep === 3) {
       const saved = await persistApiKey();
       if (!saved) {
         return;
@@ -237,8 +247,8 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     const newStep = currentStep + 1;
     setCurrentStep(newStep);
 
-    // Show dictation panel when moving from permissions step (2) to hotkey step (3)
-    if (currentStep === 2 && newStep === 3) {
+    // Show dictation panel when moving from API Key step (3) to hotkey step (4)
+    if (currentStep === 3 && newStep === 4) {
       if (window.electronAPI?.showDictationPanel) {
         window.electronAPI.showDictationPanel();
       }
@@ -270,7 +280,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
             style={{ fontFamily: "Noto Sans, sans-serif" }}
           >
             <div className="w-16 h-16 mx-auto bg-accent rounded-full flex items-center justify-center">
-              <Sparkles className="w-8 h-8 text-primary" />
+              <img src={flame2} alt="" className="w-10 h-10" />
             </div>
             <div>
               <h2
@@ -298,53 +308,29 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
           </div>
         );
 
-      case 1: // Setup
+      case 1: // Language
         return (
           <div className="space-y-8">
             <div className="text-center">
               <h2 className="text-2xl font-bold text-gray-900 mb-2">
-                Add Your API Key
+                Choose Your Language
               </h2>
               <p className="text-gray-600">
-                Use your PPQ API key and choose the language you primarily
-                speak.
+                Select the language you primarily speak for better transcription
+                accuracy.
               </p>
             </div>
 
-            <div className="grid gap-6 md:grid-cols-2">
-              <div className="space-y-4 p-6 bg-white border border-border rounded-2xl shadow-sm">
+            <div className="max-w-md mx-auto">
+              <div className="space-y-4 p-6 bg-white border border-stone-200 rounded-2xl shadow-sm">
                 <div className="flex items-center gap-3">
-                  <Key className="w-8 h-8 text-primary" />
+                  <Globe className="w-8 h-8 text-primary" />
                   <div>
-                    <h3 className="font-semibold text-foreground">
-                      PPQ API Key
+                    <h3 className="font-semibold text-stone-900">
+                      Preferred Language
                     </h3>
                   </div>
                 </div>
-                <ApiKeyInput
-                  apiKey={apiKey}
-                  setApiKey={setApiKey}
-                  label="PPQ API Key"
-                  helpText={
-                    <span className="text-xs text-muted-foreground">
-                      Need a key?{" "}
-                      <button
-                        type="button"
-                        className="text-link underline hover:opacity-80"
-                        onClick={openApiDocs}
-                      >
-                        Get it from ppq.ai
-                      </button>
-                      .
-                    </span>
-                  }
-                />
-              </div>
-
-              <div className="space-y-4 p-6 bg-white border border-stone-200 rounded-2xl shadow-sm">
-                <h3 className="font-semibold text-stone-900">
-                  Preferred Language
-                </h3>
                 <p className="text-sm text-stone-600">
                   Transcription is fastest when it knows what to expect. You can
                   change this later in Settings.
@@ -405,7 +391,100 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
           </div>
         );
 
-      case 3: // Choose Hotkey & Practice (combined step)
+      case 3: // API Key
+        return (
+          <div className="space-y-8">
+            <div className="text-center">
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                Add Your API Key
+              </h2>
+              <p className="text-gray-600">
+                Enter your PPQ API key to enable voice transcription.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-3xl mx-auto">
+              {/* Existing user - Enter key */}
+              <div className="space-y-4 p-6 bg-white border border-border rounded-2xl shadow-sm">
+                <div className="flex items-center gap-3">
+                  <Key className="w-8 h-8 text-primary" />
+                  <div>
+                    <h3 className="font-semibold text-foreground">
+                      I have a key
+                    </h3>
+                  </div>
+                </div>
+                <ApiKeyInput
+                  apiKey={apiKey}
+                  setApiKey={setApiKey}
+                  label="PPQ API Key"
+                  helpText={
+                    <span className="text-xs text-muted-foreground">
+                      Existing PPQ users can retrieve their key{" "}
+                      <button
+                        type="button"
+                        className="text-link underline hover:opacity-80"
+                        onClick={openApiDocs}
+                      >
+                        here
+                      </button>
+                      .
+                    </span>
+                  }
+                />
+              </div>
+
+              {/* New user - Get a key */}
+              <div className="space-y-4 p-6 bg-white border border-border rounded-2xl shadow-sm">
+                <div className="flex items-center gap-3">
+                  <img src={flame2} alt="" className="w-8 h-8" />
+                  <div>
+                    <h3 className="font-semibold text-foreground">
+                      I need a key
+                    </h3>
+                  </div>
+                </div>
+
+                <div className="space-y-2 text-sm text-stone-600">
+                  <p className="text-sm font-medium text-neutral-700">Pay-as-you-go. No expensive subscriptions.</p>
+                  <ul className="space-y-1 text-xs">
+                    <li>Users spend an average of only ~$2.75/month!</li>
+                    <li>Maximum charge in a 30-day window is $6!</li>
+                    <li>Automatic topups optional</li>
+                  </ul>
+                </div>
+
+                <div className="flex items-center justify-center gap-4 py-2">
+                  <img
+                    src={visaMcLogo}
+                    alt="Visa and Mastercard accepted"
+                    className="h-6 object-contain"
+                  />
+                  <img
+                    src={cryptoLogos}
+                    alt="Crypto payments accepted"
+                    className="h-6 object-contain"
+                  />
+                </div>
+
+                <p className="text-xs text-stone-600 text-center">
+                  Deposit as little as $5 with card or 10¢ with crypto
+                </p>
+
+                <Button
+                  onClick={openWhisperOnboarding}
+                  variant="outline"
+                  className="w-full"
+                >
+                  Get a Key
+                  <ExternalLink className="w-4 h-4 ml-2" />
+                </Button>
+              </div>
+            </div>
+          </div>
+        );
+
+      case 4: // Choose Hotkey & Practice (combined step)
         return (
           <div
             className="space-y-6"
@@ -490,7 +569,8 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
         canAdvance = true;
         break;
       case 1:
-        canAdvance = apiKey.trim().length > 0;
+        // Language selection - always allow proceeding (auto-detect is valid)
+        canAdvance = true;
         break;
       case 2:
         // On macOS, both mic and accessibility permissions are required
@@ -501,6 +581,9 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
           : permissionsHook.micPermissionGranted;
         break;
       case 3:
+        canAdvance = apiKey.trim().length > 0;
+        break;
+      case 4:
         // Combined hotkey + practice step - just need a valid hotkey
         canAdvance = hotkey.trim() !== "";
         break;

@@ -5,6 +5,12 @@ export interface TranscriptionItem {
   created_at: string;
 }
 
+export interface DictionaryTerm {
+  id: number;
+  term: string;
+  created_at: string;
+}
+
 export interface HotkeyUpdateResult {
   success: boolean;
   message?: string;
@@ -160,6 +166,28 @@ declare global {
       ) => () => void;
       onTranscriptionDeleted?: (callback: (id: number) => void) => () => void;
       onTranscriptionsCleared?: (
+        callback: (payload: { cleared: number }) => void,
+      ) => () => void;
+
+      // Dictionary operations
+      getDictionary?: () => Promise<DictionaryTerm[]>;
+      addDictionaryTerm?: (term: string) => Promise<{
+        success: boolean;
+        term?: DictionaryTerm;
+        duplicate?: boolean;
+        error?: string;
+      }>;
+      removeDictionaryTerm?: (
+        id: number,
+      ) => Promise<{ success: boolean; id: number }>;
+      clearDictionary?: () => Promise<{ cleared: number; success: boolean }>;
+
+      // Dictionary event listeners
+      onDictionaryTermAdded?: (
+        callback: (term: DictionaryTerm) => void,
+      ) => () => void;
+      onDictionaryTermRemoved?: (callback: (id: number) => void) => () => void;
+      onDictionaryCleared?: (
         callback: (payload: { cleared: number }) => void,
       ) => () => void;
 

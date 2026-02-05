@@ -133,6 +133,12 @@ export const CONNECTION_CONFIG = {
   CONNECTION_TIMEOUT_MS: 20000, // 20 seconds for initial connection (Bluetooth needs longer)
 } as const;
 
+// PPQ Website URL (for external links like onboarding, API docs)
+export const PPQ_WEBSITE_URL = computeBaseUrl(
+  [env.VITE_PPQ_WEBSITE_URL as string | undefined],
+  "https://ppq.ai",
+);
+
 // Audio Device Recovery Configuration
 export const DEVICE_RECOVERY_CONFIG = {
   MAX_RECOVERY_ATTEMPTS: 3,

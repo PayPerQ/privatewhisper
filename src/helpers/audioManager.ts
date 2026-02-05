@@ -115,6 +115,7 @@ type AudioSettings = {
   useReasoningModel: boolean;
   reasoningModel: string;
   preferredLanguage: string;
+  dictionary: string[];
 };
 
 type AudioManagerCallbacks = {
@@ -140,6 +141,7 @@ const DEFAULT_SETTINGS: AudioSettings = {
   useReasoningModel: true,
   reasoningModel: "openai/gpt-oss-120b",
   preferredLanguage: "en",
+  dictionary: [],
 };
 
 class AudioManager {
@@ -364,11 +366,15 @@ class AudioManager {
 
   async processWithReasoningModel(text: string) {
     const model = this.settings.reasoningModel;
+    const dictionary = this.settings.dictionary || [];
     const metrics = this.metrics;
 
     void debugLogger.log("CALLING_REASONING_SERVICE", {
       model,
       textLength: text.length,
+      dictionaryTermsCount: dictionary.length,
+      dictionaryTermsPreview: dictionary.slice(0, 5),
+      dictionaryWillBeIncluded: dictionary.length > 0,
     });
 
     metrics?.mark("reasoningStart");
@@ -377,7 +383,12 @@ class AudioManager {
     const startTime = Date.now();
 
     try {
-      const result = await ReasoningService.processText(text, model);
+      const result = await ReasoningService.processText(
+        text,
+        model,
+        {},
+        dictionary,
+      );
       const outputTokens = result.usage?.outputTokens ?? null;
 
       const processingTime = Date.now() - startTime;
@@ -538,11 +549,20 @@ class AudioManager {
         formData.append("language", preferredLanguage);
       }
 
+      // Build URL with keyterms from dictionary
+      const transcriptionUrl = new URL(API_ENDPOINTS.PPQ_TRANSCRIPTION);
+      const { dictionary } = this.settings;
+      if (dictionary && dictionary.length > 0) {
+        // Limit to ~100 words (DeepGram limit)
+        const terms = dictionary.slice(0, 100);
+        terms.forEach((term) => {
+          transcriptionUrl.searchParams.append("keyterm", term);
+        });
+      }
+
       metrics?.setFlag("transcriptionModel", AUDIO_CONFIG.TRANSCRIPTION_MODEL);
-      metrics?.setFlag(
-        "transcriptionEndpoint",
-        API_ENDPOINTS.PPQ_TRANSCRIPTION,
-      );
+      metrics?.setFlag("transcriptionEndpoint", transcriptionUrl.toString());
+      metrics?.setFlag("dictionaryTermsUsed", dictionary?.length ?? 0);
 
       // Log all FormData entries for debugging
       const formDataEntries: Record<string, string> = {};
@@ -554,7 +574,7 @@ class AudioManager {
       }
 
       void debugLogger.log("PPQ_TRANSCRIPTION_REQUEST", {
-        endpoint: API_ENDPOINTS.PPQ_TRANSCRIPTION,
+        endpoint: transcriptionUrl.toString(),
         model: AUDIO_CONFIG.TRANSCRIPTION_MODEL,
         language: preferredLanguage,
         audioBlobSize: audioBlob.size,
@@ -562,6 +582,9 @@ class AudioManager {
         hasApiKey: !!apiKey,
         apiKeyPrefix: apiKey ? `${apiKey.substring(0, 8)}...` : "none",
         formDataEntries: formDataEntries,
+        keytermsCount: dictionary?.length ?? 0,
+        keytermsPreview: dictionary?.slice(0, 5) ?? [],
+        keytermsIncludedInUrl: (dictionary?.length ?? 0) > 0,
       });
 
       const result = await withRetry(async () => {
@@ -572,14 +595,14 @@ class AudioManager {
           };
 
           void debugLogger.log("PPQ_TRANSCRIPTION_FETCH_START", {
-            endpoint: API_ENDPOINTS.PPQ_TRANSCRIPTION,
+            endpoint: transcriptionUrl.toString(),
             method: "POST",
             headers: { Authorization: `Bearer ${apiKey.substring(0, 8)}...` },
           });
 
           metrics?.mark("transcriptionRequestStart");
           metrics?.setFlag("transcriptionRequestStartedAtEpochMs", Date.now());
-          response = await fetch(API_ENDPOINTS.PPQ_TRANSCRIPTION, {
+          response = await fetch(transcriptionUrl.toString(), {
             method: "POST",
             headers: requestHeaders,
             body: formData,
@@ -591,7 +614,7 @@ class AudioManager {
             error: fetchError.message,
             errorType: fetchError.name,
             errorStack: fetchError.stack,
-            endpoint: API_ENDPOINTS.PPQ_TRANSCRIPTION,
+            endpoint: transcriptionUrl.toString(),
           });
           throw fetchError;
         }
@@ -706,8 +729,9 @@ class AudioManager {
       },
     });
 
-    // Set language for streaming
+    // Set language and keyterms for streaming
     StreamingTranscriptionService.setLanguage(this.settings.preferredLanguage);
+    StreamingTranscriptionService.setKeyterms(this.settings.dictionary || []);
 
     try {
       await StreamingTranscriptionService.connect(apiKey, "stt:ppq-voice");

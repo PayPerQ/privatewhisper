@@ -105,6 +105,33 @@ class IPCHandlers {
       return result;
     });
 
+    // Dictionary handlers
+    ipcMain.handle("db-get-dictionary", async () => {
+      return this.databaseManager.getDictionary();
+    });
+
+    ipcMain.handle("db-add-dictionary-term", async (event, term) => {
+      const result = this.databaseManager.addDictionaryTerm(term);
+      if (result?.term && !result.duplicate) {
+        this.broadcastTranscriptionEvent("dictionary-term-added", result.term);
+      }
+      return result;
+    });
+
+    ipcMain.handle("db-remove-dictionary-term", async (event, id) => {
+      const result = this.databaseManager.removeDictionaryTerm(id);
+      if (result?.success) {
+        this.broadcastTranscriptionEvent("dictionary-term-removed", result.id);
+      }
+      return result;
+    });
+
+    ipcMain.handle("db-clear-dictionary", async () => {
+      const result = this.databaseManager.clearDictionary();
+      this.broadcastTranscriptionEvent("dictionary-cleared", result);
+      return result;
+    });
+
     // Clipboard handlers
     ipcMain.handle("paste-text", async (event, text) => {
       return this.clipboardManager.pasteText(text);

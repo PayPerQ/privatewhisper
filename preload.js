@@ -109,6 +109,22 @@ contextBridge.exposeInMainWorld("electronAPI", {
   onTranscriptionsCleared: (callback) =>
     exposeListener("transcriptions-cleared", callback),
 
+  // Dictionary functions
+  getDictionary: () => ipcRenderer.invoke("db-get-dictionary"),
+  addDictionaryTerm: (term) =>
+    ipcRenderer.invoke("db-add-dictionary-term", term),
+  removeDictionaryTerm: (id) =>
+    ipcRenderer.invoke("db-remove-dictionary-term", id),
+  clearDictionary: () => ipcRenderer.invoke("db-clear-dictionary"),
+
+  // Dictionary change listeners
+  onDictionaryTermAdded: (callback) =>
+    exposeListener("dictionary-term-added", callback),
+  onDictionaryTermRemoved: (callback) =>
+    exposeListener("dictionary-term-removed", callback),
+  onDictionaryCleared: (callback) =>
+    exposeListener("dictionary-cleared", callback),
+
   // Settings sync - broadcast to all windows
   updateHotkeyMode: (mode) => ipcRenderer.invoke("update-hotkey-mode", mode),
   onHotkeyModeChanged: (callback) =>

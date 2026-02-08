@@ -33,7 +33,11 @@ import {
 import type { UpdateInfoResult } from "../types/electron";
 import { useDictionary } from "../stores/dictionaryStore";
 
-export type SettingsSectionType = "general" | "preferences" | "transcription" | "dictionary";
+export type SettingsSectionType =
+  | "general"
+  | "preferences"
+  | "transcription"
+  | "dictionary";
 
 const SYSTEM_DEFAULT_DEVICE_ID = "__system_default__";
 
@@ -1038,7 +1042,8 @@ export default function SettingsPage({
                       Always default to built-in microphone
                     </p>
                     <p className="text-xs text-neutral-600">
-                      Built-in microphone strongly recommended for best experience
+                      Built-in microphone strongly recommended for best
+                      experience
                     </p>
                   </div>
                   <Toggle

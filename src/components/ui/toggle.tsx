@@ -20,7 +20,9 @@ export const Toggle = ({
   >
     <span
       className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform shadow-sm border ${
-        checked ? "translate-x-5 border-white" : "translate-x-1 border-orange-400"
+        checked
+          ? "translate-x-5 border-white"
+          : "translate-x-1 border-orange-400"
       }`}
     />
   </button>

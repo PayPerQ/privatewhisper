@@ -1,20 +1,5 @@
-import { SecureCache } from "./SecureCache";
-
 class ApiKeyManager {
-  private cache: SecureCache<string>;
-
-  constructor() {
-    this.cache = new SecureCache<string>();
-  }
-
-  async getApiKey(forceRefresh: boolean = false): Promise<string> {
-    if (!forceRefresh) {
-      const cached = this.cache.get("ppq");
-      if (cached) {
-        return cached;
-      }
-    }
-
+  async getApiKey(): Promise<string> {
     const apiKey = await this.fetchFromSources();
 
     if (!this.isValidApiKey(apiKey)) {
@@ -23,7 +8,6 @@ class ApiKeyManager {
       );
     }
 
-    this.cache.set("ppq", apiKey);
     return apiKey;
   }
 
@@ -52,10 +36,6 @@ class ApiKeyManager {
       key.trim() !== "" &&
       key !== "your_ppq_api_key_here"
     );
-  }
-
-  clearCache(): void {
-    this.cache.delete("ppq");
   }
 }
 

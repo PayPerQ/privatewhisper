@@ -108,12 +108,6 @@ export const TOKEN_LIMITS = {
   REASONING_CONTEXT_SIZE: 4096,
 } as const;
 
-// Cache Configuration
-export const CACHE_CONFIG = {
-  API_KEY_TTL: 3600000, // 1 hour in milliseconds
-  MODEL_CACHE_SIZE: 3, // Maximum models to keep in memory
-} as const;
-
 // Retry Configuration
 export const RETRY_CONFIG = {
   MAX_RETRIES: 3,

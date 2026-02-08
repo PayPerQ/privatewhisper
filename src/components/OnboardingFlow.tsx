@@ -446,7 +446,9 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
                 </div>
 
                 <div className="space-y-2 text-sm text-stone-600">
-                  <p className="text-sm font-medium text-neutral-700">Pay-as-you-go. No expensive subscriptions.</p>
+                  <p className="text-sm font-medium text-neutral-700">
+                    Pay-as-you-go. No expensive subscriptions.
+                  </p>
                   <ul className="space-y-1 text-xs">
                     <li>Users spend an average of only ~$2.75/month!</li>
                     <li>Maximum charge in a 30-day window is $6!</li>

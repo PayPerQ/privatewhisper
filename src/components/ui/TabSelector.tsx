@@ -23,7 +23,7 @@ export default function TabSelector({
     <div
       className={cn(
         "inline-flex p-1 bg-stone-100 rounded-lg border border-stone-200",
-        className
+        className,
       )}
     >
       {tabs.map((tab) => (
@@ -35,7 +35,7 @@ export default function TabSelector({
             "px-4 py-2 text-sm font-medium rounded-md transition-all duration-150",
             activeTab === tab.id
               ? "bg-white text-stone-900 shadow-sm"
-              : "text-stone-600 hover:text-stone-900"
+              : "text-stone-600 hover:text-stone-900",
           )}
         >
           {tab.label}

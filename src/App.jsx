@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import { X } from "lucide-react";
+import { X, Copy, Check } from "lucide-react";
 import "./index.css";
 import { useToast } from "./components/ui/Toast";
 import { LoadingDots } from "./components/ui/LoadingDots";
@@ -380,6 +380,9 @@ export default function App() {
   const [isCommandMenuOpen, setIsCommandMenuOpen] = useState(false);
   const [interimTranscript, setInterimTranscript] = useState("");
   const [isStreamingMode, setIsStreamingMode] = useState(false);
+  const [overlayError, setOverlayError] = useState(null);
+  const [errorCopied, setErrorCopied] = useState(false);
+  const errorTimerRef = useRef(null);
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const audioManagerRef = useRef(null);
@@ -460,18 +463,43 @@ export default function App() {
     window.electronAPI?.setMainWindowInteractivity?.(shouldCapture);
   }, []);
 
+  const showOverlayError = React.useCallback((title, description) => {
+    if (errorTimerRef.current) clearTimeout(errorTimerRef.current);
+    setOverlayError({ title, description });
+    setErrorCopied(false);
+    errorTimerRef.current = setTimeout(() => {
+      setOverlayError(null);
+      setErrorCopied(false);
+    }, 8000);
+  }, []);
+
+  const dismissOverlayError = React.useCallback(() => {
+    if (errorTimerRef.current) clearTimeout(errorTimerRef.current);
+    setOverlayError(null);
+    setErrorCopied(false);
+  }, []);
+
+  const copyErrorToClipboard = React.useCallback(() => {
+    if (!overlayError) return;
+    const text = `${overlayError.title}: ${overlayError.description}`;
+    navigator.clipboard?.writeText(text).then(() => {
+      setErrorCopied(true);
+      setTimeout(() => setErrorCopied(false), 2000);
+    });
+  }, [overlayError]);
+
   useEffect(() => {
     setWindowInteractivity(false);
     return () => setWindowInteractivity(false);
   }, [setWindowInteractivity]);
 
   useEffect(() => {
-    if (isCommandMenuOpen) {
+    if (isCommandMenuOpen || overlayError) {
       setWindowInteractivity(true);
     } else if (!isHovered) {
       setWindowInteractivity(false);
     }
-  }, [isCommandMenuOpen, isHovered, setWindowInteractivity]);
+  }, [isCommandMenuOpen, isHovered, overlayError, setWindowInteractivity]);
 
   useEffect(() => {
     if (!navigator.mediaDevices?.addEventListener) return;
@@ -601,6 +629,7 @@ export default function App() {
     ) {
       return false;
     }
+    dismissOverlayError();
     try {
       cancelRecordingRef.current = false;
       pendingStartRef.current = true;
@@ -626,11 +655,7 @@ export default function App() {
 
       audioManager.setCallbacks({
         onError: (error) => {
-          toast({
-            title: error.title,
-            description: error.description,
-            variant: "destructive",
-          });
+          showOverlayError(error.title, error.description);
         },
         onInterimResult: (text) => {
           setInterimTranscript(text);
@@ -872,11 +897,10 @@ export default function App() {
             await audioManagerRef.current.stopStreaming();
             // onTranscriptionComplete callback handles the rest
           } catch (err) {
-            toast({
-              title: "Transcription Error",
-              description: "Streaming transcription failed: " + err.message,
-              variant: "destructive",
-            });
+            showOverlayError(
+              "Transcription Error",
+              "Streaming transcription failed: " + err.message,
+            );
             setIsProcessing(false);
           }
         } else {
@@ -902,14 +926,13 @@ export default function App() {
       if (audioManagerRef.current) {
         audioManagerRef.current.abortConnection();
       }
-      // Only show error toast if not a cancellation
+      // Only show error if not a cancellation
       if (!cancelRecordingRef.current) {
         console.error("Recording error:", err);
-        toast({
-          title: "Recording Error",
-          description: "Failed to access microphone: " + err.message,
-          variant: "destructive",
-        });
+        showOverlayError(
+          "Recording Error",
+          "Failed to access microphone: " + err.message,
+        );
       }
       pendingStartRef.current = false;
       setIsConnecting(false);
@@ -965,11 +988,10 @@ export default function App() {
       // Callbacks were already set up in startRecording
       await audioManager.processAudio(audioBlob);
     } catch (err) {
-      toast({
-        title: "Transcription Error",
-        description: "Transcription failed: " + err.message,
-        variant: "destructive",
-      });
+      showOverlayError(
+        "Transcription Error",
+        "Transcription failed: " + err.message,
+      );
       setIsProcessing(false);
     }
   };
@@ -1324,8 +1346,17 @@ export default function App() {
 
   const micProps = getMicButtonProps();
 
-  // Determine if the icon should be visible
   const shouldShowIcon = !showIconOnlyWhenActive || shouldShowIconDelayed;
+
+  useEffect(() => {
+    if (overlayError) {
+      window.electronAPI?.resizeMainWindow?.(320, 200);
+    } else if (isCommandMenuOpen) {
+      window.electronAPI?.resizeMainWindow?.(220, 180);
+    } else {
+      window.electronAPI?.resizeMainWindow?.(180, 120);
+    }
+  }, [overlayError, isCommandMenuOpen]);
 
   return (
     <>
@@ -1340,11 +1371,41 @@ export default function App() {
             }}
             onMouseLeave={() => {
               setIsHovered(false);
-              if (!isCommandMenuOpen) {
+              if (!isCommandMenuOpen && !overlayError) {
                 setWindowInteractivity(false);
               }
             }}
           >
+            {overlayError && (
+              <div className="absolute bottom-full right-0 mb-3 w-72 rounded-lg border border-red-500/30 bg-neutral-900/95 text-white shadow-lg backdrop-blur-sm overflow-hidden">
+                <div className="flex items-start gap-2 p-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium text-red-400">
+                      {overlayError.title}
+                    </p>
+                    <p className="text-xs text-neutral-300 mt-1 break-words select-text">
+                      {overlayError.description}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    <button
+                      onClick={copyErrorToClipboard}
+                      className="w-6 h-6 rounded flex items-center justify-center text-neutral-400 hover:text-white hover:bg-white/10 transition-colors"
+                      aria-label="Copy error"
+                    >
+                      {errorCopied ? <Check size={12} /> : <Copy size={12} />}
+                    </button>
+                    <button
+                      onClick={dismissOverlayError}
+                      className="w-6 h-6 rounded flex items-center justify-center text-neutral-400 hover:text-white hover:bg-white/10 transition-colors"
+                      aria-label="Dismiss error"
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
             {(isRecording || isProcessing) && isHovered && (
               <Tooltip
                 content={

@@ -2,8 +2,8 @@ const path = require("path");
 
 // Main dictation window configuration
 const MAIN_WINDOW_CONFIG = {
-  width: 240,
-  height: 240,
+  width: 180,
+  height: 120,
   title: "Whisper Recorder",
   webPreferences: {
     preload: path.join(__dirname, "..", "..", "preload.js"),

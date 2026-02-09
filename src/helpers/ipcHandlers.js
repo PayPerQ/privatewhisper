@@ -48,6 +48,11 @@ class IPCHandlers {
       return { success: true };
     });
 
+    ipcMain.handle("resize-main-window", (event, width, height) => {
+      this.windowManager.resizeMainWindow(width, height);
+      return { success: true };
+    });
+
     // Environment handlers
     ipcMain.handle("get-ppq-key", async (event) => {
       return this.environmentManager.getPPQApiKey();

@@ -136,7 +136,7 @@
   }
 
   body {
-    @apply bg-white text-gray-900;
+    @apply text-gray-900;
     margin: 0;
     padding: 0;
     font-family:

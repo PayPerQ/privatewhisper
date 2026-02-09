@@ -94,6 +94,22 @@ class WindowManager {
     this.isMainWindowInteractive = shouldCapture;
   }
 
+  resizeMainWindow(width, height) {
+    if (!this.mainWindow || this.mainWindow.isDestroyed()) {
+      return;
+    }
+    // Anchor resize to the bottom-right corner so the button stays in place.
+    const [oldW, oldH] = this.mainWindow.getSize();
+    if (oldW === width && oldH === height) return;
+    const [x, y] = this.mainWindow.getPosition();
+    this.mainWindow.setBounds({
+      x: x + oldW - width,
+      y: y + oldH - height,
+      width,
+      height,
+    });
+  }
+
   async loadMainWindow() {
     const appUrl = DevServerManager.getAppUrl(false);
     if (process.env.NODE_ENV === "development") {

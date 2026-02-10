@@ -116,6 +116,7 @@ type AudioSettings = {
   reasoningModel: string;
   preferredLanguage: string;
   dictionary: string[];
+  mipOptOut: boolean; // Opt out of Deepgram Model Improvement Partnership (default: true = opted out)
 };
 
 type AudioManagerCallbacks = {
@@ -142,6 +143,7 @@ const DEFAULT_SETTINGS: AudioSettings = {
   reasoningModel: "openai/gpt-oss-120b",
   preferredLanguage: "en",
   dictionary: [],
+  mipOptOut: true, // Default: opted out of MIP (no discount, user data stays private)
 };
 
 class AudioManager {
@@ -729,9 +731,10 @@ class AudioManager {
       },
     });
 
-    // Set language and keyterms for streaming
+    // Set language, keyterms, and MIP opt-out preference for streaming
     StreamingTranscriptionService.setLanguage(this.settings.preferredLanguage);
     StreamingTranscriptionService.setKeyterms(this.settings.dictionary || []);
+    StreamingTranscriptionService.setMipOptOut(this.settings.mipOptOut);
 
     try {
       await StreamingTranscriptionService.connect(apiKey, "stt:ppq-voice");

@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cd:*)",
+      "Bash(git checkout:*)",
+      "Bash(git branch:*)",
+      "Bash(git add pnpm-lock.yaml src/components/OnboardingFlow.tsx src/components/SettingsModal.tsx src/components/SettingsPage.tsx src/components/ui/toggle.tsx)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nchore: misc UI improvements\n\n- Split onboarding setup into separate API Key and Language steps\n- Add preferences section to settings modal\n- Style toggle component with orange border for off state\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
+    ]
+  }
+}

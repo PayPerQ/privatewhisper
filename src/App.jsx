@@ -649,15 +649,18 @@ export default function App() {
       // Use ref to avoid stale closure - audioSettings may have changed since hotkey handler was registered
       const currentAudioSettings = audioSettingsRef.current || audioSettings;
 
-      // Read mipOptOut directly from localStorage to get the latest value
+      // Read mipOptOut and preferredLanguage directly from localStorage to get the latest values
       // This fixes a bug where changes in SettingsPage don't propagate to App's React state
       // because useSettings() creates separate state instances and storage events only fire for other windows
       const storedMipOptOut = localStorage.getItem("mipOptOut");
       const latestMipOptOut = storedMipOptOut !== "false"; // Default true if not set
+      const storedLanguage = localStorage.getItem("preferredLanguage");
+      const latestPreferredLanguage = storedLanguage || "en";
 
       const settingsWithLatestMip = {
         ...currentAudioSettings,
         mipOptOut: latestMipOptOut,
+        preferredLanguage: latestPreferredLanguage,
       };
 
       void appLogger.log("START_RECORDING", {

@@ -1,5 +1,4 @@
 import React, { useState, useRef, useEffect } from "react";
-import { createPortal } from "react-dom";
 import { ChevronDown, Search, X } from "lucide-react";
 import { LANGUAGE_OPTIONS, getLanguageLabel } from "../../utils/languages";
 
@@ -17,11 +16,6 @@ export default function LanguageSelector({
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [highlightedIndex, setHighlightedIndex] = useState(0);
-  const [dropdownPosition, setDropdownPosition] = useState({
-    top: 0,
-    left: 0,
-    width: 0,
-  });
   const dropdownRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -39,18 +33,6 @@ export default function LanguageSelector({
   useEffect(() => {
     if (isOpen && searchInputRef.current) {
       searchInputRef.current.focus();
-    }
-  }, [isOpen]);
-
-  // Calculate dropdown position when it opens
-  useEffect(() => {
-    if (isOpen && buttonRef.current) {
-      const rect = buttonRef.current.getBoundingClientRect();
-      setDropdownPosition({
-        top: rect.bottom + window.scrollY,
-        left: rect.left + window.scrollX,
-        width: rect.width,
-      });
     }
   }, [isOpen]);
 
@@ -140,69 +122,62 @@ export default function LanguageSelector({
         />
       </button>
 
-      {isOpen &&
-        createPortal(
-          <div
-            ref={dropdownRef}
-            className="fixed z-50 mt-1 bg-background border border-border rounded-md shadow-lg max-h-60 overflow-hidden"
-            style={{
-              top: `${dropdownPosition.top}px`,
-              left: `${dropdownPosition.left}px`,
-              width: `${dropdownPosition.width}px`,
-            }}
-          >
-            <div className="p-2 border-b border-border">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <input
-                  ref={searchInputRef}
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  placeholder="Search languages..."
-                  className="w-full pl-9 pr-8 py-2 text-sm border border-border rounded-md focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none"
-                />
-                {searchQuery && (
-                  <button
-                    onClick={clearSearch}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                )}
-              </div>
-            </div>
-            <div className="max-h-48 overflow-y-auto">
-              {filteredLanguages.length === 0 ? (
-                <div className="px-3 py-2 text-sm text-muted-foreground">
-                  No languages found
-                </div>
-              ) : (
-                <div role="listbox">
-                  {filteredLanguages.map((language, index) => (
-                    <button
-                      key={language.value}
-                      type="button"
-                      onClick={() => handleSelect(language.value)}
-                      className={`w-full px-3 py-2 text-left text-sm hover:bg-muted focus:bg-muted focus:outline-none ${
-                        language.value === value ? "bg-accent text-primary" : ""
-                      } ${index === highlightedIndex ? "bg-muted" : ""}`}
-                      role="option"
-                      aria-selected={language.value === value}
-                    >
-                      {language.label}
-                      {language.value === value && (
-                        <span className="ml-2 text-primary">✓</span>
-                      )}
-                    </button>
-                  ))}
-                </div>
+      {isOpen && (
+        <div
+          ref={dropdownRef}
+          className="absolute z-50 mt-1 w-full bg-background border border-border rounded-md shadow-lg max-h-60 overflow-hidden"
+        >
+          <div className="p-2 border-b border-border">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <input
+                ref={searchInputRef}
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Search languages..."
+                className="w-full pl-9 pr-8 py-2 text-sm border border-border rounded-md focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none"
+              />
+              {searchQuery && (
+                <button
+                  onClick={clearSearch}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  <X className="w-4 h-4" />
+                </button>
               )}
             </div>
-          </div>,
-          document.body,
-        )}
+          </div>
+          <div className="max-h-48 overflow-y-auto">
+            {filteredLanguages.length === 0 ? (
+              <div className="px-3 py-2 text-sm text-muted-foreground">
+                No languages found
+              </div>
+            ) : (
+              <div role="listbox">
+                {filteredLanguages.map((language, index) => (
+                  <button
+                    key={language.value}
+                    type="button"
+                    onClick={() => handleSelect(language.value)}
+                    className={`w-full px-3 py-2 text-left text-sm hover:bg-muted focus:bg-muted focus:outline-none ${
+                      language.value === value ? "bg-accent text-primary" : ""
+                    } ${index === highlightedIndex ? "bg-muted" : ""}`}
+                    role="option"
+                    aria-selected={language.value === value}
+                  >
+                    {language.label}
+                    {language.value === value && (
+                      <span className="ml-2 text-primary">✓</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

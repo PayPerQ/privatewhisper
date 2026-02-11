@@ -641,7 +641,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
       {/* Content - This will grow to fill available space */}
       <div className="flex-1 px-6 md:pl-16 md:pr-6 py-12 overflow-y-auto">
         <div className="max-w-4xl mx-auto">
-          <Card className="bg-white/95 backdrop-blur-xl border border-stone-200/60 shadow-lg rounded-2xl overflow-hidden">
+          <Card className="bg-white/95 backdrop-blur-xl border border-stone-200/60 shadow-lg rounded-2xl">
             <CardContent
               className="p-12 md:p-16"
               style={{ fontFamily: "Noto Sans, sans-serif" }}

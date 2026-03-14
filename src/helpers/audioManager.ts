@@ -111,12 +111,16 @@ class PipelineMetrics {
   }
 }
 
+type TranscriptionProvider = "cloud" | "local";
+
 type AudioSettings = {
   useReasoningModel: boolean;
   reasoningModel: string;
   preferredLanguage: string;
   dictionary: string[];
   mipOptOut: boolean; // Opt out of Deepgram Model Improvement Partnership (default: true = opted out)
+  transcriptionProvider: TranscriptionProvider;
+  parakeetModel: string;
 };
 
 type AudioManagerCallbacks = {
@@ -144,6 +148,8 @@ const DEFAULT_SETTINGS: AudioSettings = {
   preferredLanguage: "en",
   dictionary: [],
   mipOptOut: true, // Default: opted out of MIP (no discount, user data stays private)
+  transcriptionProvider: "cloud",
+  parakeetModel: "parakeet-tdt-0.6b-v3",
 };
 
 class AudioManager {
@@ -669,16 +675,99 @@ class AudioManager {
     }
   }
 
+  /**
+   * Process audio using local Parakeet transcription (via sherpa-onnx).
+   * Optimizes audio to 16kHz mono WAV, sends to main process via IPC,
+   * then pipes result through reasoning if enabled.
+   */
+  async processWithLocalParakeet(audioBlob: Blob) {
+    const metrics = this.metrics;
+
+    try {
+      metrics?.setFlag("transcriptionModel", `parakeet:${this.settings.parakeetModel}`);
+      metrics?.setFlag("audioSizes", {
+        originalBytes: audioBlob.size,
+      });
+
+      // Send the WAV directly to Parakeet — no need for optimizeAudio since
+      // the WAV from _stopStreamingLocal is already 16kHz mono int16 PCM.
+      const arrayBuffer = await audioBlob.arrayBuffer();
+
+      void debugLogger.log("LOCAL_PARAKEET_REQUEST", {
+        model: this.settings.parakeetModel,
+        language: this.settings.preferredLanguage,
+        audioSize: arrayBuffer.byteLength,
+      });
+
+      metrics?.mark("transcriptionRequestStart");
+      metrics?.setFlag("transcriptionRequestStartedAtEpochMs", Date.now());
+
+      const result = await (window as any).electronAPI.transcribeLocalParakeet(
+        arrayBuffer,
+        {
+          model: this.settings.parakeetModel,
+          language: this.settings.preferredLanguage,
+        },
+      );
+
+      metrics?.mark("transcriptionTextReady");
+      metrics?.setFlag("transcriptionTextReadyAtMs", Date.now());
+
+      void debugLogger.log("LOCAL_PARAKEET_RESULT", {
+        success: result.success,
+        textLength: result.text?.length || 0,
+        textPreview: result.text
+          ? result.text.substring(0, 100)
+          : "no text",
+      });
+
+      if (!result.success) {
+        throw new Error(result.message || result.error || "Parakeet transcription failed");
+      }
+
+      if (result.text) {
+        const text = await this.processTranscription(
+          result.text,
+          "local-parakeet",
+        );
+        const source = (await this.isReasoningAvailable())
+          ? "local-parakeet-reasoned"
+          : "local-parakeet";
+        return { success: true, text, source, metrics };
+      } else {
+        throw new Error("No text transcribed");
+      }
+    } catch (error: any) {
+      void debugLogger.log("LOCAL_PARAKEET_ERROR", {
+        error: error.message,
+        stack: error.stack,
+      });
+      metrics?.setError(`local_parakeet_failed: ${error.message}`);
+      throw error;
+    }
+  }
+
   // Streaming transcription methods
   async startStreaming(): Promise<void> {
-    const apiKey = await this.getAPIKey();
-
     this.metrics = new PipelineMetrics();
     this.metrics.setFlag("preferredLanguage", this.settings.preferredLanguage);
     this.metrics.setFlag("reasoningModel", this.settings.reasoningModel);
     this.metrics.setFlag("useReasoningModel", this.settings.useReasoningModel);
+    this.metrics.setFlag("transcriptionProvider", this.settings.transcriptionProvider);
     this.metrics.setFlag("mode", "streaming");
     this.metrics.mark("streamingStart");
+
+    // Local mode: skip cloud WebSocket, just mark as streaming (PCM will buffer)
+    if (this.settings.transcriptionProvider === "local") {
+      this.streamingMode = true;
+      this.metrics.mark("streamingConnected");
+      void debugLogger.log("LOCAL_STREAMING_STARTED", {
+        model: this.settings.parakeetModel,
+      });
+      return;
+    }
+
+    const apiKey = await this.getAPIKey();
 
     // Set up streaming service callbacks
     StreamingTranscriptionService.setCallbacks({
@@ -792,10 +881,15 @@ class AudioManager {
     });
 
     try {
-      if (bufferMode) {
-        // Start buffering immediately - audio will be stored until WebSocket is ready
+      if (bufferMode || this.settings.transcriptionProvider === "local") {
+        // Buffer mode: store audio locally until recording stops
+        // Local mode always buffers since Parakeet uses offline transcription
         await this.pcmCapture.startBuffering(stream);
-        void debugLogger.log("PCM_CAPTURE_BUFFERING_STARTED");
+        void debugLogger.log("PCM_CAPTURE_BUFFERING_STARTED", {
+          reason: this.settings.transcriptionProvider === "local"
+            ? "local-parakeet"
+            : "buffer-mode",
+        });
       } else if (this.streamingMode) {
         await this.pcmCapture.start(stream, (pcmData: ArrayBuffer) => {
           // Send PCM data directly to the streaming service
@@ -924,6 +1018,13 @@ class AudioManager {
       return;
     }
 
+    // In local mode, keep buffering — don't transition to cloud streaming.
+    // Audio will be collected and transcribed when stopStreaming() is called.
+    if (this.settings.transcriptionProvider === "local") {
+      void debugLogger.log("TRANSITION_TO_STREAMING_SKIPPED_LOCAL_MODE");
+      return;
+    }
+
     // Transition PCM capture to streaming mode and get buffered audio
     const bufferedChunks = this.pcmCapture.transitionToStreaming(
       (pcmData: ArrayBuffer) => {
@@ -1005,6 +1106,12 @@ class AudioManager {
     }
 
     this.metrics?.mark("streamingStopRequested");
+
+    // Local mode: collect buffered PCM audio and transcribe via Parakeet
+    if (this.settings.transcriptionProvider === "local") {
+      return this._stopStreamingLocal();
+    }
+
     // Mark transcription request start - for streaming, this is when we stop sending audio
     this.metrics?.mark("transcriptionRequestStart");
     this.metrics?.setFlag("transcriptionRequestStartedAtEpochMs", Date.now());
@@ -1094,6 +1201,114 @@ class AudioManager {
     }
   }
 
+  /**
+   * Stop local streaming: collect all buffered PCM audio, convert to WAV,
+   * and transcribe via Parakeet. No cloud WebSocket is involved.
+   */
+  private async _stopStreamingLocal(): Promise<string> {
+    try {
+      // Collect all buffered PCM audio from the capture
+      let pcmChunks: ArrayBuffer[] = [];
+      if (this.pcmCapture) {
+        pcmChunks = this.pcmCapture.getBufferedAudio();
+      }
+      this.stopPCMCapture();
+      this.streamingMode = false;
+
+      // Merge all PCM chunks into a single buffer
+      // PCM is 16kHz mono float32 (from pcmAudioCapture)
+      const totalLength = pcmChunks.reduce((sum, chunk) => sum + chunk.byteLength, 0);
+
+      if (totalLength === 0) {
+        void debugLogger.log("LOCAL_STREAMING_STOP_EMPTY");
+        this.onTranscriptionComplete?.({
+          success: true,
+          text: "",
+          source: "local-parakeet",
+          metrics: this.metrics,
+        });
+        return "";
+      }
+
+      // Create WAV from buffered PCM int16 data.
+      // PCMAudioCapture already converts float32 → int16 before buffering,
+      // so the chunks are int16 ArrayBuffers (2 bytes per sample).
+      const sampleRate = 16000;
+      const numChannels = 1;
+      const bitsPerSample = 16;
+      const dataSize = totalLength; // Already int16 bytes
+      const wavBuffer = new ArrayBuffer(44 + dataSize);
+      const view = new DataView(wavBuffer);
+      const wavBytes = new Uint8Array(wavBuffer);
+
+      // WAV header
+      const writeString = (offset: number, s: string) => {
+        for (let i = 0; i < s.length; i++) {
+          view.setUint8(offset + i, s.charCodeAt(i));
+        }
+      };
+      writeString(0, "RIFF");
+      view.setUint32(4, 36 + dataSize, true);
+      writeString(8, "WAVE");
+      writeString(12, "fmt ");
+      view.setUint32(16, 16, true); // chunk size
+      view.setUint16(20, 1, true); // PCM
+      view.setUint16(22, numChannels, true);
+      view.setUint32(24, sampleRate, true);
+      view.setUint32(28, sampleRate * numChannels * (bitsPerSample / 8), true);
+      view.setUint16(32, numChannels * (bitsPerSample / 8), true);
+      view.setUint16(34, bitsPerSample, true);
+      writeString(36, "data");
+      view.setUint32(40, dataSize, true);
+
+      // Copy int16 PCM chunks directly into the WAV data section
+      let writeOffset = 44;
+      for (const chunk of pcmChunks) {
+        wavBytes.set(new Uint8Array(chunk), writeOffset);
+        writeOffset += chunk.byteLength;
+      }
+
+      const numSamples = dataSize / (bitsPerSample / 8);
+
+      void debugLogger.log("LOCAL_STREAMING_STOP_TRANSCRIBING", {
+        pcmChunks: pcmChunks.length,
+        totalBytes: totalLength,
+        durationSeconds: numSamples / sampleRate,
+      });
+
+      // Create a Blob from the WAV buffer and process through local Parakeet
+      const wavBlob = new Blob([wavBuffer], { type: "audio/wav" });
+      const result = await this.processWithLocalParakeet(wavBlob);
+
+      this.metrics?.mark("streamingComplete");
+
+      this.onTranscriptionComplete?.({
+        success: result.success,
+        text: result.text,
+        source: result.source,
+        metrics: this.metrics,
+      });
+
+      return result.text || "";
+    } catch (error: any) {
+      this.streamingMode = false;
+      this.stopPCMCapture();
+      this.metrics?.setError(`local_streaming_stop_failed: ${error.message}`);
+
+      void debugLogger.log("LOCAL_STREAMING_STOP_ERROR", {
+        error: error.message,
+        stack: error.stack,
+      });
+
+      this.onError?.({
+        title: "Local Transcription Error",
+        description: error.message,
+      });
+
+      return "";
+    }
+  }
+
   isStreaming(): boolean {
     return this.streamingMode;
   }
@@ -1101,7 +1316,9 @@ class AudioManager {
   cancelStreaming(): void {
     if (this.streamingMode) {
       this.stopPCMCapture();
-      StreamingTranscriptionService.disconnect();
+      if (this.settings.transcriptionProvider !== "local") {
+        StreamingTranscriptionService.disconnect();
+      }
       this.streamingMode = false;
       this.metrics?.setFlag("streamingCancelled", true);
       void debugLogger.log("STREAMING_CANCELLED");

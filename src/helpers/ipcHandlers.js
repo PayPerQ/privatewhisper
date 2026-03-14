@@ -11,8 +11,12 @@ class IPCHandlers {
     this.edgeFunctionLogger = managers.edgeFunctionLogger;
     this.globeKeyManager = managers.globeKeyManager;
     this.privateProxyManager = managers.privateProxyManager;
+    this.parakeetManager = managers.parakeetManager;
     this.setupHandlers();
     this.setupPrivateProxyHandlers();
+    if (this.parakeetManager) {
+      this.setupParakeetHandlers();
+    }
   }
 
   setupHandlers() {
@@ -379,6 +383,61 @@ class IPCHandlers {
         return { running: false, starting: false, error: "Not available" };
       }
       return this.privateProxyManager.getStatus();
+    });
+  }
+
+  setupParakeetHandlers() {
+    ipcMain.handle("transcribe-local-parakeet", async (_event, audioData, options) => {
+      try {
+        return await this.parakeetManager.transcribeLocalParakeet(audioData, options);
+      } catch (error) {
+        debugLogger.error("ipc", "transcribe-local-parakeet-failed", {
+          error: error.message,
+        });
+        return { success: false, error: error.message };
+      }
+    });
+
+    ipcMain.handle("check-parakeet-installation", async () => {
+      return this.parakeetManager.checkInstallation();
+    });
+
+    ipcMain.handle("download-parakeet-model", async (event, modelName) => {
+      try {
+        return await this.parakeetManager.downloadParakeetModel(modelName, (progress) => {
+          event.sender.send("parakeet-download-progress", progress);
+        });
+      } catch (error) {
+        return { success: false, error: error.message };
+      }
+    });
+
+    ipcMain.handle("cancel-parakeet-download", async () => {
+      return this.parakeetManager.cancelDownload();
+    });
+
+    ipcMain.handle("check-parakeet-model-status", async (_event, modelName) => {
+      return this.parakeetManager.checkModelStatus(modelName);
+    });
+
+    ipcMain.handle("list-parakeet-models", async () => {
+      return this.parakeetManager.listParakeetModels();
+    });
+
+    ipcMain.handle("delete-parakeet-model", async (_event, modelName) => {
+      return this.parakeetManager.deleteParakeetModel(modelName);
+    });
+
+    ipcMain.handle("parakeet-server-start", async (_event, modelName) => {
+      return this.parakeetManager.startServer(modelName);
+    });
+
+    ipcMain.handle("parakeet-server-stop", async () => {
+      return this.parakeetManager.stopServer();
+    });
+
+    ipcMain.handle("parakeet-server-status", async () => {
+      return this.parakeetManager.getServerStatus();
     });
   }
 

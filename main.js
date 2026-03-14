@@ -16,6 +16,7 @@ const EdgeFunctionLogger = require("./src/helpers/edgeFunctionLogger");
 const UpdateManager = require("./src/updater");
 const GlobeKeyManager = require("./src/helpers/globeKeyManager");
 const PrivateProxyManager = require("./src/helpers/privateProxyManager");
+const ParakeetManager = require("./src/helpers/parakeetManager");
 const { matchesMacKeyCode } = require("./src/helpers/hotkeyKeycodes");
 const { exec, execSync } = require("child_process");
 
@@ -29,6 +30,7 @@ let trayManager;
 let updateManager;
 let globeKeyManager;
 let privateProxyManager;
+let parakeetManager;
 let edgeFunctionLogger;
 let ipcHandlers;
 let globeKeyAlertShown = false;
@@ -223,6 +225,7 @@ async function startApp() {
   updateManager = new UpdateManager();
   globeKeyManager = new GlobeKeyManager();
   privateProxyManager = new PrivateProxyManager();
+  parakeetManager = new ParakeetManager();
   // On macOS, default hotkey is GLOBE - disable emoji picker function immediately
   if (process.platform === "darwin") {
     disableGlobeKeyEmojiPicker();
@@ -264,6 +267,7 @@ async function startApp() {
     edgeFunctionLogger,
     globeKeyManager,
     privateProxyManager,
+    parakeetManager,
   });
 
   // Set up callback for hotkey listening mode changes
@@ -281,6 +285,17 @@ async function startApp() {
       restoreGlobeKeyFunction();
     }
   };
+
+  // Initialize Parakeet (warm-up server if local transcription is configured)
+  // Read settings from environment — the renderer persists these via IPC
+  const transcriptionProvider = process.env.LOCAL_TRANSCRIPTION_PROVIDER || "cloud";
+  const parakeetModel = process.env.PARAKEET_MODEL || "parakeet-tdt-0.6b-v3";
+  parakeetManager.initializeAtStartup({
+    transcriptionProvider,
+    parakeetModel,
+  }).catch(() => {
+    // Non-fatal — initialization errors are logged internally
+  });
 
   // In development, add a small delay to let Vite start properly
   if (process.env.NODE_ENV === "development") {
@@ -558,6 +573,7 @@ function setupApp() {
     globalShortcut.unregisterAll();
     if (globeKeyManager) globeKeyManager.stop();
     if (privateProxyManager) privateProxyManager.stop();
+    if (parakeetManager) parakeetManager.stopServer().catch(() => {});
     if (updateManager) updateManager.cleanup();
     // Restore the user's original Globe key function
     restoreGlobeKeyFunction();

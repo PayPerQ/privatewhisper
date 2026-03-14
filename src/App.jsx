@@ -412,6 +412,8 @@ export default function App() {
     preferredMicrophoneId,
     showIconOnlyWhenActive,
     mipOptOut,
+    transcriptionProvider,
+    parakeetModel,
   } = useSettings();
 
   // Load dictionary terms
@@ -454,8 +456,10 @@ export default function App() {
       preferredLanguage,
       dictionary,
       mipOptOut,
+      transcriptionProvider,
+      parakeetModel,
     };
-  }, [preferredLanguage, dictionaryTerms, mipOptOut]);
+  }, [preferredLanguage, dictionaryTerms, mipOptOut, transcriptionProvider, parakeetModel]);
 
   // Keep ref in sync with audioSettings to avoid stale closures in hotkey handlers
   useEffect(() => {
@@ -616,6 +620,16 @@ export default function App() {
     };
   }, []);
 
+  // Auto-start private proxy if private mode was already enabled from a previous session
+  useEffect(() => {
+    const storedPrivateMode = localStorage.getItem("privateModeEnabled");
+    if (storedPrivateMode === "true") {
+      window.electronAPI?.startPrivateProxy?.().catch(() => {
+        // Non-fatal — proxy will start when user toggles it in settings
+      });
+    }
+  }, []);
+
   const getNewStream = async () => {
     return getPreferredMicrophoneStream({
       alwaysUseBuiltInMic,
@@ -657,10 +671,15 @@ export default function App() {
       const storedLanguage = localStorage.getItem("preferredLanguage");
       const latestPreferredLanguage = storedLanguage || "en";
 
+      const latestTranscriptionProvider = localStorage.getItem("transcriptionProvider") || "cloud";
+      const latestParakeetModel = localStorage.getItem("parakeetModel") || "parakeet-tdt-0.6b-v3";
+
       const settingsWithLatestMip = {
         ...currentAudioSettings,
         mipOptOut: latestMipOptOut,
         preferredLanguage: latestPreferredLanguage,
+        transcriptionProvider: latestTranscriptionProvider,
+        parakeetModel: latestParakeetModel,
       };
 
       void appLogger.log("START_RECORDING", {

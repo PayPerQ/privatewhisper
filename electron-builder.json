@@ -18,6 +18,7 @@
     "src/stores/**/*",
     "src/config/**/*",
     "src/types/**/*",
+    "src/models/**/*",
     "src/utils.js",
     "src/utils/**/*",
     "src/updater.js",
@@ -34,6 +35,11 @@
       "from": "resources/bin",
       "to": "bin",
       "filter": ["macos-globe-listener*"]
+    },
+    {
+      "from": "resources/bin",
+      "to": "bin",
+      "filter": ["sherpa-onnx-*", "libsherpa*", "libonnx*", "libkaldi*"]
     }
   ],
   "mac": {

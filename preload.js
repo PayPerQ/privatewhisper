@@ -171,4 +171,25 @@ contextBridge.exposeInMainWorld("electronAPI", {
   getPrivateProxyStatus: () => ipcRenderer.invoke("private-proxy-status"),
   onPrivateProxyStatusChanged: (callback) =>
     exposeListener("private-proxy-status-changed", callback),
+
+  // Parakeet local transcription
+  transcribeLocalParakeet: (audioData, options) =>
+    ipcRenderer.invoke("transcribe-local-parakeet", audioData, options),
+  checkParakeetInstallation: () =>
+    ipcRenderer.invoke("check-parakeet-installation"),
+  downloadParakeetModel: (modelName) =>
+    ipcRenderer.invoke("download-parakeet-model", modelName),
+  onParakeetDownloadProgress: (callback) =>
+    exposeListener("parakeet-download-progress", callback),
+  cancelParakeetDownload: () =>
+    ipcRenderer.invoke("cancel-parakeet-download"),
+  checkParakeetModelStatus: (modelName) =>
+    ipcRenderer.invoke("check-parakeet-model-status", modelName),
+  listParakeetModels: () => ipcRenderer.invoke("list-parakeet-models"),
+  deleteParakeetModel: (modelName) =>
+    ipcRenderer.invoke("delete-parakeet-model", modelName),
+  parakeetServerStart: (modelName) =>
+    ipcRenderer.invoke("parakeet-server-start", modelName),
+  parakeetServerStop: () => ipcRenderer.invoke("parakeet-server-stop"),
+  parakeetServerStatus: () => ipcRenderer.invoke("parakeet-server-status"),
 });

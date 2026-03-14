@@ -27,6 +27,13 @@ export interface PrivacySettings {
   privateModel: string; // Which private model to use for reasoning
 }
 
+export type TranscriptionProvider = "cloud" | "local";
+
+export interface LocalTranscriptionSettings {
+  transcriptionProvider: TranscriptionProvider;
+  parakeetModel: string;
+}
+
 export interface AppearanceSettings {
   showIconOnlyWhenActive: boolean;
 }
@@ -146,6 +153,23 @@ export function useSettings() {
     },
   );
 
+  // Local transcription settings
+  const [transcriptionProvider, setTranscriptionProvider] =
+    useLocalStorage<TranscriptionProvider>("transcriptionProvider", "cloud", {
+      serialize: String,
+      deserialize: (value) =>
+        value === "local" ? "local" : "cloud",
+    });
+
+  const [parakeetModel, setParakeetModel] = useLocalStorage(
+    "parakeetModel",
+    "parakeet-tdt-0.6b-v3",
+    {
+      serialize: String,
+      deserialize: String,
+    },
+  );
+
   // Batch operations
   const updateTranscriptionSettings = useCallback(
     (settings: Partial<TranscriptionSettings>) => {
@@ -216,6 +240,18 @@ export function useSettings() {
     [setMipOptOut, setPrivateModeEnabled, setPrivateModel],
   );
 
+  const updateLocalTranscriptionSettings = useCallback(
+    (settings: Partial<LocalTranscriptionSettings>) => {
+      if (settings.transcriptionProvider !== undefined) {
+        setTranscriptionProvider(settings.transcriptionProvider);
+      }
+      if (settings.parakeetModel !== undefined) {
+        setParakeetModel(settings.parakeetModel);
+      }
+    },
+    [setTranscriptionProvider, setParakeetModel],
+  );
+
   return {
     preferredLanguage,
     ppqApiKey,
@@ -245,5 +281,10 @@ export function useSettings() {
     updateAudioSettings,
     updateAppearanceSettings,
     updatePrivacySettings,
+    transcriptionProvider,
+    parakeetModel,
+    setTranscriptionProvider,
+    setParakeetModel,
+    updateLocalTranscriptionSettings,
   };
 }

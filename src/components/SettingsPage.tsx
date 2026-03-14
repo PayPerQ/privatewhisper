@@ -84,7 +84,40 @@ export default function SettingsPage({
     setPrivateModel,
     updateTranscriptionSettings,
     updateApiKeys,
+    transcriptionProvider,
+    parakeetModel,
+    setTranscriptionProvider,
+    setParakeetModel,
   } = useSettings();
+
+  // Parakeet local transcription state
+  const [parakeetInstalled, setParakeetInstalled] = useState(false);
+  const [parakeetModelStatus, setParakeetModelStatus] = useState<{
+    downloaded: boolean;
+    size_mb?: number;
+  }>({ downloaded: false });
+  const [parakeetDownloading, setParakeetDownloading] = useState(false);
+  const [parakeetDownloadProgress, setParakeetDownloadProgress] = useState(0);
+  const [parakeetServerRunning, setParakeetServerRunning] = useState(false);
+
+  // Check Parakeet installation and model status on mount
+  useEffect(() => {
+    const checkParakeet = async () => {
+      try {
+        const installation = await (window as any).electronAPI?.checkParakeetInstallation?.();
+        setParakeetInstalled(installation?.installed ?? false);
+
+        const status = await (window as any).electronAPI?.checkParakeetModelStatus?.(parakeetModel);
+        if (status) setParakeetModelStatus(status);
+
+        const serverStatus = await (window as any).electronAPI?.parakeetServerStatus?.();
+        setParakeetServerRunning(serverStatus?.running ?? false);
+      } catch {
+        // Parakeet not available
+      }
+    };
+    checkParakeet();
+  }, [parakeetModel]);
 
   // Update state
   const [currentVersion, setCurrentVersion] = useState<string>("");
@@ -1326,6 +1359,158 @@ export default function SettingsPage({
       case "transcription":
         return (
           <div className="space-y-6">
+            {/* Transcription Provider */}
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                Transcription Provider
+              </h3>
+              <p className="text-sm text-gray-600">
+                Choose between cloud transcription (PPQ/Nova-3) or local
+                transcription (Parakeet via sherpa-onnx).
+              </p>
+            </div>
+
+            <div className="space-y-4 p-4 bg-accent border border-border rounded-xl">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="font-medium text-foreground">Provider</h4>
+                  <p className="text-sm text-muted-foreground mt-0.5">
+                    {transcriptionProvider === "local"
+                      ? "Transcription runs locally on your device"
+                      : "Transcription via PPQ cloud (Nova-3)"}
+                  </p>
+                </div>
+                <Select
+                  value={transcriptionProvider}
+                  onValueChange={(value: "cloud" | "local") =>
+                    setTranscriptionProvider(value)
+                  }
+                >
+                  <SelectTrigger className="w-[160px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="cloud">Cloud (Nova-3)</SelectItem>
+                    <SelectItem value="local">Local (Parakeet)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Parakeet model management (visible when local is selected) */}
+              {transcriptionProvider === "local" && (
+                <div className="space-y-3 pt-3 border-t border-border">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-sm font-medium text-foreground">
+                        Parakeet TDT 0.6B
+                      </h4>
+                      <p className="text-xs text-muted-foreground">
+                        Multilingual ASR (25 languages) &middot; ~680 MB
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {parakeetModelStatus.downloaded ? (
+                        <>
+                          <span className="text-xs text-green-600 font-medium">
+                            Ready
+                          </span>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={async () => {
+                              await (window as any).electronAPI?.deleteParakeetModel?.(parakeetModel);
+                              setParakeetModelStatus({ downloaded: false });
+                            }}
+                          >
+                            Delete
+                          </Button>
+                        </>
+                      ) : parakeetDownloading ? (
+                        <div className="flex items-center gap-2">
+                          <div className="w-24 h-2 bg-gray-200 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-blue-500 rounded-full transition-all"
+                              style={{
+                                width: `${parakeetDownloadProgress}%`,
+                              }}
+                            />
+                          </div>
+                          <span className="text-xs text-muted-foreground">
+                            {parakeetDownloadProgress}%
+                          </span>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={async () => {
+                              await (window as any).electronAPI?.cancelParakeetDownload?.();
+                              setParakeetDownloading(false);
+                              setParakeetDownloadProgress(0);
+                            }}
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      ) : (
+                        <Button
+                          size="sm"
+                          disabled={!parakeetInstalled}
+                          onClick={async () => {
+                            setParakeetDownloading(true);
+                            setParakeetDownloadProgress(0);
+                            const cleanup = (window as any).electronAPI?.onParakeetDownloadProgress?.(
+                              (progress: any) => {
+                                if (progress.percentage != null) {
+                                  setParakeetDownloadProgress(progress.percentage);
+                                }
+                                if (progress.type === "complete") {
+                                  setParakeetDownloading(false);
+                                  setParakeetModelStatus({ downloaded: true });
+                                }
+                              },
+                            );
+                            try {
+                              await (window as any).electronAPI?.downloadParakeetModel?.(parakeetModel);
+                            } catch {
+                              setParakeetDownloading(false);
+                            }
+                            if (cleanup) cleanup();
+                          }}
+                        >
+                          <Download className="h-3 w-3 mr-1" />
+                          Download
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+
+                  {!parakeetInstalled && (
+                    <p className="text-xs text-amber-600">
+                      sherpa-onnx binary not found. Run{" "}
+                      <code className="bg-gray-100 px-1 rounded">
+                        npm run download:sherpa-onnx
+                      </code>{" "}
+                      to install it.
+                    </p>
+                  )}
+
+                  {parakeetModelStatus.downloaded && (
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <span
+                        className={`inline-block w-2 h-2 rounded-full ${
+                          parakeetServerRunning
+                            ? "bg-green-500"
+                            : "bg-gray-400"
+                        }`}
+                      />
+                      Server{" "}
+                      {parakeetServerRunning ? "running" : "stopped (starts on first use)"}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* API Key */}
             <div>
               <h3 className="text-lg font-semibold text-gray-900 mb-2">
                 API Key

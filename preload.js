@@ -164,4 +164,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
   // App lifecycle - notifies renderer to clean up audio resources before quit
   onAppQuitting: (callback) => exposeListener("app-quitting", callback),
+
+  // Private proxy controls
+  startPrivateProxy: () => ipcRenderer.invoke("private-proxy-start"),
+  stopPrivateProxy: () => ipcRenderer.invoke("private-proxy-stop"),
+  getPrivateProxyStatus: () => ipcRenderer.invoke("private-proxy-status"),
+  onPrivateProxyStatusChanged: (callback) =>
+    exposeListener("private-proxy-status-changed", callback),
 });

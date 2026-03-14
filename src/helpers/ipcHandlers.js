@@ -10,7 +10,9 @@ class IPCHandlers {
     this.windowManager = managers.windowManager;
     this.edgeFunctionLogger = managers.edgeFunctionLogger;
     this.globeKeyManager = managers.globeKeyManager;
+    this.privateProxyManager = managers.privateProxyManager;
     this.setupHandlers();
+    this.setupPrivateProxyHandlers();
   }
 
   setupHandlers() {
@@ -341,6 +343,42 @@ class IPCHandlers {
         // Default: F-keys trigger special features (most common)
         return { standardFunctionKeys: false };
       }
+    });
+  }
+
+  setupPrivateProxyHandlers() {
+    // Private proxy controls
+    ipcMain.handle("private-proxy-start", async () => {
+      debugLogger.logEvent("ipc", "private-proxy-start-called", {
+        hasManager: !!this.privateProxyManager,
+      });
+      if (!this.privateProxyManager) {
+        return { success: false, error: "Private proxy manager not available" };
+      }
+      const apiKey = this.environmentManager.getPPQApiKey();
+      debugLogger.logEvent("ipc", "private-proxy-start-api-key", {
+        hasKey: !!apiKey,
+      });
+      if (!apiKey) {
+        return { success: false, error: "No PPQ API key configured" };
+      }
+      const result = await this.privateProxyManager.start(apiKey);
+      debugLogger.logEvent("ipc", "private-proxy-start-result", result);
+      return result;
+    });
+
+    ipcMain.handle("private-proxy-stop", async () => {
+      if (!this.privateProxyManager) {
+        return { success: false, error: "Private proxy manager not available" };
+      }
+      return this.privateProxyManager.stop();
+    });
+
+    ipcMain.handle("private-proxy-status", async () => {
+      if (!this.privateProxyManager) {
+        return { running: false, starting: false, error: "Not available" };
+      }
+      return this.privateProxyManager.getStatus();
     });
   }
 

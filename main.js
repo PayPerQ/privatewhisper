@@ -15,6 +15,7 @@ const IPCHandlers = require("./src/helpers/ipcHandlers");
 const EdgeFunctionLogger = require("./src/helpers/edgeFunctionLogger");
 const UpdateManager = require("./src/updater");
 const GlobeKeyManager = require("./src/helpers/globeKeyManager");
+const PrivateProxyManager = require("./src/helpers/privateProxyManager");
 const { matchesMacKeyCode } = require("./src/helpers/hotkeyKeycodes");
 const { exec, execSync } = require("child_process");
 
@@ -27,6 +28,7 @@ let clipboardManager;
 let trayManager;
 let updateManager;
 let globeKeyManager;
+let privateProxyManager;
 let edgeFunctionLogger;
 let ipcHandlers;
 let globeKeyAlertShown = false;
@@ -220,6 +222,7 @@ async function startApp() {
   trayManager = new TrayManager();
   updateManager = new UpdateManager();
   globeKeyManager = new GlobeKeyManager();
+  privateProxyManager = new PrivateProxyManager();
   // On macOS, default hotkey is GLOBE - disable emoji picker function immediately
   if (process.platform === "darwin") {
     disableGlobeKeyEmojiPicker();
@@ -260,6 +263,7 @@ async function startApp() {
     windowManager,
     edgeFunctionLogger,
     globeKeyManager,
+    privateProxyManager,
   });
 
   // Set up callback for hotkey listening mode changes
@@ -553,6 +557,7 @@ function setupApp() {
   app.on("will-quit", () => {
     globalShortcut.unregisterAll();
     if (globeKeyManager) globeKeyManager.stop();
+    if (privateProxyManager) privateProxyManager.stop();
     if (updateManager) updateManager.cleanup();
     // Restore the user's original Globe key function
     restoreGlobeKeyFunction();

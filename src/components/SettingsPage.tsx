@@ -32,6 +32,7 @@ import {
 } from "./ui/select";
 import type { UpdateInfoResult } from "../types/electron";
 import { useDictionary } from "../stores/dictionaryStore";
+import { PRIVATE_MODELS } from "../config/constants";
 
 export type SettingsSectionType =
   | "general"
@@ -68,6 +69,8 @@ export default function SettingsPage({
     preferredMicrophoneId,
     showIconOnlyWhenActive,
     mipOptOut,
+    privateModeEnabled,
+    privateModel,
     setPreferredLanguage,
     setPpqApiKey,
     setDictationKey,
@@ -77,6 +80,8 @@ export default function SettingsPage({
     setPreferredMicrophoneId,
     setShowIconOnlyWhenActive,
     setMipOptOut,
+    setPrivateModeEnabled,
+    setPrivateModel,
     updateTranscriptionSettings,
     updateApiKeys,
   } = useSettings();
@@ -112,6 +117,13 @@ export default function SettingsPage({
   const openApiDocs = useCallback(() => {
     window.electronAPI?.openExternal?.("https://ppq.ai/api-docs");
   }, []);
+
+  // Private proxy status
+  const [proxyStatus, setProxyStatus] = useState<{
+    running: boolean;
+    starting: boolean;
+    error: string | null;
+  }>({ running: false, starting: false, error: null });
 
   // Dictionary state and handlers
   const { items: dictionaryTerms, isLoading: dictionaryLoading } =
@@ -287,6 +299,39 @@ export default function SettingsPage({
   }, []);
 
   // Get platform on mount
+  // Fetch initial proxy status and listen for changes
+  useEffect(() => {
+    window.electronAPI?.getPrivateProxyStatus?.().then((status: any) => {
+      if (status) setProxyStatus(status);
+    });
+    const cleanup = window.electronAPI?.onPrivateProxyStatusChanged?.(
+      (status: any) => {
+        if (status) setProxyStatus(status);
+      },
+    );
+    return () => cleanup?.();
+  }, []);
+
+  const handlePrivateModeToggle = useCallback(
+    async (enabled: boolean) => {
+      setPrivateModeEnabled(enabled);
+      if (enabled) {
+        setProxyStatus((prev) => ({ ...prev, starting: true, error: null }));
+        const result = await window.electronAPI?.startPrivateProxy?.();
+        if (result && !result.success) {
+          setProxyStatus((prev) => ({
+            ...prev,
+            starting: false,
+            error: result.error,
+          }));
+        }
+      } else {
+        await window.electronAPI?.stopPrivateProxy?.();
+      }
+    },
+    [setPrivateModeEnabled],
+  );
+
   useEffect(() => {
     const detectedPlatform = window.electronAPI?.getPlatform?.() as
       | Platform
@@ -1174,6 +1219,105 @@ export default function SettingsPage({
                     discount on transcription costs. Lastly, your audio is never trained on or retained by PPQ under any circumstance.
                   </p>
                 </div>
+              </div>
+            </div>
+
+            {/* Private Mode Section */}
+            <div className="border-t pt-8">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  Private Mode
+                </h3>
+                <p className="text-sm text-gray-600 mb-4">
+                  End-to-end encrypted AI processing via PPQ's secure enclaves.
+                </p>
+
+                <div className="flex items-center justify-between p-4 bg-neutral-50 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium text-neutral-800">
+                          Enable Private Mode
+                        </p>
+                        {privateModeEnabled && (
+                          <span
+                            className={`inline-block h-2 w-2 rounded-full ${
+                              proxyStatus.running
+                                ? "bg-green-500"
+                                : proxyStatus.starting
+                                  ? "bg-yellow-500 animate-pulse"
+                                  : proxyStatus.error
+                                    ? "bg-red-500"
+                                    : "bg-gray-400"
+                            }`}
+                            title={
+                              proxyStatus.running
+                                ? "Proxy running"
+                                : proxyStatus.starting
+                                  ? "Proxy starting..."
+                                  : proxyStatus.error
+                                    ? `Error: ${proxyStatus.error}`
+                                    : "Proxy stopped"
+                            }
+                          />
+                        )}
+                      </div>
+                      <p className="text-xs text-neutral-600">
+                        Routes text cleanup through an encrypted local proxy.
+                        Your queries are end-to-end encrypted.
+                      </p>
+                    </div>
+                  </div>
+                  <Toggle
+                    checked={privateModeEnabled}
+                    onChange={handlePrivateModeToggle}
+                  />
+                </div>
+
+                {privateModeEnabled && (
+                  <div className="mt-4 space-y-3">
+                    <div className="p-4 bg-neutral-50 rounded-lg">
+                      <p className="text-sm font-medium text-neutral-800 mb-2">
+                        Private Model
+                      </p>
+                      <Select
+                        value={privateModel}
+                        onValueChange={(value) => setPrivateModel(value)}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select a private model" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {PRIVATE_MODELS.map((model) => (
+                            <SelectItem key={model.id} value={model.id}>
+                              {model.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {proxyStatus.error && (
+                      <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-800">
+                        <p className="font-medium mb-1">Private Mode Error</p>
+                        <p>{proxyStatus.error}</p>
+                      </div>
+                    )}
+
+                    <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-800">
+                      <p className="font-medium mb-1">
+                        How Private Mode Works
+                      </p>
+                      <p>
+                        Your text cleanup requests are encrypted on your device
+                        before being sent to PPQ. Processing happens inside a
+                        hardware-secured enclave — neither PPQ nor any
+                        intermediary can read your data. Transcription continues
+                        to use the standard PPQ endpoint.
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>

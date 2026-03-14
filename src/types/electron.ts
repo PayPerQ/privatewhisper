@@ -245,6 +245,28 @@ declare global {
         globeOnly: boolean;
         suppressKey?: string | null;
       }>;
+
+      // Private proxy controls
+      startPrivateProxy?: () => Promise<{
+        success: boolean;
+        port?: number;
+        error?: string;
+      }>;
+      stopPrivateProxy?: () => Promise<{ success: boolean }>;
+      getPrivateProxyStatus?: () => Promise<{
+        running: boolean;
+        starting: boolean;
+        port: number;
+        attestation: boolean;
+        error: string | null;
+      }>;
+      onPrivateProxyStatusChanged?: (
+        callback: (status: {
+          running: boolean;
+          starting: boolean;
+          error: string | null;
+        }) => void,
+      ) => () => void;
     };
 
     api?: {

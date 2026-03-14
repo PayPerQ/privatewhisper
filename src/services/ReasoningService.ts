@@ -1,5 +1,9 @@
 import { withRetry, createApiRetryStrategy } from "../utils/retry";
-import { API_ENDPOINTS, TOKEN_LIMITS } from "../config/constants";
+import {
+  API_ENDPOINTS,
+  TOKEN_LIMITS,
+  PRIVATE_PROXY_CHAT,
+} from "../config/constants";
 import createDebugLogger from "../utils/debugLoggerRenderer";
 import apiKeyManager from "../utils/ApiKeyManager";
 
@@ -51,6 +55,24 @@ class ReasoningService {
       this.abortController = null;
     }
     this.isProcessing = false;
+  }
+
+  private isPrivateModeEnabled(): boolean {
+    try {
+      return localStorage.getItem("privateModeEnabled") === "true";
+    } catch {
+      return false;
+    }
+  }
+
+  private getPrivateModel(): string {
+    try {
+      return (
+        localStorage.getItem("privateModel") || "private/gpt-oss-120b"
+      );
+    } catch {
+      return "private/gpt-oss-120b";
+    }
   }
 
   private buildRequestBody(
@@ -177,21 +199,29 @@ You are processing transcribed speech, so expect imperfect input. Your goal is t
         TOKEN_LIMITS.TOKEN_MULTIPLIER,
       );
 
-    return {
-      model: model || "openai/gpt-oss-120b",
+    const isPrivate = this.isPrivateModeEnabled();
+    const effectiveModel = isPrivate
+      ? this.getPrivateModel()
+      : model || "openai/gpt-oss-120b";
+
+    const body: Record<string, unknown> = {
+      model: effectiveModel,
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
       ],
       temperature: config.temperature ?? 0.3,
       max_tokens: maxTokens,
-      provider: {
-        only: ["groq", "cerebras"],
-      },
-      reasoning: {
-        effort: "low",
-      },
     };
+
+    // Provider routing and reasoning hints are only for standard PPQ API,
+    // not for the private proxy which handles its own routing
+    if (!isPrivate) {
+      body.provider = { only: ["groq", "cerebras"] };
+      body.reasoning = { effort: "low" };
+    }
+
+    return body;
   }
 
   private extractUsage(payload: any): ReasoningUsage | undefined {
@@ -330,8 +360,13 @@ You are processing transcribed speech, so expect imperfect input. Your goal is t
         dictionary,
       );
 
+      const isPrivate = this.isPrivateModeEnabled();
+      const endpoint = isPrivate
+        ? PRIVATE_PROXY_CHAT
+        : API_ENDPOINTS.PPQ_CHAT;
+
       void debugLogger.log("PPQ_REASONING_REQUEST", {
-        endpoint: API_ENDPOINTS.PPQ_CHAT,
+        endpoint,
         model: requestBody.model,
         maxTokens: requestBody.max_tokens,
         temperature: requestBody.temperature,
@@ -341,10 +376,11 @@ You are processing transcribed speech, so expect imperfect input. Your goal is t
         dictionaryIncludedInPrompt: dictionary.length > 0,
         hasApiKey: !!apiKey,
         apiKeyPrefix: apiKey ? `${apiKey.substring(0, 8)}...` : "none",
+        privateModeEnabled: isPrivate,
       });
 
       const response = await withRetry(async () => {
-        const res = await fetch(API_ENDPOINTS.PPQ_CHAT, {
+        const res = await fetch(endpoint, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -397,12 +433,16 @@ You are processing transcribed speech, so expect imperfect input. Your goal is t
         throw new Error(`Output validation failed: ${validation.reason}`);
       }
 
+      const providerInfo = isPrivate
+        ? "ppq-private"
+        : this.extractProvider(response) ??
+          (requestBody?.provider as any)?.only?.[0];
+
       return {
         text: cleaned,
         usage: this.extractUsage(response),
-        model: requestBody.model,
-        provider:
-          this.extractProvider(response) ?? requestBody?.provider?.only?.[0],
+        model: requestBody.model as string,
+        provider: providerInfo,
       };
     } catch (error) {
       void debugLogger.log("PPQ_ERROR", {

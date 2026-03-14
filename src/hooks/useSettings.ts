@@ -23,6 +23,8 @@ export interface AudioSettings {
 
 export interface PrivacySettings {
   mipOptOut: boolean; // Opt out of Deepgram Model Improvement Partnership (default: true = opted out)
+  privateModeEnabled: boolean; // Route reasoning through encrypted private proxy
+  privateModel: string; // Which private model to use for reasoning
 }
 
 export interface AppearanceSettings {
@@ -125,6 +127,25 @@ export function useSettings() {
     },
   );
 
+  // Private mode - route reasoning through encrypted proxy
+  const [privateModeEnabled, setPrivateModeEnabled] = useLocalStorage(
+    "privateModeEnabled",
+    false,
+    {
+      serialize: String,
+      deserialize: (value) => value === "true",
+    },
+  );
+
+  const [privateModel, setPrivateModel] = useLocalStorage(
+    "privateModel",
+    "private/gpt-oss-120b",
+    {
+      serialize: String,
+      deserialize: String,
+    },
+  );
+
   // Batch operations
   const updateTranscriptionSettings = useCallback(
     (settings: Partial<TranscriptionSettings>) => {
@@ -185,8 +206,14 @@ export function useSettings() {
       if (settings.mipOptOut !== undefined) {
         setMipOptOut(settings.mipOptOut);
       }
+      if (settings.privateModeEnabled !== undefined) {
+        setPrivateModeEnabled(settings.privateModeEnabled);
+      }
+      if (settings.privateModel !== undefined) {
+        setPrivateModel(settings.privateModel);
+      }
     },
-    [setMipOptOut],
+    [setMipOptOut, setPrivateModeEnabled, setPrivateModel],
   );
 
   return {
@@ -199,6 +226,8 @@ export function useSettings() {
     preferredMicrophoneId,
     showIconOnlyWhenActive,
     mipOptOut,
+    privateModeEnabled,
+    privateModel,
     setPreferredLanguage,
     setPpqApiKey,
     setDictationKey,
@@ -208,6 +237,8 @@ export function useSettings() {
     setPreferredMicrophoneId,
     setShowIconOnlyWhenActive,
     setMipOptOut,
+    setPrivateModeEnabled,
+    setPrivateModel,
     updateTranscriptionSettings,
     updateApiKeys,
     updateHotkeySettings,

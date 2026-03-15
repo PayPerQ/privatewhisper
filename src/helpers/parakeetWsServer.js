@@ -95,12 +95,12 @@ class ParakeetWsServer {
     });
 
     this.process.stdout.on("data", (data) => {
-      debugLogger.debug("parakeet-ws stdout", { data: data.toString().trim() });
+      // debugLogger.debug("parakeet-ws stdout", { data: data.toString().trim() });
     });
 
     this.process.stderr.on("data", (data) => {
       stderrBuffer += data.toString();
-      debugLogger.debug("parakeet-ws stderr", { data: data.toString().trim() });
+      // debugLogger.debug("parakeet-ws stderr", { data: data.toString().trim() });
       if (data.toString().includes("Listening on:")) {
         readyResolve(true);
       }
@@ -238,10 +238,10 @@ class ParakeetWsServer {
         message.writeInt32LE(samplesBuffer.length, 4);
         samplesBuffer.copy(message, 8);
 
-        debugLogger.debug("parakeet-ws sending audio", {
-          samplesBytes: samplesBuffer.length,
-          sampleRate,
-        });
+        // debugLogger.debug("parakeet-ws sending audio", {
+        //   samplesBytes: samplesBuffer.length,
+        //   sampleRate,
+        // });
 
         ws.send(message, (err) => {
           if (err) {
@@ -259,12 +259,12 @@ class ParakeetWsServer {
         clearTimeout(timeout);
         const elapsed = Date.now() - startTime;
 
-        debugLogger.debug("parakeet-ws transcription completed", {
-          elapsed,
-          code,
-          resultLength: result.length,
-          resultPreview: result.slice(0, 200),
-        });
+        // debugLogger.debug("parakeet-ws transcription completed", {
+        //   elapsed,
+        //   code,
+        //   resultLength: result.length,
+        //   resultPreview: result.slice(0, 200),
+        // });
 
         try {
           const parsed = JSON.parse(result);

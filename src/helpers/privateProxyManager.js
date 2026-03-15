@@ -89,7 +89,7 @@ class PrivateProxyManager {
           const msg = data.toString().trim();
           if (msg) {
             proxyLog(msg);
-            debugLogger.logEvent("private-proxy", "stdout", { message: msg });
+            // debugLogger.logEvent("private-proxy", "stdout", { message: msg });
 
             // Detect when proxy is listening
             if (msg.includes("listening on")) {

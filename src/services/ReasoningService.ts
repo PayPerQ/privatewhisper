@@ -365,19 +365,19 @@ You are processing transcribed speech, so expect imperfect input. Your goal is t
         ? PRIVATE_PROXY_CHAT
         : API_ENDPOINTS.PPQ_CHAT;
 
-      void debugLogger.log("PPQ_REASONING_REQUEST", {
-        endpoint,
-        model: requestBody.model,
-        maxTokens: requestBody.max_tokens,
-        temperature: requestBody.temperature,
-        textLength: text.length,
-        dictionaryTermsCount: dictionary.length,
-        dictionaryTermsPreview: dictionary.slice(0, 5),
-        dictionaryIncludedInPrompt: dictionary.length > 0,
-        hasApiKey: !!apiKey,
-        apiKeyPrefix: apiKey ? `${apiKey.substring(0, 8)}...` : "none",
-        privateModeEnabled: isPrivate,
-      });
+      // void debugLogger.log("PPQ_REASONING_REQUEST", {
+      //   endpoint,
+      //   model: requestBody.model,
+      //   maxTokens: requestBody.max_tokens,
+      //   temperature: requestBody.temperature,
+      //   textLength: text.length,
+      //   dictionaryTermsCount: dictionary.length,
+      //   dictionaryTermsPreview: dictionary.slice(0, 5),
+      //   dictionaryIncludedInPrompt: dictionary.length > 0,
+      //   hasApiKey: !!apiKey,
+      //   apiKeyPrefix: apiKey ? `${apiKey.substring(0, 8)}...` : "none",
+      //   privateModeEnabled: isPrivate,
+      // });
 
       const response = await withRetry(async () => {
         const res = await fetch(endpoint, {
@@ -406,12 +406,12 @@ You are processing transcribed speech, so expect imperfect input. Your goal is t
         return res.json();
       }, createApiRetryStrategy());
 
-      void debugLogger.log("PPQ_RESPONSE_RECEIVED", {
-        model: requestBody.model,
-        hasChoices: Array.isArray(response?.choices),
-        choicesCount: response?.choices?.length ?? 0,
-        firstChoice: JSON.stringify(response?.choices?.[0])?.substring(0, 500),
-      });
+      // void debugLogger.log("PPQ_RESPONSE_RECEIVED", {
+      //   model: requestBody.model,
+      //   hasChoices: Array.isArray(response?.choices),
+      //   choicesCount: response?.choices?.length ?? 0,
+      //   firstChoice: JSON.stringify(response?.choices?.[0])?.substring(0, 500),
+      // });
 
       const cleaned = this.extractResponseText(response);
 

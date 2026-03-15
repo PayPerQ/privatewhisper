@@ -105,10 +105,10 @@ const ensureSharedAudioContext = async (): Promise<AudioContext> => {
     return ensureSharedAudioContext();
   }
 
-  void debugLogger.log("AUDIO_CONTEXT_READY", {
-    state: sharedAudioContext.state,
-    sampleRate: sharedAudioContext.sampleRate,
-  });
+  // void debugLogger.log("AUDIO_CONTEXT_READY", {
+  //   state: sharedAudioContext.state,
+  //   sampleRate: sharedAudioContext.sampleRate,
+  // });
 
   return sharedAudioContext;
 };

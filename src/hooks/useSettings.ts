@@ -34,6 +34,10 @@ export interface LocalTranscriptionSettings {
   parakeetModel: string;
 }
 
+export interface CleanupSettings {
+  llmCleanupEnabled: boolean;
+}
+
 export interface AppearanceSettings {
   showIconOnlyWhenActive: boolean;
 }
@@ -121,6 +125,16 @@ export function useSettings() {
     {
       serialize: String,
       deserialize: (value) => value === "true",
+    },
+  );
+
+  // LLM cleanup toggle (default: true = enabled, transcriptions are cleaned up by AI)
+  const [llmCleanupEnabled, setLlmCleanupEnabled] = useLocalStorage(
+    "llmCleanupEnabled",
+    true,
+    {
+      serialize: String,
+      deserialize: (value) => value !== "false",
     },
   );
 
@@ -261,6 +275,7 @@ export function useSettings() {
     alwaysUseBuiltInMic,
     preferredMicrophoneId,
     showIconOnlyWhenActive,
+    llmCleanupEnabled,
     mipOptOut,
     privateModeEnabled,
     privateModel,
@@ -272,6 +287,7 @@ export function useSettings() {
     setAlwaysUseBuiltInMic,
     setPreferredMicrophoneId,
     setShowIconOnlyWhenActive,
+    setLlmCleanupEnabled,
     setMipOptOut,
     setPrivateModeEnabled,
     setPrivateModel,

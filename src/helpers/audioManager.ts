@@ -377,13 +377,13 @@ class AudioManager {
     const dictionary = this.settings.dictionary || [];
     const metrics = this.metrics;
 
-    void debugLogger.log("CALLING_REASONING_SERVICE", {
-      model,
-      textLength: text.length,
-      dictionaryTermsCount: dictionary.length,
-      dictionaryTermsPreview: dictionary.slice(0, 5),
-      dictionaryWillBeIncluded: dictionary.length > 0,
-    });
+    // void debugLogger.log("CALLING_REASONING_SERVICE", {
+    //   model,
+    //   textLength: text.length,
+    //   dictionaryTermsCount: dictionary.length,
+    //   dictionaryTermsPreview: dictionary.slice(0, 5),
+    //   dictionaryWillBeIncluded: dictionary.length > 0,
+    // });
 
     metrics?.mark("reasoningStart");
     metrics?.setFlag("reasoningEndpoint", API_ENDPOINTS.PPQ_CHAT);
@@ -407,13 +407,13 @@ class AudioManager {
       metrics?.setFlag("reasoningOutputTokens", outputTokens);
       metrics?.setFlag("reasoningResponseReceivedAtMs", Date.now());
 
-      void debugLogger.log("REASONING_SERVICE_COMPLETE", {
-        model,
-        processingTimeMs: processingTime,
-        resultLength: result.text.length,
-        outputTokens,
-        success: true,
-      });
+      // void debugLogger.log("REASONING_SERVICE_COMPLETE", {
+      //   model,
+      //   processingTimeMs: processingTime,
+      //   resultLength: result.text.length,
+      //   outputTokens,
+      //   success: true,
+      // });
 
       return result.text;
     } catch (error: any) {
@@ -445,11 +445,11 @@ class AudioManager {
     try {
       const isAvailable = await ReasoningService.isAvailable();
 
-      void debugLogger.log("REASONING_AVAILABILITY", {
-        isAvailable,
-        reasoningEnabled: useReasoning,
-        finalDecision: useReasoning && isAvailable,
-      });
+      // void debugLogger.log("REASONING_AVAILABILITY", {
+      //   isAvailable,
+      //   reasoningEnabled: useReasoning,
+      //   finalDecision: useReasoning && isAvailable,
+      // });
 
       return isAvailable;
     } catch (error: any) {
@@ -463,43 +463,43 @@ class AudioManager {
 
   async processTranscription(text: string, source: string) {
     const metrics = this.metrics;
-    void debugLogger.log("TRANSCRIPTION_RECEIVED", {
-      source,
-      textLength: text.length,
-      textPreview: text.substring(0, 100) + (text.length > 100 ? "..." : ""),
-      timestamp: new Date().toISOString(),
-    });
+    // void debugLogger.log("TRANSCRIPTION_RECEIVED", {
+    //   source,
+    //   textLength: text.length,
+    //   textPreview: text.substring(0, 100) + (text.length > 100 ? "..." : ""),
+    //   timestamp: new Date().toISOString(),
+    // });
 
     const useReasoning = await this.isReasoningAvailable();
     const { reasoningModel } = this.settings;
     metrics?.setFlag("reasoningEligible", useReasoning);
     metrics?.setFlag("reasoningModel", reasoningModel);
 
-    void debugLogger.log("REASONING_CHECK", {
-      useReasoning,
-      reasoningModel,
-      reasoningProvider: "ppq",
-    });
+    // void debugLogger.log("REASONING_CHECK", {
+    //   useReasoning,
+    //   reasoningModel,
+    //   reasoningProvider: "ppq",
+    // });
 
     if (useReasoning) {
       try {
         const preparedText = AudioManager.cleanTranscriptionForAPI(text);
 
-        void debugLogger.log("SENDING_TO_REASONING", {
-          preparedTextLength: preparedText.length,
-          model: reasoningModel,
-        });
+        // void debugLogger.log("SENDING_TO_REASONING", {
+        //   preparedTextLength: preparedText.length,
+        //   model: reasoningModel,
+        // });
 
         const result = await this.processWithReasoningModel(preparedText);
         metrics?.mark("finalTextReady");
         metrics?.setFlag("finalTextReadyAtMs", Date.now());
 
-        void debugLogger.log("REASONING_SUCCESS", {
-          resultLength: result.length,
-          resultPreview:
-            result.substring(0, 100) + (result.length > 100 ? "..." : ""),
-          processingTime: new Date().toISOString(),
-        });
+        // void debugLogger.log("REASONING_SUCCESS", {
+        //   resultLength: result.length,
+        //   resultPreview:
+        //     result.substring(0, 100) + (result.length > 100 ? "..." : ""),
+        //   processingTime: new Date().toISOString(),
+        // });
 
         return result;
       } catch (error: any) {
@@ -693,11 +693,11 @@ class AudioManager {
       // the WAV from _stopStreamingLocal is already 16kHz mono int16 PCM.
       const arrayBuffer = await audioBlob.arrayBuffer();
 
-      void debugLogger.log("LOCAL_PARAKEET_REQUEST", {
-        model: this.settings.parakeetModel,
-        language: this.settings.preferredLanguage,
-        audioSize: arrayBuffer.byteLength,
-      });
+      // void debugLogger.log("LOCAL_PARAKEET_REQUEST", {
+      //   model: this.settings.parakeetModel,
+      //   language: this.settings.preferredLanguage,
+      //   audioSize: arrayBuffer.byteLength,
+      // });
 
       metrics?.mark("transcriptionRequestStart");
       metrics?.setFlag("transcriptionRequestStartedAtEpochMs", Date.now());
@@ -713,13 +713,13 @@ class AudioManager {
       metrics?.mark("transcriptionTextReady");
       metrics?.setFlag("transcriptionTextReadyAtMs", Date.now());
 
-      void debugLogger.log("LOCAL_PARAKEET_RESULT", {
-        success: result.success,
-        textLength: result.text?.length || 0,
-        textPreview: result.text
-          ? result.text.substring(0, 100)
-          : "no text",
-      });
+      // void debugLogger.log("LOCAL_PARAKEET_RESULT", {
+      //   success: result.success,
+      //   textLength: result.text?.length || 0,
+      //   textPreview: result.text
+      //     ? result.text.substring(0, 100)
+      //     : "no text",
+      // });
 
       if (!result.success) {
         throw new Error(result.message || result.error || "Parakeet transcription failed");
@@ -761,9 +761,9 @@ class AudioManager {
     if (this.settings.transcriptionProvider === "local") {
       this.streamingMode = true;
       this.metrics.mark("streamingConnected");
-      void debugLogger.log("LOCAL_STREAMING_STARTED", {
-        model: this.settings.parakeetModel,
-      });
+      // void debugLogger.log("LOCAL_STREAMING_STARTED", {
+      //   model: this.settings.parakeetModel,
+      // });
       return;
     }
 
@@ -885,11 +885,11 @@ class AudioManager {
         // Buffer mode: store audio locally until recording stops
         // Local mode always buffers since Parakeet uses offline transcription
         await this.pcmCapture.startBuffering(stream);
-        void debugLogger.log("PCM_CAPTURE_BUFFERING_STARTED", {
-          reason: this.settings.transcriptionProvider === "local"
-            ? "local-parakeet"
-            : "buffer-mode",
-        });
+        // void debugLogger.log("PCM_CAPTURE_BUFFERING_STARTED", {
+        //   reason: this.settings.transcriptionProvider === "local"
+        //     ? "local-parakeet"
+        //     : "buffer-mode",
+        // });
       } else if (this.streamingMode) {
         await this.pcmCapture.start(stream, (pcmData: ArrayBuffer) => {
           // Send PCM data directly to the streaming service
@@ -1021,7 +1021,7 @@ class AudioManager {
     // In local mode, keep buffering — don't transition to cloud streaming.
     // Audio will be collected and transcribed when stopStreaming() is called.
     if (this.settings.transcriptionProvider === "local") {
-      void debugLogger.log("TRANSITION_TO_STREAMING_SKIPPED_LOCAL_MODE");
+      // void debugLogger.log("TRANSITION_TO_STREAMING_SKIPPED_LOCAL_MODE");
       return;
     }
 
@@ -1270,11 +1270,11 @@ class AudioManager {
 
       const numSamples = dataSize / (bitsPerSample / 8);
 
-      void debugLogger.log("LOCAL_STREAMING_STOP_TRANSCRIBING", {
-        pcmChunks: pcmChunks.length,
-        totalBytes: totalLength,
-        durationSeconds: numSamples / sampleRate,
-      });
+      // void debugLogger.log("LOCAL_STREAMING_STOP_TRANSCRIBING", {
+      //   pcmChunks: pcmChunks.length,
+      //   totalBytes: totalLength,
+      //   durationSeconds: numSamples / sampleRate,
+      // });
 
       // Create a Blob from the WAV buffer and process through local Parakeet
       const wavBlob = new Blob([wavBuffer], { type: "audio/wav" });

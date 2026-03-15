@@ -144,18 +144,6 @@ class PCMAudioCapture {
         // Continue processing during graceful stop to flush final buffer
         if (!this.isCapturing && !this.isStopping) return;
 
-        // Log first few callbacks for debugging
-        audioCallbackCount++;
-        if (audioCallbackCount <= 3) {
-          void debugLogger.log("PCM_ONAUDIOPROCESS", {
-            callbackNumber: audioCallbackCount,
-            isBuffering: this.isBuffering,
-            isPaused: this.isPaused,
-            hasCallback: !!this.onAudioChunk,
-            inputLength: event.inputBuffer.getChannelData(0).length,
-          });
-        }
-
         const inputData = event.inputBuffer.getChannelData(0);
 
         // Resample if needed
@@ -499,11 +487,11 @@ class PCMAudioCapture {
     // Start capture without a callback - audio goes to buffer
     await this.start(stream, () => {});
 
-    void debugLogger.log("PCM_BUFFERING_STARTED", {
-      bufferStartTime: this.bufferStartTime,
-      isBuffering: this.isBuffering,
-      isPaused: this.isPaused,
-    });
+    // void debugLogger.log("PCM_BUFFERING_STARTED", {
+    //   bufferStartTime: this.bufferStartTime,
+    //   isBuffering: this.isBuffering,
+    //   isPaused: this.isPaused,
+    // });
   }
 
   /**
@@ -579,13 +567,13 @@ class PCMAudioCapture {
   }
 
   private cleanup(): void {
-    void debugLogger.log("PCM_CLEANUP_CALLED", {
-      hasProcessorNode: !!this.processorNode,
-      hasSourceNode: !!this.sourceNode,
-      hasAudioContext: !!this.audioContext,
-      isCapturing: this.isCapturing,
-      isBuffering: this.isBuffering,
-    });
+    // void debugLogger.log("PCM_CLEANUP_CALLED", {
+    //   hasProcessorNode: !!this.processorNode,
+    //   hasSourceNode: !!this.sourceNode,
+    //   hasAudioContext: !!this.audioContext,
+    //   isCapturing: this.isCapturing,
+    //   isBuffering: this.isBuffering,
+    // });
 
     // Remove track handlers
     this.unregisterTrackEndedHandlers();

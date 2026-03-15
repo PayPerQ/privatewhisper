@@ -68,6 +68,7 @@ export default function SettingsPage({
     alwaysUseBuiltInMic,
     preferredMicrophoneId,
     showIconOnlyWhenActive,
+    llmCleanupEnabled,
     mipOptOut,
     privateModeEnabled,
     privateModel,
@@ -79,6 +80,7 @@ export default function SettingsPage({
     setAlwaysUseBuiltInMic,
     setPreferredMicrophoneId,
     setShowIconOnlyWhenActive,
+    setLlmCleanupEnabled,
     setMipOptOut,
     setPrivateModeEnabled,
     setPrivateModel,
@@ -1074,6 +1076,34 @@ export default function SettingsPage({
                   <Toggle
                     checked={audioCuesEnabled}
                     onChange={(checked) => setAudioCuesEnabled(checked)}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* LLM Text Cleanup Section */}
+            <div className="border-t pt-8">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  Text Cleanup
+                </h3>
+                <p className="text-sm text-gray-600 mb-4">
+                  Use AI to clean up transcriptions by removing filler words,
+                  fixing grammar, and improving punctuation. When disabled, you
+                  get the raw speech-to-text output.
+                </p>
+                <div className="flex items-center justify-between p-4 bg-neutral-50 rounded-lg">
+                  <div>
+                    <p className="text-sm font-medium text-neutral-800">
+                      LLM Text Cleanup
+                    </p>
+                    <p className="text-xs text-neutral-600">
+                      Clean up transcriptions with AI after speech-to-text.
+                    </p>
+                  </div>
+                  <Toggle
+                    checked={llmCleanupEnabled}
+                    onChange={(checked) => setLlmCleanupEnabled(checked)}
                   />
                 </div>
               </div>

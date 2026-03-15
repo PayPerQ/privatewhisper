@@ -169,7 +169,7 @@ export const WARM_CONNECTION_CONFIG = {
 
 // PCM Audio Buffer Configuration (extended for Bluetooth)
 export const AUDIO_BUFFER_CONFIG = {
-  MAX_BUFFER_DURATION_MS: 10000, // 10 seconds (was 5 seconds)
-  MAX_BUFFER_SIZE_BYTES: 10 * 1024 * 1024, // 10MB (was 5MB)
+  MAX_BUFFER_DURATION_MS: 300000, // 5 minutes
+  MAX_BUFFER_SIZE_BYTES: 60 * 1024 * 1024, // 60MB
   BUFFER_SIZE_SAMPLES: 2048, // Samples per chunk at 16kHz = ~128ms
 } as const;

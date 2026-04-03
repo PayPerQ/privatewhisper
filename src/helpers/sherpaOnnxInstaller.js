@@ -4,8 +4,41 @@ const path = require("path");
 const { spawn, execFile } = require("child_process");
 const { app } = require("electron");
 const { downloadFile, createDownloadSignal, checkDiskSpace } = require("./downloadUtils");
-const { SHERPA_ONNX_VERSION, BINARIES, getDownloadUrl } = require("../../scripts/download-sherpa-onnx");
 const debugLogger = require("./parakeetLogger");
+
+const SHERPA_ONNX_VERSION = "1.12.23";
+const GITHUB_RELEASE_URL = `https://github.com/k2-fsa/sherpa-onnx/releases/download/v${SHERPA_ONNX_VERSION}`;
+
+const BINARIES = {
+  "darwin-arm64": {
+    archiveName: `sherpa-onnx-v${SHERPA_ONNX_VERSION}-osx-universal2-shared.tar.bz2`,
+    binaryPath: "sherpa-onnx-offline-websocket-server",
+    outputName: "sherpa-onnx-ws-darwin-arm64",
+    libPattern: "*.dylib",
+  },
+  "darwin-x64": {
+    archiveName: `sherpa-onnx-v${SHERPA_ONNX_VERSION}-osx-universal2-shared.tar.bz2`,
+    binaryPath: "sherpa-onnx-offline-websocket-server",
+    outputName: "sherpa-onnx-ws-darwin-x64",
+    libPattern: "*.dylib",
+  },
+  "win32-x64": {
+    archiveName: `sherpa-onnx-v${SHERPA_ONNX_VERSION}-win-x64-shared.tar.bz2`,
+    binaryPath: "sherpa-onnx-offline-websocket-server.exe",
+    outputName: "sherpa-onnx-ws-win32-x64.exe",
+    libPattern: "*.dll",
+  },
+  "linux-x64": {
+    archiveName: `sherpa-onnx-v${SHERPA_ONNX_VERSION}-linux-x64-shared.tar.bz2`,
+    binaryPath: "sherpa-onnx-offline-websocket-server",
+    outputName: "sherpa-onnx-ws-linux-x64",
+    libPattern: "*.so*",
+  },
+};
+
+function getDownloadUrl(archiveName) {
+  return `${GITHUB_RELEASE_URL}/${archiveName}`;
+}
 const { resolveBinaryPath } = require("../utils/serverUtils");
 
 class SherpaOnnxInstaller {

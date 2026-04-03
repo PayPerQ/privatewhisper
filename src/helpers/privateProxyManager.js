@@ -16,11 +16,15 @@ function proxyLog(msg) {
   console.log(`[PrivateProxy] ${msg}`);
 }
 
+const net = require("net");
+
 const PROXY_PORT = 8787;
 const PROXY_HOST = "127.0.0.1";
 const HEALTH_CHECK_INTERVAL_MS = 30_000;
 const MAX_RESTART_ATTEMPTS = 3;
 const STARTUP_TIMEOUT_MS = 30_000;
+const PORT_RETRY_DELAY_MS = 1000;
+const PORT_RETRY_MAX = 5;
 
 class PrivateProxyManager {
   constructor() {
@@ -34,6 +38,54 @@ class PrivateProxyManager {
   }
 
   /**
+   * Check if a port is available by attempting to listen on it briefly.
+   */
+  _isPortAvailable(port) {
+    return new Promise((resolve) => {
+      const server = net.createServer();
+      server.once("error", () => resolve(false));
+      server.once("listening", () => {
+        server.close(() => resolve(true));
+      });
+      server.listen(port, PROXY_HOST);
+    });
+  }
+
+  /**
+   * Try to kill whatever process is holding a port.
+   */
+  async _killPortHolder(port) {
+    const { execSync } = require("child_process");
+    try {
+      const pid = execSync(`lsof -ti tcp:${port}`, { encoding: "utf8" }).trim();
+      if (pid) {
+        proxyLog(`Killing PID ${pid} holding port ${port}`);
+        execSync(`kill -9 ${pid}`);
+        await new Promise((r) => setTimeout(r, 500));
+      }
+    } catch {
+      // No process found on port, or kill failed — either way, continue
+    }
+  }
+
+  /**
+   * Wait for a port to become available, retrying up to PORT_RETRY_MAX times.
+   */
+  async _waitForPort(port) {
+    if (await this._isPortAvailable(port)) return true;
+
+    // Port is occupied — try killing whatever holds it
+    await this._killPortHolder(port);
+
+    for (let i = 0; i < PORT_RETRY_MAX; i++) {
+      if (await this._isPortAvailable(port)) return true;
+      proxyLog(`Port ${port} still in use, retrying (${i + 1}/${PORT_RETRY_MAX})...`);
+      await new Promise((r) => setTimeout(r, PORT_RETRY_DELAY_MS));
+    }
+    return false;
+  }
+
+  /**
    * Start the private mode proxy as a child process using tsx.
    */
   async start(apiKey) {
@@ -42,6 +94,12 @@ class PrivateProxyManager {
         port: PROXY_PORT,
       });
       return { success: true, port: PROXY_PORT };
+    }
+
+    // If a previous process is still winding down, stop it first
+    if (this.childProcess) {
+      proxyLog("Previous process still exists, stopping first...");
+      await this.stop();
     }
 
     if (this.starting) {
@@ -69,6 +127,14 @@ class PrivateProxyManager {
       proxyLog(`tsx CLI: ${tsxCli}`);
       proxyLog(`Server script: ${serverScript}`);
 
+      // Wait for port to be available before spawning
+      const portFree = await this._waitForPort(PROXY_PORT);
+      if (!portFree) {
+        throw new Error(
+          `Port ${PROXY_PORT} is still in use. Please try again in a few seconds.`,
+        );
+      }
+
       await new Promise((resolve, reject) => {
         const timeout = setTimeout(() => {
           reject(new Error("Proxy startup timed out"));
@@ -89,7 +155,7 @@ class PrivateProxyManager {
           const msg = data.toString().trim();
           if (msg) {
             proxyLog(msg);
-            // debugLogger.logEvent("private-proxy", "stdout", { message: msg });
+            debugLogger.logEvent("private-proxy", "stdout", { message: msg });
 
             // Detect when proxy is listening
             if (msg.includes("listening on")) {

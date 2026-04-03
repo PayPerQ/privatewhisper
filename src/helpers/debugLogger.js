@@ -9,16 +9,16 @@ const LEVELS = {
   error: "ERROR",
 };
 
+const LOG_RETENTION_MS = 60 * 60 * 1000; // 1 hour
+
 class DebugLogger {
   constructor() {
-    this.debugMode = false; // this.shouldEnableDebug(); // COMMENTED OUT: temporarily disable all debug logging
+    this.debugMode = true; // Always-on logging with automatic cleanup
     this.logFile = null;
     this.logStream = null;
     this.initialized = false;
 
-    if (this.debugMode) {
-      this.initializeWhenReady();
-    }
+    this.initializeWhenReady();
   }
 
   shouldEnableDebug() {
@@ -43,7 +43,7 @@ class DebugLogger {
       this.logStream = fs.createWriteStream(this.logFile, { flags: "a" });
       this.initialized = true;
 
-      this.logEvent("system", "debug-enabled", {
+      this.logEvent("system", "session-start", {
         logFile: this.logFile,
         platform: process.platform,
         nodeVersion: process.version,
@@ -53,10 +53,44 @@ class DebugLogger {
         resourcesPath: process.resourcesPath,
         environment: process.env.NODE_ENV,
       });
+
+      // Clean up old logs on startup, then every 15 minutes
+      this.cleanupOldLogs();
+      this._cleanupInterval = setInterval(
+        () => this.cleanupOldLogs(),
+        15 * 60 * 1000,
+      );
     } catch (error) {
       // If logging initialization fails, disable debug mode
       this.debugMode = false;
       console.error("Failed to initialize debug logging:", error.message);
+    }
+  }
+
+  cleanupOldLogs() {
+    try {
+      const logsDir = path.join(app.getPath("userData"), "logs");
+      if (!fs.existsSync(logsDir)) return;
+
+      const now = Date.now();
+      const files = fs.readdirSync(logsDir).filter((f) => f.endsWith(".log"));
+
+      for (const file of files) {
+        const filePath = path.join(logsDir, file);
+        // Never delete the current active log file
+        if (filePath === this.logFile) continue;
+
+        try {
+          const stats = fs.statSync(filePath);
+          if (now - stats.mtimeMs > LOG_RETENTION_MS) {
+            fs.unlinkSync(filePath);
+          }
+        } catch {
+          // Ignore per-file errors
+        }
+      }
+    } catch {
+      // Ignore cleanup errors
     }
   }
 
@@ -258,8 +292,12 @@ class DebugLogger {
   }
 
   close() {
+    if (this._cleanupInterval) {
+      clearInterval(this._cleanupInterval);
+      this._cleanupInterval = null;
+    }
     if (this.logStream) {
-      this.logEvent("system", "debug-disabled");
+      this.logEvent("system", "session-end");
       this.logStream.end();
       this.logStream = null;
     }

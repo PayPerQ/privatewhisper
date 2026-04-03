@@ -83,6 +83,13 @@ class DictionaryStore {
     window.electronAPI?.onDictionaryCleared?.(() => {
       this.setState({ items: [] });
     });
+
+    window.electronAPI?.onDictionaryUpdated?.((terms) => {
+      void debugLogger.log("DICTIONARY_BULK_UPDATED", {
+        termCount: terms.length,
+      });
+      this.setState({ items: terms });
+    });
   }
 
   private ensureInitialized() {

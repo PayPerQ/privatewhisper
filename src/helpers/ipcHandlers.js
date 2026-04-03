@@ -1,6 +1,10 @@
+const fs = require("fs");
+const path = require("path");
 const { ipcMain, app, shell, BrowserWindow } = require("electron");
 const AppUtils = require("../utils");
 const debugLogger = require("./debugLogger");
+
+const AUTO_LEARN_DEBOUNCE_MS = 1500;
 
 class IPCHandlers {
   constructor(managers) {
@@ -12,10 +16,120 @@ class IPCHandlers {
     this.globeKeyManager = managers.globeKeyManager;
     this.privateProxyManager = managers.privateProxyManager;
     this.parakeetManager = managers.parakeetManager;
+    this.textEditMonitor = managers.textEditMonitor;
+
+    // Auto-learn state
+    this._autoLearnEnabled = true;
+    this._autoLearnDebounceTimer = null;
+    this._autoLearnLatestData = null;
+    this._textEditHandler = null;
+
+    this._setupTextEditMonitor();
     this.setupHandlers();
     this.setupPrivateProxyHandlers();
     if (this.parakeetManager) {
       this.setupParakeetHandlers();
+    }
+  }
+
+  _getDictionaryTermsSafe() {
+    try {
+      const terms = this.databaseManager.getDictionary();
+      return terms.map((t) => t.term);
+    } catch {
+      return [];
+    }
+  }
+
+  _cleanupTextEditMonitor() {
+    if (this._autoLearnDebounceTimer) {
+      clearTimeout(this._autoLearnDebounceTimer);
+      this._autoLearnDebounceTimer = null;
+    }
+    this._autoLearnLatestData = null;
+    if (this.textEditMonitor && this._textEditHandler) {
+      this.textEditMonitor.removeListener("text-edited", this._textEditHandler);
+      this._textEditHandler = null;
+    }
+  }
+
+  _setupTextEditMonitor() {
+    if (!this.textEditMonitor) return;
+
+    this._textEditHandler = (data) => {
+      if (
+        !data ||
+        typeof data.originalText !== "string" ||
+        typeof data.newFieldValue !== "string"
+      ) {
+        return;
+      }
+
+      const { originalText, newFieldValue } = data;
+
+      debugLogger.logEvent("auto-learn", "text-edited", {
+        originalPreview: originalText.substring(0, 80),
+        newValuePreview: newFieldValue.substring(0, 80),
+      });
+
+      this._autoLearnLatestData = { originalText, newFieldValue };
+
+      if (this._autoLearnDebounceTimer) {
+        clearTimeout(this._autoLearnDebounceTimer);
+      }
+
+      this._autoLearnDebounceTimer = setTimeout(() => {
+        this._processCorrections();
+      }, AUTO_LEARN_DEBOUNCE_MS);
+    };
+
+    this.textEditMonitor.on("text-edited", this._textEditHandler);
+  }
+
+  _processCorrections() {
+    this._autoLearnDebounceTimer = null;
+    if (!this._autoLearnLatestData) return;
+    if (!this._autoLearnEnabled) {
+      debugLogger.logEvent("auto-learn", "disabled-skipping");
+      this._autoLearnLatestData = null;
+      return;
+    }
+
+    const { originalText, newFieldValue } = this._autoLearnLatestData;
+    this._autoLearnLatestData = null;
+
+    try {
+      const { extractCorrections } = require("../utils/correctionLearner");
+      const currentDict = this._getDictionaryTermsSafe();
+      const corrections = extractCorrections(
+        originalText,
+        newFieldValue,
+        currentDict,
+      );
+      debugLogger.logEvent("auto-learn", "corrections-result", {
+        corrections,
+        dictSize: currentDict.length,
+      });
+
+      if (corrections.length > 0) {
+        const result = this.databaseManager.addDictionaryTermsBulk(corrections);
+        if (result.success && result.added.length > 0) {
+          // Broadcast full dictionary refresh
+          const allTerms = this.databaseManager.getDictionary();
+          this.broadcastToAllWindows("dictionary-updated", allTerms);
+          // Show overlay so toast is visible
+          this.windowManager.showDictationPanel();
+          // Broadcast corrections for toast notification
+          this.broadcastToAllWindows("corrections-learned", corrections);
+          debugLogger.logEvent("auto-learn", "saved-corrections", {
+            corrections,
+          });
+        }
+      }
+    } catch (error) {
+      debugLogger.error("auto-learn", "process-failed", {
+        error: error.message,
+      });
     }
   }
 
@@ -77,6 +191,20 @@ class IPCHandlers {
         if (settings.apiKey) {
           await this.environmentManager.savePPQApiKey(settings.apiKey);
         }
+
+        // Persist main-process-relevant settings to disk so they're
+        // available at next startup (before the renderer loads).
+        const persistKeys = ["transcriptionProvider", "parakeetModel"];
+        const toPersist = {};
+        for (const key of persistKeys) {
+          if (settings[key] !== undefined) {
+            toPersist[key] = settings[key];
+          }
+        }
+        if (Object.keys(toPersist).length > 0) {
+          this.environmentManager.savePersistedSettings(toPersist);
+        }
+
         return { success: true };
       } catch (error) {
         debugLogger.error("ipc", "save-settings-failed", {
@@ -143,9 +271,70 @@ class IPCHandlers {
       return result;
     });
 
+    // Auto-learn handlers
+    ipcMain.on("auto-learn-changed", (_event, enabled) => {
+      this._autoLearnEnabled = !!enabled;
+      if (!this._autoLearnEnabled) {
+        if (this._autoLearnDebounceTimer) {
+          clearTimeout(this._autoLearnDebounceTimer);
+          this._autoLearnDebounceTimer = null;
+        }
+        this._autoLearnLatestData = null;
+      }
+      debugLogger.logEvent("auto-learn", "setting-changed", {
+        enabled: this._autoLearnEnabled,
+      });
+    });
+
+    ipcMain.handle("undo-learned-corrections", async (_event, words) => {
+      try {
+        if (!Array.isArray(words) || words.length === 0) {
+          return { success: false };
+        }
+        const validWords = words.filter(
+          (w) => typeof w === "string" && w.trim().length > 0,
+        );
+        if (validWords.length === 0) {
+          return { success: false };
+        }
+
+        const result =
+          this.databaseManager.removeDictionaryTermsByWord(validWords);
+        if (result.success) {
+          const allTerms = this.databaseManager.getDictionary();
+          this.broadcastToAllWindows("dictionary-updated", allTerms);
+          debugLogger.logEvent("auto-learn", "undo-corrections", {
+            words: validWords,
+          });
+        }
+        return result;
+      } catch (err) {
+        debugLogger.error("auto-learn", "undo-failed", {
+          error: err.message,
+        });
+        return { success: false };
+      }
+    });
+
     // Clipboard handlers
     ipcMain.handle("paste-text", async (event, text) => {
-      return this.clipboardManager.pasteText(text);
+      const result = await this.clipboardManager.pasteText(text);
+
+      // Start auto-learn monitoring after successful paste
+      if (this.textEditMonitor && this._autoLearnEnabled && text) {
+        const targetPid = this.textEditMonitor.lastTargetPid || null;
+        setTimeout(() => {
+          try {
+            this.textEditMonitor.startMonitoring(text, 30000, { targetPid });
+          } catch (err) {
+            debugLogger.error("auto-learn", "start-monitoring-failed", {
+              error: err.message,
+            });
+          }
+        }, 500);
+      }
+
+      return result;
     });
 
     ipcMain.handle("read-clipboard", async (event) => {
@@ -225,6 +414,103 @@ class IPCHandlers {
         void this.edgeFunctionLogger.logPipelineMetrics(payload);
       }
       return { queued: true };
+    });
+
+    // Log viewer handlers
+    ipcMain.handle("get-log-files", async () => {
+      try {
+        const logsDir = path.join(app.getPath("userData"), "logs");
+        if (!fs.existsSync(logsDir)) {
+          return { files: [] };
+        }
+        const files = fs
+          .readdirSync(logsDir)
+          .filter((f) => f.endsWith(".log"))
+          .map((f) => {
+            const filePath = path.join(logsDir, f);
+            const stats = fs.statSync(filePath);
+            return {
+              name: f,
+              path: filePath,
+              size: stats.size,
+              modified: stats.mtime.toISOString(),
+            };
+          })
+          .sort((a, b) => new Date(b.modified) - new Date(a.modified));
+        return { files };
+      } catch (error) {
+        return { files: [], error: error.message };
+      }
+    });
+
+    ipcMain.handle("read-log-file", async (_event, filePath) => {
+      try {
+        const logsDir = path.join(app.getPath("userData"), "logs");
+        // Security: ensure the path is within the logs directory
+        const resolved = path.resolve(filePath);
+        if (!resolved.startsWith(logsDir)) {
+          return { content: "", error: "Access denied" };
+        }
+        if (!fs.existsSync(resolved)) {
+          return { content: "", error: "File not found" };
+        }
+        const content = fs.readFileSync(resolved, "utf-8");
+        return { content };
+      } catch (error) {
+        return { content: "", error: error.message };
+      }
+    });
+
+    ipcMain.handle("collect-diagnostic-logs", async () => {
+      try {
+        const logsDir = path.join(app.getPath("userData"), "logs");
+        const lines = [];
+
+        // App info header
+        lines.push("=== PPQ Whisper Diagnostic Logs ===");
+        lines.push(`Version: ${app.getVersion()}`);
+        lines.push(`Platform: ${process.platform} ${process.arch}`);
+        lines.push(`Electron: ${process.versions.electron}`);
+        lines.push(`Node: ${process.version}`);
+        lines.push(`Date: ${new Date().toISOString()}`);
+        lines.push("");
+
+        // Collect recent log files (last 3)
+        if (fs.existsSync(logsDir)) {
+          const logFiles = fs
+            .readdirSync(logsDir)
+            .filter((f) => f.endsWith(".log"))
+            .map((f) => ({
+              name: f,
+              path: path.join(logsDir, f),
+              mtime: fs.statSync(path.join(logsDir, f)).mtime,
+            }))
+            .sort((a, b) => b.mtime - a.mtime)
+            .slice(0, 3);
+
+          for (const file of logFiles) {
+            lines.push(`=== ${file.name} ===`);
+            const content = fs.readFileSync(file.path, "utf-8");
+            // Limit each file to last 500 lines
+            const fileLines = content.split("\n");
+            const truncated = fileLines.slice(-500);
+            if (fileLines.length > 500) {
+              lines.push(`... (truncated ${fileLines.length - 500} earlier lines)`);
+            }
+            lines.push(...truncated);
+            lines.push("");
+          }
+        } else {
+          lines.push("No log files found. The app may have just started.");
+        }
+
+        return { content: lines.join("\n") };
+      } catch (error) {
+        return {
+          content: `Failed to collect logs: ${error.message}`,
+          error: error.message,
+        };
+      }
     });
 
     // Settings sync handlers - broadcast to all windows

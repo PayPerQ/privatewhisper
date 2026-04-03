@@ -16,6 +16,7 @@ const PORT_RANGE_END = 6029;
 const STARTUP_TIMEOUT_MS = 60000;
 const HEALTH_CHECK_INTERVAL_MS = 5000;
 const TRANSCRIPTION_TIMEOUT_MS = 300000;
+const KEEPWARM_INTERVAL_MS = 120000; // Run a warm-up inference every 2 minutes to keep caches hot
 
 class ParakeetWsServer {
   constructor() {
@@ -26,8 +27,10 @@ class ParakeetWsServer {
     this.modelDir = null;
     this.startupPromise = null;
     this.healthCheckInterval = null;
+    this.keepWarmInterval = null;
     this.transcribing = false;
     this.cachedWsBinaryPath = null;
+    this.lastTranscriptionTime = 0;
   }
 
   getWsBinaryPath() {
@@ -95,12 +98,12 @@ class ParakeetWsServer {
     });
 
     this.process.stdout.on("data", (data) => {
-      // debugLogger.debug("parakeet-ws stdout", { data: data.toString().trim() });
+      debugLogger.debug("parakeet-ws stdout", { data: data.toString().trim() });
     });
 
     this.process.stderr.on("data", (data) => {
       stderrBuffer += data.toString();
-      // debugLogger.debug("parakeet-ws stderr", { data: data.toString().trim() });
+      debugLogger.debug("parakeet-ws stderr", { data: data.toString().trim() });
       if (data.toString().includes("Listening on:")) {
         readyResolve(true);
       }
@@ -182,18 +185,51 @@ class ParakeetWsServer {
   _startHealthCheck() {
     this.stopHealthCheck();
     this.healthCheckInterval = setInterval(() => {
-      if (!this.process) {
-        this.stopHealthCheck();
-        return;
-      }
       if (this.transcribing) return;
 
-      if (!this._isProcessAlive()) {
-        debugLogger.warn("parakeet-ws health check failed: process not alive");
+      if (!this.process || !this._isProcessAlive()) {
+        debugLogger.warn("parakeet-ws health check: process not alive, auto-restarting");
         this.ready = false;
         this.stopHealthCheck();
+        this._autoRestart();
       }
     }, HEALTH_CHECK_INTERVAL_MS);
+
+    this._startKeepWarm();
+  }
+
+  _startKeepWarm() {
+    this._stopKeepWarm();
+    this.keepWarmInterval = setInterval(() => {
+      if (!this.ready || !this.process || this.transcribing) return;
+
+      const idleMs = Date.now() - this.lastTranscriptionTime;
+      if (idleMs < KEEPWARM_INTERVAL_MS) return;
+
+      debugLogger.debug("parakeet-ws keep-warm: running idle inference");
+      const sampleRate = 16000;
+      const silentSamples = Buffer.alloc(sampleRate * 4); // 1 second of silence
+      this.transcribe(silentSamples, sampleRate).catch((err) => {
+        debugLogger.warn("parakeet-ws keep-warm inference failed", { error: err.message });
+      });
+    }, KEEPWARM_INTERVAL_MS);
+  }
+
+  _stopKeepWarm() {
+    if (this.keepWarmInterval) {
+      clearInterval(this.keepWarmInterval);
+      this.keepWarmInterval = null;
+    }
+  }
+
+  _autoRestart() {
+    if (!this.modelName || !this.modelDir) return;
+    const modelName = this.modelName;
+    const modelDir = this.modelDir;
+    debugLogger.info("parakeet-ws auto-restarting server", { modelName });
+    this.start(modelName, modelDir).catch((err) => {
+      debugLogger.error("parakeet-ws auto-restart failed", { error: err.message });
+    });
   }
 
   stopHealthCheck() {
@@ -201,6 +237,7 @@ class ParakeetWsServer {
       clearInterval(this.healthCheckInterval);
       this.healthCheckInterval = null;
     }
+    this._stopKeepWarm();
   }
 
   transcribe(samplesBuffer, sampleRate) {
@@ -209,6 +246,7 @@ class ParakeetWsServer {
     }
 
     this.transcribing = true;
+    this.lastTranscriptionTime = Date.now();
 
     return new Promise((resolve, reject) => {
       const startTime = Date.now();
@@ -238,10 +276,10 @@ class ParakeetWsServer {
         message.writeInt32LE(samplesBuffer.length, 4);
         samplesBuffer.copy(message, 8);
 
-        // debugLogger.debug("parakeet-ws sending audio", {
-        //   samplesBytes: samplesBuffer.length,
-        //   sampleRate,
-        // });
+        debugLogger.debug("parakeet-ws sending audio", {
+          samplesBytes: samplesBuffer.length,
+          sampleRate,
+        });
 
         ws.send(message, (err) => {
           if (err) {
@@ -259,12 +297,12 @@ class ParakeetWsServer {
         clearTimeout(timeout);
         const elapsed = Date.now() - startTime;
 
-        // debugLogger.debug("parakeet-ws transcription completed", {
-        //   elapsed,
-        //   code,
-        //   resultLength: result.length,
-        //   resultPreview: result.slice(0, 200),
-        // });
+        debugLogger.debug("parakeet-ws transcription completed", {
+          elapsed,
+          code,
+          resultLength: result.length,
+          resultPreview: result.slice(0, 200),
+        });
 
         try {
           const parsed = JSON.parse(result);

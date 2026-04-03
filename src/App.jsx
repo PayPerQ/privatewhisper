@@ -175,15 +175,15 @@ const logStreamDeviceInfo = (stream, context) => {
         ? deviceId === builtInMicCache.deviceId
         : false;
 
-    void audioDeviceLogger.log("MIC_STREAM_SELECTED", {
-      context,
-      label,
-      deviceId,
-      groupId: settings.groupId || "",
-      readyState: track?.readyState || "",
-      matchedBuiltInLabel,
-      matchedBuiltInCache,
-    });
+    // void audioDeviceLogger.log("MIC_STREAM_SELECTED", {
+    //   context,
+    //   label,
+    //   deviceId,
+    //   groupId: settings.groupId || "",
+    //   readyState: track?.readyState || "",
+    //   matchedBuiltInLabel,
+    //   matchedBuiltInCache,
+    // });
   } catch (error) {
     void audioDeviceLogger.log("MIC_STREAM_LOG_FAILED", {
       context,
@@ -202,9 +202,9 @@ async function getBuiltInMicrophoneStream() {
     !INVALID_DEVICE_IDS.has(builtInMicCache.deviceId)
   ) {
     try {
-      void audioDeviceLogger.log("MIC_USING_CACHED", {
-        deviceId: builtInMicCache.deviceId,
-      });
+      // void audioDeviceLogger.log("MIC_USING_CACHED", {
+      //   deviceId: builtInMicCache.deviceId,
+      // });
       return await navigator.mediaDevices.getUserMedia({
         audio: {
           deviceId: { exact: builtInMicCache.deviceId },
@@ -412,6 +412,8 @@ export default function App() {
     preferredMicrophoneId,
     showIconOnlyWhenActive,
     mipOptOut,
+    transcriptionProvider,
+    parakeetModel,
   } = useSettings();
 
   // Load dictionary terms
@@ -454,8 +456,10 @@ export default function App() {
       preferredLanguage,
       dictionary,
       mipOptOut,
+      transcriptionProvider,
+      parakeetModel,
     };
-  }, [preferredLanguage, dictionaryTerms, mipOptOut]);
+  }, [preferredLanguage, dictionaryTerms, mipOptOut, transcriptionProvider, parakeetModel]);
 
   // Keep ref in sync with audioSettings to avoid stale closures in hotkey handlers
   useEffect(() => {
@@ -616,6 +620,16 @@ export default function App() {
     };
   }, []);
 
+  // Auto-start private proxy if private mode was already enabled from a previous session
+  useEffect(() => {
+    const storedPrivateMode = localStorage.getItem("privateModeEnabled");
+    if (storedPrivateMode === "true") {
+      window.electronAPI?.startPrivateProxy?.().catch(() => {
+        // Non-fatal — proxy will start when user toggles it in settings
+      });
+    }
+  }, []);
+
   const getNewStream = async () => {
     return getPreferredMicrophoneStream({
       alwaysUseBuiltInMic,
@@ -657,17 +671,26 @@ export default function App() {
       const storedLanguage = localStorage.getItem("preferredLanguage");
       const latestPreferredLanguage = storedLanguage || "en";
 
+      const latestTranscriptionProvider = localStorage.getItem("transcriptionProvider") || "cloud";
+      const latestParakeetModel = localStorage.getItem("parakeetModel") || "parakeet-tdt-0.6b-v3";
+
+      const storedLlmCleanup = localStorage.getItem("llmCleanupEnabled");
+      const latestLlmCleanupEnabled = storedLlmCleanup !== "false"; // Default true if not set
+
       const settingsWithLatestMip = {
         ...currentAudioSettings,
         mipOptOut: latestMipOptOut,
         preferredLanguage: latestPreferredLanguage,
+        transcriptionProvider: latestTranscriptionProvider,
+        parakeetModel: latestParakeetModel,
+        useReasoningModel: latestLlmCleanupEnabled,
       };
 
-      void appLogger.log("START_RECORDING", {
-        dictionaryCount: settingsWithLatestMip.dictionary?.length ?? 0,
-        dictionaryPreview: settingsWithLatestMip.dictionary?.slice(0, 5) ?? [],
-        mipOptOut: latestMipOptOut,
-      });
+      // void appLogger.log("START_RECORDING", {
+      //   dictionaryCount: settingsWithLatestMip.dictionary?.length ?? 0,
+      //   dictionaryPreview: settingsWithLatestMip.dictionary?.slice(0, 5) ?? [],
+      //   mipOptOut: latestMipOptOut,
+      // });
 
       const audioManager = new AudioManager(settingsWithLatestMip);
       audioManagerRef.current = audioManager;
@@ -775,6 +798,7 @@ export default function App() {
               misc_processing_ms: miscProcessingMs,
               model_used: modelUsed ?? null,
               provider_used: providerUsed ?? null,
+              stt_model_used: metrics?.flags?.transcriptionModel ?? null,
               error_message: metrics?.errorMessage ?? null,
             };
 

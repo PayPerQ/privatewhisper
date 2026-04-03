@@ -1,0 +1,19 @@
+{
+  "parakeetModels": {
+    "parakeet-tdt-0.6b-v3": {
+      "name": "Parakeet TDT 0.6B",
+      "description": "Fast multilingual ASR with auto language detection (25 languages)",
+      "size": "680MB",
+      "sizeMb": 680,
+      "language": "multilingual",
+      "supportedLanguages": [
+        "bg", "hr", "cs", "da", "nl", "en", "et", "fi", "fr", "de",
+        "el", "hu", "it", "lv", "lt", "mt", "pl", "pt", "ro", "sk",
+        "sl", "es", "sv", "ru", "uk"
+      ],
+      "recommended": true,
+      "downloadUrl": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8.tar.bz2",
+      "extractDir": "sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8"
+    }
+  }
+}

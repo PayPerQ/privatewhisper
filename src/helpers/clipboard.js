@@ -33,10 +33,10 @@ class ClipboardManager {
     try {
       // Save original clipboard content first
       const originalClipboard = clipboard.readText();
-      this.safeLog("original-buffered", {
-        preview: originalClipboard.substring(0, 50),
-        length: originalClipboard.length,
-      });
+      // this.safeLog("original-buffered", {
+      //   preview: originalClipboard.substring(0, 50),
+      //   length: originalClipboard.length,
+      // });
 
       // Copy text to clipboard first - this always works
       clipboard.writeText(text);

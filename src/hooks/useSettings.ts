@@ -23,6 +23,19 @@ export interface AudioSettings {
 
 export interface PrivacySettings {
   mipOptOut: boolean; // Opt out of Deepgram Model Improvement Partnership (default: true = opted out)
+  privateModeEnabled: boolean; // Route reasoning through encrypted private proxy
+  privateModel: string; // Which private model to use for reasoning
+}
+
+export type TranscriptionProvider = "cloud" | "local";
+
+export interface LocalTranscriptionSettings {
+  transcriptionProvider: TranscriptionProvider;
+  parakeetModel: string;
+}
+
+export interface CleanupSettings {
+  llmCleanupEnabled: boolean;
 }
 
 export interface AppearanceSettings {
@@ -115,6 +128,16 @@ export function useSettings() {
     },
   );
 
+  // LLM cleanup toggle (default: true = enabled, transcriptions are cleaned up by AI)
+  const [llmCleanupEnabled, setLlmCleanupEnabled] = useLocalStorage(
+    "llmCleanupEnabled",
+    true,
+    {
+      serialize: String,
+      deserialize: (value) => value !== "false",
+    },
+  );
+
   // Privacy settings - MIP opt-out (default: true = opted out, data stays private)
   const [mipOptOut, setMipOptOut] = useLocalStorage(
     "mipOptOut",
@@ -122,6 +145,42 @@ export function useSettings() {
     {
       serialize: String,
       deserialize: (value) => value !== "false",
+    },
+  );
+
+  // Private mode - route reasoning through encrypted proxy
+  const [privateModeEnabled, setPrivateModeEnabled] = useLocalStorage(
+    "privateModeEnabled",
+    false,
+    {
+      serialize: String,
+      deserialize: (value) => value === "true",
+    },
+  );
+
+  const [privateModel, setPrivateModel] = useLocalStorage(
+    "privateModel",
+    "private/gpt-oss-120b",
+    {
+      serialize: String,
+      deserialize: String,
+    },
+  );
+
+  // Local transcription settings
+  const [transcriptionProvider, setTranscriptionProvider] =
+    useLocalStorage<TranscriptionProvider>("transcriptionProvider", "cloud", {
+      serialize: String,
+      deserialize: (value) =>
+        value === "local" ? "local" : "cloud",
+    });
+
+  const [parakeetModel, setParakeetModel] = useLocalStorage(
+    "parakeetModel",
+    "parakeet-tdt-0.6b-v3",
+    {
+      serialize: String,
+      deserialize: String,
     },
   );
 
@@ -185,8 +244,26 @@ export function useSettings() {
       if (settings.mipOptOut !== undefined) {
         setMipOptOut(settings.mipOptOut);
       }
+      if (settings.privateModeEnabled !== undefined) {
+        setPrivateModeEnabled(settings.privateModeEnabled);
+      }
+      if (settings.privateModel !== undefined) {
+        setPrivateModel(settings.privateModel);
+      }
     },
-    [setMipOptOut],
+    [setMipOptOut, setPrivateModeEnabled, setPrivateModel],
+  );
+
+  const updateLocalTranscriptionSettings = useCallback(
+    (settings: Partial<LocalTranscriptionSettings>) => {
+      if (settings.transcriptionProvider !== undefined) {
+        setTranscriptionProvider(settings.transcriptionProvider);
+      }
+      if (settings.parakeetModel !== undefined) {
+        setParakeetModel(settings.parakeetModel);
+      }
+    },
+    [setTranscriptionProvider, setParakeetModel],
   );
 
   return {
@@ -198,7 +275,10 @@ export function useSettings() {
     alwaysUseBuiltInMic,
     preferredMicrophoneId,
     showIconOnlyWhenActive,
+    llmCleanupEnabled,
     mipOptOut,
+    privateModeEnabled,
+    privateModel,
     setPreferredLanguage,
     setPpqApiKey,
     setDictationKey,
@@ -207,12 +287,20 @@ export function useSettings() {
     setAlwaysUseBuiltInMic,
     setPreferredMicrophoneId,
     setShowIconOnlyWhenActive,
+    setLlmCleanupEnabled,
     setMipOptOut,
+    setPrivateModeEnabled,
+    setPrivateModel,
     updateTranscriptionSettings,
     updateApiKeys,
     updateHotkeySettings,
     updateAudioSettings,
     updateAppearanceSettings,
     updatePrivacySettings,
+    transcriptionProvider,
+    parakeetModel,
+    setTranscriptionProvider,
+    setParakeetModel,
+    updateLocalTranscriptionSettings,
   };
 }

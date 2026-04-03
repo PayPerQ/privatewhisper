@@ -11,7 +11,7 @@ const LEVELS = {
 
 class DebugLogger {
   constructor() {
-    this.debugMode = this.shouldEnableDebug();
+    this.debugMode = false; // this.shouldEnableDebug(); // COMMENTED OUT: temporarily disable all debug logging
     this.logFile = null;
     this.logStream = null;
     this.initialized = false;

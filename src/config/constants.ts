@@ -133,6 +133,26 @@ export const PPQ_WEBSITE_URL = computeBaseUrl(
   "https://ppq.ai",
 );
 
+// Private Mode Proxy Configuration
+export const PRIVATE_PROXY_CONFIG = {
+  PORT: 8787,
+  HOST: "127.0.0.1",
+  HEALTH_CHECK_INTERVAL_MS: 30_000,
+  STARTUP_TIMEOUT_MS: 30_000,
+  MAX_RESTART_ATTEMPTS: 3,
+} as const;
+
+export const PRIVATE_MODELS = [
+  { id: "private/gpt-oss-120b", label: "GPT-OSS 120B (Private)" },
+  { id: "private/kimi-k2-5", label: "Kimi K2.5 (Private)" },
+  { id: "private/deepseek-r1-0528", label: "DeepSeek R1 (Private)" },
+  { id: "private/llama3-3-70b", label: "Llama 3.3 70B (Private)" },
+  { id: "private/qwen3-vl-30b", label: "Qwen3-VL 30B (Private)" },
+] as const;
+
+export const PRIVATE_PROXY_CHAT = `http://${PRIVATE_PROXY_CONFIG.HOST}:${PRIVATE_PROXY_CONFIG.PORT}/v1/chat/completions`;
+export const PRIVATE_PROXY_HEALTH = `http://${PRIVATE_PROXY_CONFIG.HOST}:${PRIVATE_PROXY_CONFIG.PORT}/health`;
+
 // Audio Device Recovery Configuration
 export const DEVICE_RECOVERY_CONFIG = {
   MAX_RECOVERY_ATTEMPTS: 3,
@@ -149,7 +169,7 @@ export const WARM_CONNECTION_CONFIG = {
 
 // PCM Audio Buffer Configuration (extended for Bluetooth)
 export const AUDIO_BUFFER_CONFIG = {
-  MAX_BUFFER_DURATION_MS: 10000, // 10 seconds (was 5 seconds)
-  MAX_BUFFER_SIZE_BYTES: 10 * 1024 * 1024, // 10MB (was 5MB)
+  MAX_BUFFER_DURATION_MS: 300000, // 5 minutes
+  MAX_BUFFER_SIZE_BYTES: 60 * 1024 * 1024, // 60MB
   BUFFER_SIZE_SAMPLES: 2048, // Samples per chunk at 16kHz = ~128ms
 } as const;

@@ -13,7 +13,7 @@ const SAMPLE_RATE = 16000;
 const BYTES_PER_SAMPLE = 4; // float32
 const MAX_SEGMENT_SECONDS = 15;
 const MAX_SEGMENT_BYTES = MAX_SEGMENT_SECONDS * SAMPLE_RATE * BYTES_PER_SAMPLE;
-const SILENCE_RMS_THRESHOLD = 0.001;
+const SILENCE_RMS_THRESHOLD = 0.0005;
 
 class ParakeetServerManager {
   constructor() {
@@ -60,12 +60,12 @@ class ParakeetServerManager {
       throw new Error(`Parakeet model "${modelName}" not downloaded`);
     }
 
-    // debugLogger.debug("Parakeet transcription request", {
-    //   modelName,
-    //   language,
-    //   audioSize: audioBuffer?.length || 0,
-    //   isWavFormat: isWavFormat(audioBuffer),
-    // });
+    debugLogger.debug("Parakeet transcription request", {
+      modelName,
+      language,
+      audioSize: audioBuffer?.length || 0,
+      isWavFormat: isWavFormat(audioBuffer),
+    });
 
     // Audio must be WAV format (PPQ's pipeline produces 16kHz mono WAV)
     if (!isWavFormat(audioBuffer)) {
@@ -82,7 +82,7 @@ class ParakeetServerManager {
     const durationSeconds = samples.length / BYTES_PER_SAMPLE / SAMPLE_RATE;
 
     const rms = computeFloat32RMS(samples);
-    // debugLogger.debug("Parakeet audio analysis", { durationSeconds, rms });
+    debugLogger.debug("Parakeet audio analysis", { durationSeconds, rms });
     if (rms < SILENCE_RMS_THRESHOLD) {
       return { text: "", elapsed: 0, language };
     }

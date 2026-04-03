@@ -98,6 +98,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
   logPipelineMetrics: (payload) =>
     ipcRenderer.invoke("log-pipeline-metrics", payload),
 
+  // Log viewer
+  getLogFiles: () => ipcRenderer.invoke("get-log-files"),
+  readLogFile: (filePath) => ipcRenderer.invoke("read-log-file", filePath),
+  collectDiagnosticLogs: () => ipcRenderer.invoke("collect-diagnostic-logs"),
+
   // Remove all listeners for a channel
   removeAllListeners: (channel) => {
     ipcRenderer.removeAllListeners(channel);
@@ -126,6 +131,16 @@ contextBridge.exposeInMainWorld("electronAPI", {
     exposeListener("dictionary-term-removed", callback),
   onDictionaryCleared: (callback) =>
     exposeListener("dictionary-cleared", callback),
+
+  // Auto-learn controls
+  setAutoLearnEnabled: (enabled) =>
+    ipcRenderer.send("auto-learn-changed", enabled),
+  onCorrectionsLearned: (callback) =>
+    exposeListener("corrections-learned", callback),
+  undoLearnedCorrections: (words) =>
+    ipcRenderer.invoke("undo-learned-corrections", words),
+  onDictionaryUpdated: (callback) =>
+    exposeListener("dictionary-updated", callback),
 
   // Settings sync - broadcast to all windows
   updateHotkeyMode: (mode) => ipcRenderer.invoke("update-hotkey-mode", mode),

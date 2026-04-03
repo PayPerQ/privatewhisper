@@ -169,12 +169,12 @@ class ParakeetManager {
   }
 
   async transcribeLocalParakeet(audioBlob, options = {}) {
-    // debugLogger.logSTTPipeline("transcribeLocalParakeet - start", {
-    //   options,
-    //   audioBlobType: audioBlob?.constructor?.name,
-    //   audioBlobSize: audioBlob?.byteLength || audioBlob?.size || 0,
-    //   serverAvailable: this.serverManager.isAvailable(),
-    // });
+    debugLogger.logSTTPipeline("transcribeLocalParakeet - start", {
+      options,
+      audioBlobType: audioBlob?.constructor?.name,
+      audioBlobSize: audioBlob?.byteLength || audioBlob?.size || 0,
+      serverAvailable: this.serverManager.isAvailable(),
+    });
 
     if (!this.serverManager.isAvailable()) {
       throw new Error(
@@ -209,30 +209,30 @@ class ParakeetManager {
       throw new Error("Audio buffer is empty - no audio data received");
     }
 
-    // debugLogger.logSTTPipeline("transcribeLocalParakeet - processing", {
-    //   bufferSize: audioBuffer.length,
-    //   model,
-    // });
+    debugLogger.logSTTPipeline("transcribeLocalParakeet - processing", {
+      bufferSize: audioBuffer.length,
+      model,
+    });
 
     const startTime = Date.now();
     const language = options.language || "auto";
     const result = await this.serverManager.transcribe(audioBuffer, { modelName: model, language });
     const elapsed = Date.now() - startTime;
 
-    // debugLogger.logSTTPipeline("transcribeLocalParakeet - completed", {
-    //   elapsed,
-    //   textLength: result.text?.length || 0,
-    // });
+    debugLogger.logSTTPipeline("transcribeLocalParakeet - completed", {
+      elapsed,
+      textLength: result.text?.length || 0,
+    });
 
     return this.parseParakeetResult(result);
   }
 
   parseParakeetResult(output) {
-    // debugLogger.debug("parseParakeetResult", {
-    //   hasOutput: !!output,
-    //   hasText: !!output?.text,
-    //   textLength: output?.text?.length || 0,
-    // });
+    debugLogger.debug("parseParakeetResult", {
+      hasOutput: !!output,
+      hasText: !!output?.text,
+      textLength: output?.text?.length || 0,
+    });
 
     if (!output || !output.text) {
       return { success: false, message: "No audio detected" };

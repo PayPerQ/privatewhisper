@@ -6,6 +6,49 @@ const debugLogger = require("./debugLogger");
 class EnvironmentManager {
   constructor() {
     this.loadEnvironmentVariables();
+    this._settingsPath = null;
+  }
+
+  /**
+   * Returns the path to the persisted settings JSON file in userData.
+   * Settings here are readable by the main process at startup (unlike
+   * renderer localStorage which isn't available until the window loads).
+   */
+  getSettingsPath() {
+    if (!this._settingsPath) {
+      this._settingsPath = path.join(app.getPath("userData"), "settings.json");
+    }
+    return this._settingsPath;
+  }
+
+  /**
+   * Read persisted main-process settings (transcriptionProvider, parakeetModel, etc.).
+   * Returns an empty object if the file doesn't exist or is corrupt.
+   */
+  readPersistedSettings() {
+    try {
+      const raw = fs.readFileSync(this.getSettingsPath(), "utf8");
+      return JSON.parse(raw);
+    } catch {
+      return {};
+    }
+  }
+
+  /**
+   * Merge new key/value pairs into the persisted settings file.
+   */
+  savePersistedSettings(updates) {
+    try {
+      const current = this.readPersistedSettings();
+      const merged = { ...current, ...updates };
+      fs.writeFileSync(this.getSettingsPath(), JSON.stringify(merged, null, 2), "utf8");
+      return { success: true };
+    } catch (error) {
+      debugLogger.error("environment", "save-persisted-settings-failed", {
+        error: error.message,
+      });
+      return { success: false, error: error.message };
+    }
   }
 
   loadEnvironmentVariables() {

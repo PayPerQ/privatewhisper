@@ -17,6 +17,7 @@ const UpdateManager = require("./src/updater");
 const GlobeKeyManager = require("./src/helpers/globeKeyManager");
 const PrivateProxyManager = require("./src/helpers/privateProxyManager");
 const ParakeetManager = require("./src/helpers/parakeetManager");
+const TextEditMonitor = require("./src/helpers/textEditMonitor");
 const { matchesMacKeyCode } = require("./src/helpers/hotkeyKeycodes");
 const { exec, execSync } = require("child_process");
 
@@ -31,6 +32,7 @@ let updateManager;
 let globeKeyManager;
 let privateProxyManager;
 let parakeetManager;
+let textEditMonitor;
 let edgeFunctionLogger;
 let ipcHandlers;
 let globeKeyAlertShown = false;
@@ -226,6 +228,7 @@ async function startApp() {
   globeKeyManager = new GlobeKeyManager();
   privateProxyManager = new PrivateProxyManager();
   parakeetManager = new ParakeetManager();
+  textEditMonitor = new TextEditMonitor();
   // On macOS, default hotkey is GLOBE - disable emoji picker function immediately
   if (process.platform === "darwin") {
     disableGlobeKeyEmojiPicker();
@@ -268,7 +271,11 @@ async function startApp() {
     globeKeyManager,
     privateProxyManager,
     parakeetManager,
+    textEditMonitor,
   });
+
+  // Wire textEditMonitor to windowManager for PID capture in hotkey callbacks
+  windowManager.textEditMonitor = textEditMonitor;
 
   // Set up callback for hotkey listening mode changes
   ipcHandlers.onHotkeyListeningModeChange = (isListening) => {
@@ -287,9 +294,16 @@ async function startApp() {
   };
 
   // Initialize Parakeet (warm-up server if local transcription is configured)
-  // Read settings from environment — the renderer persists these via IPC
-  const transcriptionProvider = process.env.LOCAL_TRANSCRIPTION_PROVIDER || "cloud";
-  const parakeetModel = process.env.PARAKEET_MODEL || "parakeet-tdt-0.6b-v3";
+  // Read persisted settings from disk — the renderer writes these via save-settings IPC
+  const persistedSettings = environmentManager.readPersistedSettings();
+  const transcriptionProvider =
+    persistedSettings.transcriptionProvider ||
+    process.env.LOCAL_TRANSCRIPTION_PROVIDER ||
+    "cloud";
+  const parakeetModel =
+    persistedSettings.parakeetModel ||
+    process.env.PARAKEET_MODEL ||
+    "parakeet-tdt-0.6b-v3";
   parakeetManager.initializeAtStartup({
     transcriptionProvider,
     parakeetModel,
@@ -363,6 +377,7 @@ async function startApp() {
           windowManager.mainWindow &&
           !windowManager.mainWindow.isDestroyed()
         ) {
+          if (textEditMonitor) textEditMonitor.captureTargetPid();
           windowManager.showDictationPanel();
           windowManager.mainWindow.webContents.send("toggle-dictation");
         }
@@ -575,6 +590,8 @@ function setupApp() {
     if (privateProxyManager) privateProxyManager.stop();
     if (parakeetManager) parakeetManager.stopServer().catch(() => {});
     if (updateManager) updateManager.cleanup();
+    if (ipcHandlers) ipcHandlers._cleanupTextEditMonitor();
+    if (textEditMonitor) textEditMonitor.stopMonitoring();
     // Restore the user's original Globe key function
     restoreGlobeKeyFunction();
   });

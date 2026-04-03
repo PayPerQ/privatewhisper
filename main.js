@@ -17,6 +17,7 @@ const UpdateManager = require("./src/updater");
 const GlobeKeyManager = require("./src/helpers/globeKeyManager");
 const PrivateProxyManager = require("./src/helpers/privateProxyManager");
 const ParakeetManager = require("./src/helpers/parakeetManager");
+const SherpaOnnxInstaller = require("./src/helpers/sherpaOnnxInstaller");
 const TextEditMonitor = require("./src/helpers/textEditMonitor");
 const { matchesMacKeyCode } = require("./src/helpers/hotkeyKeycodes");
 const { exec, execSync } = require("child_process");
@@ -32,6 +33,7 @@ let updateManager;
 let globeKeyManager;
 let privateProxyManager;
 let parakeetManager;
+let sherpaOnnxInstaller;
 let textEditMonitor;
 let edgeFunctionLogger;
 let ipcHandlers;
@@ -228,6 +230,7 @@ async function startApp() {
   globeKeyManager = new GlobeKeyManager();
   privateProxyManager = new PrivateProxyManager();
   parakeetManager = new ParakeetManager();
+  sherpaOnnxInstaller = new SherpaOnnxInstaller();
   textEditMonitor = new TextEditMonitor();
   // On macOS, default hotkey is GLOBE - disable emoji picker function immediately
   if (process.platform === "darwin") {
@@ -271,6 +274,7 @@ async function startApp() {
     globeKeyManager,
     privateProxyManager,
     parakeetManager,
+    sherpaOnnxInstaller,
     textEditMonitor,
   });
 

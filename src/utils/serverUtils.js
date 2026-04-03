@@ -27,12 +27,24 @@ async function findAvailablePort(rangeStart, rangeEnd) {
 function resolveBinaryPath(binaryName) {
   const candidates = [];
 
+  // 1. Packaged app resources (read-only in production)
   if (process.resourcesPath) {
     candidates.push(path.join(process.resourcesPath, "bin", binaryName));
   }
 
+  // 2. Dev mode project directory
   const projectBinDir = path.resolve(__dirname, "..", "..", "resources", "bin");
   candidates.push(path.join(projectBinDir, binaryName));
+
+  // 3. Runtime-downloaded fallback (userData/bin/)
+  try {
+    const { app } = require("electron");
+    if (app && app.getPath) {
+      candidates.push(path.join(app.getPath("userData"), "bin", binaryName));
+    }
+  } catch {
+    // Not in main process or app not ready
+  }
 
   for (const candidate of candidates) {
     if (fs.existsSync(candidate)) {

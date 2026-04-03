@@ -116,9 +116,12 @@ class PrivateProxyManager {
       proxyLog("Starting proxy...");
 
       // Resolve paths — find tsx CLI via package.json location
+      // In production, modules are inside app.asar which external Node can't read.
+      // asarUnpack extracts them to app.asar.unpacked, so rewrite the path.
+      const toUnpacked = (p) => p.replace("app.asar", "app.asar.unpacked");
       const tsxPkgPath = require.resolve("tsx/package.json");
-      const tsxCli = path.join(path.dirname(tsxPkgPath), "dist", "cli.mjs");
-      const serverScript = require.resolve("ppq-private-mode/bin/server.ts");
+      const tsxCli = toUnpacked(path.join(path.dirname(tsxPkgPath), "dist", "cli.mjs"));
+      const serverScript = toUnpacked(require.resolve("ppq-private-mode/bin/server.ts"));
 
       // Find a Node.js 20+ binary (process.execPath is Electron, not Node)
       const nodeBin = this._findNodeBin();
@@ -140,6 +143,12 @@ class PrivateProxyManager {
           reject(new Error("Proxy startup timed out"));
         }, STARTUP_TIMEOUT_MS);
 
+        // In production, modules are unpacked from asar to app.asar.unpacked.
+        // Set NODE_PATH so the child process can resolve transitive dependencies.
+        const unpackedNodeModules = tsxCli.includes("app.asar.unpacked")
+          ? path.join(path.dirname(tsxCli).split("node_modules")[0], "node_modules")
+          : undefined;
+
         this.childProcess = spawn(nodeBin, [tsxCli, serverScript], {
           env: {
             ...process.env,
@@ -147,6 +156,7 @@ class PrivateProxyManager {
             PORT: String(PROXY_PORT),
             PPQ_API_BASE: "https://api.ppq.ai",
             DEBUG: debugLogger.isEnabled() ? "true" : "false",
+            ...(unpackedNodeModules ? { NODE_PATH: unpackedNodeModules } : {}),
           },
           stdio: ["pipe", "pipe", "pipe"],
         });

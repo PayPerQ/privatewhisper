@@ -207,4 +207,13 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.invoke("parakeet-server-start", modelName),
   parakeetServerStop: () => ipcRenderer.invoke("parakeet-server-stop"),
   parakeetServerStatus: () => ipcRenderer.invoke("parakeet-server-status"),
+  onParakeetServerStatusChanged: (callback) =>
+    exposeListener("parakeet-server-status-changed", callback),
+
+  // Sherpa-onnx binary runtime installer
+  installSherpaOnnx: () => ipcRenderer.invoke("install-sherpa-onnx"),
+  cancelSherpaOnnxInstall: () => ipcRenderer.invoke("cancel-sherpa-onnx-install"),
+  checkSherpaOnnxStatus: () => ipcRenderer.invoke("check-sherpa-onnx-status"),
+  onSherpaOnnxInstallProgress: (callback) =>
+    exposeListener("sherpa-onnx-install-progress", callback),
 });

@@ -104,6 +104,8 @@ export default function SettingsPage({
   const [parakeetDownloading, setParakeetDownloading] = useState(false);
   const [parakeetDownloadProgress, setParakeetDownloadProgress] = useState(0);
   const [parakeetServerRunning, setParakeetServerRunning] = useState(false);
+  const [sherpaInstalling, setSherpaInstalling] = useState(false);
+  const [sherpaInstallProgress, setSherpaInstallProgress] = useState(0);
 
   // Check Parakeet installation and model status on mount
   useEffect(() => {
@@ -122,6 +124,14 @@ export default function SettingsPage({
       }
     };
     checkParakeet();
+
+    // Listen for server status changes (start/stop/crash)
+    const cleanup = (window as any).electronAPI?.onParakeetServerStatusChanged?.(
+      (status: any) => {
+        setParakeetServerRunning(status?.running ?? false);
+      },
+    );
+    return () => cleanup?.();
   }, [parakeetModel]);
 
   // Update state
@@ -1433,14 +1443,91 @@ export default function SettingsPage({
                       </div>
                     </div>
 
-                    {!parakeetInstalled && (
-                      <p className="text-xs text-amber-600">
-                        sherpa-onnx binary not found. Run{" "}
-                        <code className="bg-gray-100 px-1 rounded">
-                          npm run download:sherpa-onnx
-                        </code>{" "}
-                        to install it.
-                      </p>
+                    {!parakeetInstalled && !sherpaInstalling && (
+                      <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+                        <p className="text-sm font-medium text-amber-800 mb-2">
+                          Transcription engine required
+                        </p>
+                        <p className="text-xs text-amber-700 mb-3">
+                          Local transcription requires a one-time setup (~90 MB
+                          download).
+                        </p>
+                        <Button
+                          size="sm"
+                          onClick={async () => {
+                            setSherpaInstalling(true);
+                            setSherpaInstallProgress(0);
+                            const cleanup = (window as any).electronAPI?.onSherpaOnnxInstallProgress?.(
+                              (progress: any) => {
+                                if (progress.percentage != null) {
+                                  setSherpaInstallProgress(progress.percentage);
+                                }
+                                if (progress.type === "complete") {
+                                  setSherpaInstalling(false);
+                                  setParakeetInstalled(true);
+                                }
+                              },
+                            );
+                            try {
+                              const result = await (window as any).electronAPI?.installSherpaOnnx?.();
+                              if (result?.success) {
+                                setParakeetInstalled(true);
+                              } else if (result?.error) {
+                                showAlertDialog({
+                                  title: "Setup Failed",
+                                  description: result.error,
+                                });
+                              }
+                            } catch (err: any) {
+                              showAlertDialog({
+                                title: "Setup Failed",
+                                description:
+                                  err?.message ||
+                                  "Could not install the transcription engine.",
+                              });
+                            } finally {
+                              setSherpaInstalling(false);
+                              setSherpaInstallProgress(0);
+                              if (cleanup) cleanup();
+                            }
+                          }}
+                        >
+                          <Download className="h-3 w-3 mr-1" />
+                          Set Up Parakeet
+                        </Button>
+                      </div>
+                    )}
+
+                    {sherpaInstalling && (
+                      <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
+                        <p className="text-sm font-medium text-blue-800 mb-2">
+                          Setting up transcription engine...
+                        </p>
+                        <div className="flex items-center gap-3">
+                          <div className="flex-1 h-2 bg-blue-200 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-blue-500 rounded-full transition-all"
+                              style={{
+                                width: `${sherpaInstallProgress}%`,
+                              }}
+                            />
+                          </div>
+                          <span className="text-xs text-blue-700 min-w-[3ch]">
+                            {sherpaInstallProgress}%
+                          </span>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={async () => {
+                              await (window as any).electronAPI?.cancelSherpaOnnxInstall?.();
+                              setSherpaInstalling(false);
+                              setSherpaInstallProgress(0);
+                            }}
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
                     )}
 
                     {parakeetModelStatus.downloaded && (

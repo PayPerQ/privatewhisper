@@ -16,6 +16,7 @@ class IPCHandlers {
     this.globeKeyManager = managers.globeKeyManager;
     this.privateProxyManager = managers.privateProxyManager;
     this.parakeetManager = managers.parakeetManager;
+    this.sherpaOnnxInstaller = managers.sherpaOnnxInstaller;
     this.textEditMonitor = managers.textEditMonitor;
 
     // Auto-learn state
@@ -673,6 +674,14 @@ class IPCHandlers {
   }
 
   setupParakeetHandlers() {
+    // Forward server status changes to all renderer windows
+    const wsServer = this.parakeetManager?.serverManager?.wsServer;
+    if (wsServer) {
+      wsServer.on("status-changed", (status) => {
+        this.broadcastToAllWindows("parakeet-server-status-changed", status);
+      });
+    }
+
     ipcMain.handle("transcribe-local-parakeet", async (_event, audioData, options) => {
       try {
         return await this.parakeetManager.transcribeLocalParakeet(audioData, options);
@@ -724,6 +733,28 @@ class IPCHandlers {
 
     ipcMain.handle("parakeet-server-status", async () => {
       return this.parakeetManager.getServerStatus();
+    });
+
+    // Sherpa-onnx binary runtime installer
+    ipcMain.handle("install-sherpa-onnx", async (event) => {
+      try {
+        return await this.sherpaOnnxInstaller.install((progress) => {
+          event.sender.send("sherpa-onnx-install-progress", progress);
+        });
+      } catch (error) {
+        return { success: false, error: error.message };
+      }
+    });
+
+    ipcMain.handle("cancel-sherpa-onnx-install", async () => {
+      return this.sherpaOnnxInstaller.cancelInstall();
+    });
+
+    ipcMain.handle("check-sherpa-onnx-status", async () => {
+      return {
+        installed: this.sherpaOnnxInstaller.isInstalled(),
+        path: this.sherpaOnnxInstaller.getBinaryPath(),
+      };
     });
   }
 

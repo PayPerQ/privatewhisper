@@ -2,6 +2,7 @@ const { spawn } = require("child_process");
 const fs = require("fs");
 const path = require("path");
 const WebSocket = require("ws");
+const EventEmitter = require("events");
 const debugLogger = require("./parakeetLogger");
 const os = require("os");
 const {
@@ -18,8 +19,9 @@ const HEALTH_CHECK_INTERVAL_MS = 5000;
 const TRANSCRIPTION_TIMEOUT_MS = 300000;
 const KEEPWARM_INTERVAL_MS = 120000; // Run a warm-up inference every 2 minutes to keep caches hot
 
-class ParakeetWsServer {
+class ParakeetWsServer extends EventEmitter {
   constructor() {
+    super();
     this.process = null;
     this.port = null;
     this.ready = false;
@@ -49,6 +51,18 @@ class ParakeetWsServer {
 
   isAvailable() {
     return this.getWsBinaryPath() !== null;
+  }
+
+  clearBinaryCache() {
+    this.cachedWsBinaryPath = null;
+  }
+
+  _setReady(value) {
+    const prev = this.ready;
+    this.ready = value;
+    if (prev !== value) {
+      this.emit("status-changed", this.getStatus());
+    }
   }
 
   async start(modelName, modelDir) {
@@ -84,10 +98,19 @@ class ParakeetWsServer {
 
     debugLogger.debug("Starting parakeet WS server", { port: this.port, modelName, args });
 
+    const spawnEnv = { ...process.env };
+    const binaryDir = path.dirname(wsBinary);
+    if (process.platform === "darwin") {
+      spawnEnv.DYLD_LIBRARY_PATH = binaryDir;
+    } else if (process.platform === "linux") {
+      spawnEnv.LD_LIBRARY_PATH = binaryDir;
+    }
+
     this.process = spawn(wsBinary, args, {
       stdio: ["ignore", "pipe", "pipe"],
       windowsHide: true,
       cwd: getSafeTempDir(),
+      env: spawnEnv,
     });
 
     let stderrBuffer = "";
@@ -111,14 +134,14 @@ class ParakeetWsServer {
 
     this.process.on("error", (error) => {
       debugLogger.error("parakeet-ws process error", { error: error.message });
-      this.ready = false;
+      this._setReady(false);
       readyResolve(false);
     });
 
     this.process.on("close", (code) => {
       exitCode = code;
       debugLogger.debug("parakeet-ws process exited", { code });
-      this.ready = false;
+      this._setReady(false);
       this.process = null;
       this.stopHealthCheck();
       readyResolve(false);
@@ -168,7 +191,7 @@ class ParakeetWsServer {
       throw new Error(`parakeet-ws process died during startup${details ? `: ${details}` : ""}`);
     }
 
-    this.ready = true;
+    this._setReady(true);
     debugLogger.debug("parakeet-ws ready", { startupTimeMs: Date.now() - startTime });
   }
 
@@ -189,7 +212,7 @@ class ParakeetWsServer {
 
       if (!this.process || !this._isProcessAlive()) {
         debugLogger.warn("parakeet-ws health check: process not alive, auto-restarting");
-        this.ready = false;
+        this._setReady(false);
         this.stopHealthCheck();
         this._autoRestart();
       }
@@ -323,7 +346,7 @@ class ParakeetWsServer {
     this.stopHealthCheck();
 
     if (!this.process) {
-      this.ready = false;
+      this._setReady(false);
       return;
     }
 
@@ -336,7 +359,7 @@ class ParakeetWsServer {
     }
 
     this.process = null;
-    this.ready = false;
+    this._setReady(false);
     this.port = null;
     this.modelName = null;
     this.modelDir = null;

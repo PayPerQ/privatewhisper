@@ -26,24 +26,7 @@
     "!node_modules/.cache/**/*",
     "!src/node_modules/**/*"
   ],
-  "asarUnpack": [
-    "**/node_modules/better-sqlite3/**/*",
-    "**/node_modules/tsx/**/*",
-    "**/node_modules/esbuild/**/*",
-    "**/node_modules/@esbuild/**/*",
-    "**/node_modules/get-tsconfig/**/*",
-    "**/node_modules/ppq-private-mode/**/*",
-    "**/node_modules/tinfoil/**/*",
-    "**/node_modules/@tinfoilsh/**/*",
-    "**/node_modules/ehbp/**/*",
-    "**/node_modules/openai/**/*",
-    "**/node_modules/@ai-sdk/**/*",
-    "**/node_modules/ai/**/*",
-    "**/node_modules/zod/**/*",
-    "**/node_modules/openclaw/**/*",
-    "**/node_modules/@freedomofpress/**/*",
-    "**/node_modules/@sigstore/**/*"
-  ],
+  "asarUnpack": ["**/node_modules/**/*"],
   "extraResources": [
     ".env",
     "src/assets/**/*",

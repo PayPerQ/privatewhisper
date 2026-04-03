@@ -8,6 +8,9 @@ import {
   Keyboard,
   HelpCircle,
   X,
+  Copy,
+  FileText,
+  CheckCircle,
 } from "lucide-react";
 import ApiKeyInput from "./ui/ApiKeyInput";
 import { ConfirmDialog, AlertDialog } from "./ui/dialog";
@@ -32,13 +35,14 @@ import {
 } from "./ui/select";
 import type { UpdateInfoResult } from "../types/electron";
 import { useDictionary } from "../stores/dictionaryStore";
-import { PRIVATE_MODELS } from "../config/constants";
 
 export type SettingsSectionType =
   | "general"
   | "preferences"
+  | "models"
   | "transcription"
-  | "dictionary";
+  | "dictionary"
+  | "logs";
 
 const SYSTEM_DEFAULT_DEVICE_ID = "__system_default__";
 
@@ -71,7 +75,6 @@ export default function SettingsPage({
     llmCleanupEnabled,
     mipOptOut,
     privateModeEnabled,
-    privateModel,
     setPreferredLanguage,
     setPpqApiKey,
     setDictationKey,
@@ -159,6 +162,63 @@ export default function SettingsPage({
     starting: boolean;
     error: string | null;
   }>({ running: false, starting: false, error: null });
+
+  // Logs state
+  const [logFiles, setLogFiles] = useState<
+    { name: string; path: string; size: number; modified: string }[]
+  >([]);
+  const [logsLoading, setLogsLoading] = useState(false);
+  const [logsCopied, setLogsCopied] = useState(false);
+  const [selectedLogContent, setSelectedLogContent] = useState<string | null>(
+    null,
+  );
+  const [selectedLogName, setSelectedLogName] = useState<string | null>(null);
+
+  const loadLogFiles = useCallback(async () => {
+    setLogsLoading(true);
+    try {
+      const result = await (window as any).electronAPI?.getLogFiles?.();
+      setLogFiles(result?.files ?? []);
+    } catch {
+      setLogFiles([]);
+    } finally {
+      setLogsLoading(false);
+    }
+  }, []);
+
+  const copyDiagnosticLogs = useCallback(async () => {
+    try {
+      const result =
+        await (window as any).electronAPI?.collectDiagnosticLogs?.();
+      if (result?.content) {
+        await navigator.clipboard.writeText(result.content);
+        setLogsCopied(true);
+        setTimeout(() => setLogsCopied(false), 2000);
+      }
+    } catch {
+      showAlertDialog({
+        title: "Copy Failed",
+        description: "Could not copy logs to clipboard.",
+      });
+    }
+  }, [showAlertDialog]);
+
+  const viewLogFile = useCallback(async (filePath: string, name: string) => {
+    try {
+      const result = await (window as any).electronAPI?.readLogFile?.(filePath);
+      setSelectedLogContent(result?.content ?? "No content");
+      setSelectedLogName(name);
+    } catch {
+      setSelectedLogContent("Failed to read log file.");
+      setSelectedLogName(name);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeSection === "logs") {
+      void loadLogFiles();
+    }
+  }, [activeSection, loadLogFiles]);
 
   // Dictionary state and handlers
   const { items: dictionaryTerms, isLoading: dictionaryLoading } =
@@ -351,6 +411,9 @@ export default function SettingsPage({
     async (enabled: boolean) => {
       setPrivateModeEnabled(enabled);
       if (enabled) {
+        setPrivateModel("private/llama3-3-70b");
+        // Stop any existing proxy first to avoid port conflicts
+        await window.electronAPI?.stopPrivateProxy?.();
         setProxyStatus((prev) => ({ ...prev, starting: true, error: null }));
         const result = await window.electronAPI?.startPrivateProxy?.();
         if (result && !result.success) {
@@ -362,9 +425,10 @@ export default function SettingsPage({
         }
       } else {
         await window.electronAPI?.stopPrivateProxy?.();
+        setProxyStatus({ running: false, starting: false, error: null });
       }
     },
-    [setPrivateModeEnabled],
+    [setPrivateModeEnabled, setPrivateModel],
   );
 
   useEffect(() => {
@@ -1081,34 +1145,6 @@ export default function SettingsPage({
               </div>
             </div>
 
-            {/* LLM Text Cleanup Section */}
-            <div className="border-t pt-8">
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                  Text Cleanup
-                </h3>
-                <p className="text-sm text-gray-600 mb-4">
-                  Use AI to clean up transcriptions by removing filler words,
-                  fixing grammar, and improving punctuation. When disabled, you
-                  get the raw speech-to-text output.
-                </p>
-                <div className="flex items-center justify-between p-4 bg-neutral-50 rounded-lg">
-                  <div>
-                    <p className="text-sm font-medium text-neutral-800">
-                      LLM Text Cleanup
-                    </p>
-                    <p className="text-xs text-neutral-600">
-                      Clean up transcriptions with AI after speech-to-text.
-                    </p>
-                  </div>
-                  <Toggle
-                    checked={llmCleanupEnabled}
-                    onChange={(checked) => setLlmCleanupEnabled(checked)}
-                  />
-                </div>
-              </div>
-            </div>
-
             {/* Appearance Section */}
             <div className="border-t pt-8">
               <div>
@@ -1251,295 +1287,363 @@ export default function SettingsPage({
               </div>
             </div>
 
-            {/* Privacy Section */}
+          </div>
+        );
+
+      case "models":
+        return (
+          <div className="space-y-8">
+            {/* How PPQ Whisper Works */}
+            <div>
+              <div className="rounded-lg border border-orange-200 bg-orange-50 p-4 text-sm text-orange-800">
+                <p className="font-medium mb-2">PPQ Whisper uses a two-step voice processing pipeline:</p>
+                <ol className="list-decimal list-inside space-y-1.5 ml-1">
+                  <li>
+                    <span className="font-medium">Speech-to-Text (STT)</span> — A
+                    transcription provider converts your audio into raw text.
+                    Configure the provider below.
+                  </li>
+                  <li>
+                    <span className="font-medium">LLM Cleanup (Optional)</span> — Fixes
+                    punctuation, filler words, and formatting. Also applies your
+                    custom dictionary.
+                  </li>
+                </ol>
+              </div>
+            </div>
+
+            {/* Transcription Provider */}
             <div className="border-t pt-8">
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                  Privacy
+                  Speech-to-Text (STT) Provider
                 </h3>
                 <p className="text-sm text-gray-600 mb-4">
-                  Control how your audio data is used.
+                  Choose between local transcription (Parakeet via sherpa-onnx) or cloud transcription (Deepgram).
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                <label
+                  className={`flex items-start gap-3 p-4 rounded-xl border cursor-pointer transition-colors ${
+                    transcriptionProvider === "local"
+                      ? "border-orange-300 bg-orange-50"
+                      : "border-border bg-accent hover:bg-neutral-100"
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="sttProvider"
+                    checked={transcriptionProvider === "local"}
+                    onChange={() => setTranscriptionProvider("local")}
+                    className="mt-1 accent-orange-500"
+                  />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-foreground">Parakeet (Local) <span className="text-xs font-medium text-green-600 ml-1">Recommended</span></p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Blazing fast and free transcription that runs locally on your device. Requires a one-time model download (~680 MB) and works on most devices.
+                    </p>
+                  </div>
+                </label>
+
+                {/* Parakeet model management (visible when local is selected) */}
+                {transcriptionProvider === "local" && (
+                  <div className="space-y-3 p-4 rounded-xl border border-border bg-accent">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="text-sm font-medium text-foreground">
+                          Parakeet TDT 0.6B
+                        </h4>
+                        <p className="text-xs text-muted-foreground">
+                          Multilingual ASR (25 languages) &middot; ~680 MB
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {parakeetModelStatus.downloaded ? (
+                          <>
+                            <span className="text-xs text-green-600 font-medium">
+                              Ready
+                            </span>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={async () => {
+                                await (window as any).electronAPI?.deleteParakeetModel?.(parakeetModel);
+                                setParakeetModelStatus({ downloaded: false });
+                              }}
+                            >
+                              Delete
+                            </Button>
+                          </>
+                        ) : parakeetDownloading ? (
+                          <div className="flex items-center gap-2">
+                            <div className="w-24 h-2 bg-gray-200 rounded-full overflow-hidden">
+                              <div
+                                className="h-full bg-blue-500 rounded-full transition-all"
+                                style={{
+                                  width: `${parakeetDownloadProgress}%`,
+                                }}
+                              />
+                            </div>
+                            <span className="text-xs text-muted-foreground">
+                              {parakeetDownloadProgress}%
+                            </span>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={async () => {
+                                await (window as any).electronAPI?.cancelParakeetDownload?.();
+                                setParakeetDownloading(false);
+                                setParakeetDownloadProgress(0);
+                              }}
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        ) : (
+                          <Button
+                            size="sm"
+                            disabled={!parakeetInstalled}
+                            onClick={async () => {
+                              setParakeetDownloading(true);
+                              setParakeetDownloadProgress(0);
+                              const cleanup = (window as any).electronAPI?.onParakeetDownloadProgress?.(
+                                (progress: any) => {
+                                  if (progress.percentage != null) {
+                                    setParakeetDownloadProgress(progress.percentage);
+                                  }
+                                  if (progress.type === "complete") {
+                                    setParakeetDownloading(false);
+                                    setParakeetModelStatus({ downloaded: true });
+                                  }
+                                },
+                              );
+                              try {
+                                await (window as any).electronAPI?.downloadParakeetModel?.(parakeetModel);
+                              } catch {
+                                setParakeetDownloading(false);
+                              }
+                              if (cleanup) cleanup();
+                            }}
+                          >
+                            <Download className="h-3 w-3 mr-1" />
+                            Download
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+
+                    {!parakeetInstalled && (
+                      <p className="text-xs text-amber-600">
+                        sherpa-onnx binary not found. Run{" "}
+                        <code className="bg-gray-100 px-1 rounded">
+                          npm run download:sherpa-onnx
+                        </code>{" "}
+                        to install it.
+                      </p>
+                    )}
+
+                    {parakeetModelStatus.downloaded && (
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <span
+                          className={`inline-block w-2 h-2 rounded-full ${
+                            parakeetServerRunning
+                              ? "bg-green-500"
+                              : "bg-gray-400"
+                          }`}
+                        />
+                        Server{" "}
+                        {parakeetServerRunning ? "running" : "stopped (starts on first use)"}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <label
+                  className={`flex items-start gap-3 p-4 rounded-xl border cursor-pointer transition-colors ${
+                    transcriptionProvider === "cloud"
+                      ? "border-orange-300 bg-orange-50"
+                      : "border-border bg-accent hover:bg-neutral-100"
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="sttProvider"
+                    checked={transcriptionProvider === "cloud"}
+                    onChange={() => setTranscriptionProvider("cloud")}
+                    className="mt-1 accent-orange-500"
+                  />
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Deepgram (Cloud)</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Transcription via Deepgram. No local setup required. Works on all devices. Small cost.
+                    </p>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            {/* Privacy Section — only relevant for cloud (Deepgram) provider */}
+            {transcriptionProvider === "cloud" && (
+              <div className="border-t pt-8">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                    STT Provider Privacy
+                  </h3>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Voice data is sent to Deepgram.com for processing.
+                  </p>
+                  <div className="flex items-center justify-between p-4 bg-neutral-50 rounded-lg">
+                    <div>
+                      <p className="text-sm font-medium text-neutral-800">
+                        Keep audio data from being retained and trained upon.
+                      </p>
+                      <p className="text-xs text-neutral-600">
+                        When enabled, your audio is not used for AI model training.
+                      </p>
+                    </div>
+                    <Toggle
+                      checked={mipOptOut}
+                      onChange={(checked) => setMipOptOut(checked)}
+                    />
+                  </div>
+                  <div className="rounded-lg border border-orange-200 bg-orange-50 p-3 text-xs text-orange-800 mt-4">
+                    <p className="font-medium mb-1">Model Improvement Partnership</p>
+                    <p>
+                      When enabled (default), your audio stays private and is not trained on or retained by PPQ's speech-to-text provider. Disable this option
+                      to allow your audio to be used for model training from our provider and receive a ~45%
+                      discount on transcription costs. Lastly, your audio is never trained on or retained by PPQ under any circumstance.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* LLM Text Cleanup Section */}
+            <div className="border-t pt-8">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  LLM Text Cleanup
+                </h3>
+                <p className="text-sm text-gray-600 mb-4">
+                  Remove filler words,
+                  fix grammar, and improve punctuation, and apply dictionary words by using LLM cleanup. When disabled, you
+                  get the raw speech-to-text output.
                 </p>
                 <div className="flex items-center justify-between p-4 bg-neutral-50 rounded-lg">
                   <div>
                     <p className="text-sm font-medium text-neutral-800">
-                      Keep audio data private
-                    </p>
-                    <p className="text-xs text-neutral-600">
-                      When enabled, your audio is not used for AI model training.
+                      LLM Text Cleanup
                     </p>
                   </div>
                   <Toggle
-                    checked={mipOptOut}
-                    onChange={(checked) => setMipOptOut(checked)}
+                    checked={llmCleanupEnabled}
+                    onChange={(checked) => setLlmCleanupEnabled(checked)}
                   />
-                </div>
-                <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-800 mt-4">
-                  <p className="font-medium mb-1">Model Improvement Partnership</p>
-                  <p>
-                    When enabled (default), your audio stays private and is not trained on or retained by PPQ's speech-to-text provider. Disable this option
-                    to allow your audio to be used for model training from our provider and receive a ~45%
-                    discount on transcription costs. Lastly, your audio is never trained on or retained by PPQ under any circumstance.
-                  </p>
                 </div>
               </div>
             </div>
 
-            {/* Private Mode Section */}
-            <div className="border-t pt-8">
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                  Private Mode
-                </h3>
-                <p className="text-sm text-gray-600 mb-4">
-                  End-to-end encrypted AI processing via PPQ's secure enclaves.
-                </p>
+            {/* Cleanup Provider Section */}
+            {llmCleanupEnabled && (
+              <div className="border-t pt-8">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                    Cleanup Provider
+                  </h3>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Choose which provider handles your LLM text cleanup.
+                  </p>
 
-                <div className="flex items-center justify-between p-4 bg-neutral-50 rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-medium text-neutral-800">
-                          Enable Private Mode
+                  <div className="space-y-3">
+                    <label
+                      className={`flex items-start gap-3 p-4 rounded-xl border cursor-pointer transition-colors ${
+                        privateModeEnabled
+                          ? "border-orange-300 bg-orange-50"
+                          : "border-border bg-accent hover:bg-neutral-100"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="cleanupProvider"
+                        checked={privateModeEnabled}
+                        onChange={() => handlePrivateModeToggle(true)}
+                        className="mt-1 accent-orange-500"
+                      />
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-medium text-foreground">Tinfoil</p>
+                          {privateModeEnabled && (
+                            <span
+                              className={`inline-block h-2 w-2 rounded-full ${
+                                proxyStatus.running
+                                  ? "bg-green-500"
+                                  : proxyStatus.starting
+                                    ? "bg-yellow-500 animate-pulse"
+                                    : proxyStatus.error
+                                      ? "bg-red-500"
+                                      : "bg-gray-400"
+                              }`}
+                              title={
+                                proxyStatus.running
+                                  ? "Proxy running"
+                                  : proxyStatus.starting
+                                    ? "Proxy starting..."
+                                    : proxyStatus.error
+                                      ? `Error: ${proxyStatus.error}`
+                                      : "Proxy stopped"
+                              }
+                            />
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Your cleanup requests are encrypted
+                          on your device before being sent — processing happens inside a
+                          hardware-secured enclave so neither PPQ nor any intermediary can
+                          read your data. Slightly slower processing and higher cost.
                         </p>
-                        {privateModeEnabled && (
-                          <span
-                            className={`inline-block h-2 w-2 rounded-full ${
-                              proxyStatus.running
-                                ? "bg-green-500"
-                                : proxyStatus.starting
-                                  ? "bg-yellow-500 animate-pulse"
-                                  : proxyStatus.error
-                                    ? "bg-red-500"
-                                    : "bg-gray-400"
-                            }`}
-                            title={
-                              proxyStatus.running
-                                ? "Proxy running"
-                                : proxyStatus.starting
-                                  ? "Proxy starting..."
-                                  : proxyStatus.error
-                                    ? `Error: ${proxyStatus.error}`
-                                    : "Proxy stopped"
-                            }
-                          />
-                        )}
                       </div>
-                      <p className="text-xs text-neutral-600">
-                        Routes text cleanup through an encrypted local proxy.
-                        Your queries are end-to-end encrypted.
-                      </p>
-                    </div>
-                  </div>
-                  <Toggle
-                    checked={privateModeEnabled}
-                    onChange={handlePrivateModeToggle}
-                  />
-                </div>
+                    </label>
 
-                {privateModeEnabled && (
-                  <div className="mt-4 space-y-3">
-                    <div className="p-4 bg-neutral-50 rounded-lg">
-                      <p className="text-sm font-medium text-neutral-800 mb-2">
-                        Private Model
-                      </p>
-                      <Select
-                        value={privateModel}
-                        onValueChange={(value) => setPrivateModel(value)}
-                      >
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Select a private model" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {PRIVATE_MODELS.map((model) => (
-                            <SelectItem key={model.id} value={model.id}>
-                              {model.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
+                    <label
+                      className={`flex items-start gap-3 p-4 rounded-xl border cursor-pointer transition-colors ${
+                        !privateModeEnabled
+                          ? "border-orange-300 bg-orange-50"
+                          : "border-border bg-accent hover:bg-neutral-100"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="cleanupProvider"
+                        checked={!privateModeEnabled}
+                        onChange={() => handlePrivateModeToggle(false)}
+                        className="mt-1 accent-orange-500"
+                      />
+                      <div>
+                        <p className="text-sm font-medium text-foreground">Groq</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Fastest cleanup performance. Cheapest. Your anonymous transcription text is sent to
+                          Groq for processing.
+                        </p>
+                      </div>
+                    </label>
 
-                    {proxyStatus.error && (
+                    {privateModeEnabled && proxyStatus.error && (
                       <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-800">
-                        <p className="font-medium mb-1">Private Mode Error</p>
+                        <p className="font-medium mb-1">Tinfoil Error</p>
                         <p>{proxyStatus.error}</p>
                       </div>
                     )}
-
-                    <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-800">
-                      <p className="font-medium mb-1">
-                        How Private Mode Works
-                      </p>
-                      <p>
-                        Your text cleanup requests are encrypted on your device
-                        before being sent to PPQ. Processing happens inside a
-                        hardware-secured enclave — neither PPQ nor any
-                        intermediary can read your data. Transcription continues
-                        to use the standard PPQ endpoint.
-                      </p>
-                    </div>
                   </div>
-                )}
+                </div>
               </div>
-            </div>
+            )}
           </div>
         );
 
       case "transcription":
         return (
           <div className="space-y-6">
-            {/* Transcription Provider */}
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                Transcription Provider
-              </h3>
-              <p className="text-sm text-gray-600">
-                Choose between cloud transcription (PPQ/Nova-3) or local
-                transcription (Parakeet via sherpa-onnx).
-              </p>
-            </div>
-
-            <div className="space-y-4 p-4 bg-accent border border-border rounded-xl">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="font-medium text-foreground">Provider</h4>
-                  <p className="text-sm text-muted-foreground mt-0.5">
-                    {transcriptionProvider === "local"
-                      ? "Transcription runs locally on your device"
-                      : "Transcription via PPQ cloud (Nova-3)"}
-                  </p>
-                </div>
-                <Select
-                  value={transcriptionProvider}
-                  onValueChange={(value: "cloud" | "local") =>
-                    setTranscriptionProvider(value)
-                  }
-                >
-                  <SelectTrigger className="w-[160px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="cloud">Cloud (Nova-3)</SelectItem>
-                    <SelectItem value="local">Local (Parakeet)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Parakeet model management (visible when local is selected) */}
-              {transcriptionProvider === "local" && (
-                <div className="space-y-3 pt-3 border-t border-border">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="text-sm font-medium text-foreground">
-                        Parakeet TDT 0.6B
-                      </h4>
-                      <p className="text-xs text-muted-foreground">
-                        Multilingual ASR (25 languages) &middot; ~680 MB
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {parakeetModelStatus.downloaded ? (
-                        <>
-                          <span className="text-xs text-green-600 font-medium">
-                            Ready
-                          </span>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={async () => {
-                              await (window as any).electronAPI?.deleteParakeetModel?.(parakeetModel);
-                              setParakeetModelStatus({ downloaded: false });
-                            }}
-                          >
-                            Delete
-                          </Button>
-                        </>
-                      ) : parakeetDownloading ? (
-                        <div className="flex items-center gap-2">
-                          <div className="w-24 h-2 bg-gray-200 rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-blue-500 rounded-full transition-all"
-                              style={{
-                                width: `${parakeetDownloadProgress}%`,
-                              }}
-                            />
-                          </div>
-                          <span className="text-xs text-muted-foreground">
-                            {parakeetDownloadProgress}%
-                          </span>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={async () => {
-                              await (window as any).electronAPI?.cancelParakeetDownload?.();
-                              setParakeetDownloading(false);
-                              setParakeetDownloadProgress(0);
-                            }}
-                          >
-                            Cancel
-                          </Button>
-                        </div>
-                      ) : (
-                        <Button
-                          size="sm"
-                          disabled={!parakeetInstalled}
-                          onClick={async () => {
-                            setParakeetDownloading(true);
-                            setParakeetDownloadProgress(0);
-                            const cleanup = (window as any).electronAPI?.onParakeetDownloadProgress?.(
-                              (progress: any) => {
-                                if (progress.percentage != null) {
-                                  setParakeetDownloadProgress(progress.percentage);
-                                }
-                                if (progress.type === "complete") {
-                                  setParakeetDownloading(false);
-                                  setParakeetModelStatus({ downloaded: true });
-                                }
-                              },
-                            );
-                            try {
-                              await (window as any).electronAPI?.downloadParakeetModel?.(parakeetModel);
-                            } catch {
-                              setParakeetDownloading(false);
-                            }
-                            if (cleanup) cleanup();
-                          }}
-                        >
-                          <Download className="h-3 w-3 mr-1" />
-                          Download
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-
-                  {!parakeetInstalled && (
-                    <p className="text-xs text-amber-600">
-                      sherpa-onnx binary not found. Run{" "}
-                      <code className="bg-gray-100 px-1 rounded">
-                        npm run download:sherpa-onnx
-                      </code>{" "}
-                      to install it.
-                    </p>
-                  )}
-
-                  {parakeetModelStatus.downloaded && (
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <span
-                        className={`inline-block w-2 h-2 rounded-full ${
-                          parakeetServerRunning
-                            ? "bg-green-500"
-                            : "bg-gray-400"
-                        }`}
-                      />
-                      Server{" "}
-                      {parakeetServerRunning ? "running" : "stopped (starts on first use)"}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
             {/* API Key */}
             <div>
               <h3 className="text-lg font-semibold text-gray-900 mb-2">
@@ -1672,6 +1776,141 @@ export default function SettingsPage({
                 in the post-processing prompt to preserve exact spelling.
               </p>
             </div>
+          </div>
+        );
+
+      case "logs":
+        return (
+          <div className="space-y-6">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                Diagnostic Logs
+              </h3>
+              <p className="text-sm text-gray-600 mb-4">
+                Copy logs to share with the PPQ support team for
+                troubleshooting.
+              </p>
+            </div>
+
+            {/* One-click copy all */}
+            <Button onClick={copyDiagnosticLogs} className="w-full">
+              {logsCopied ? (
+                <>
+                  <CheckCircle size={16} className="mr-2" />
+                  Copied to Clipboard
+                </>
+              ) : (
+                <>
+                  <Copy size={16} className="mr-2" />
+                  Copy Diagnostic Logs
+                </>
+              )}
+            </Button>
+            <p className="text-xs text-gray-500">
+              Copies app version, system info, and recent log entries to your
+              clipboard. Paste into an email or support chat.
+            </p>
+
+            {/* Log files list */}
+            <div className="border-t pt-6">
+              <div className="flex items-center justify-between mb-4">
+                <h4 className="text-sm font-medium text-gray-800">
+                  Log Files
+                </h4>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={loadLogFiles}
+                  disabled={logsLoading}
+                >
+                  <RefreshCw
+                    size={14}
+                    className={logsLoading ? "animate-spin" : ""}
+                  />
+                </Button>
+              </div>
+
+              {logFiles.length === 0 ? (
+                <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600">
+                  <p className="font-medium mb-1">No log files yet</p>
+                  <p className="text-xs">
+                    Logs are collected automatically and retained for one hour.
+                    If the app just started, try again shortly.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {logFiles.map((file) => (
+                    <button
+                      key={file.path}
+                      type="button"
+                      onClick={() => viewLogFile(file.path, file.name)}
+                      className={`w-full text-left p-3 rounded-lg border transition-colors ${
+                        selectedLogName === file.name
+                          ? "border-primary bg-primary/5"
+                          : "border-gray-200 hover:border-gray-300 bg-white"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <FileText size={14} className="text-gray-400" />
+                          <span className="text-sm font-medium text-gray-800">
+                            {file.name}
+                          </span>
+                        </div>
+                        <span className="text-xs text-gray-500">
+                          {(file.size / 1024).toFixed(1)} KB
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1 ml-6">
+                        {new Date(file.modified).toLocaleString()}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Log content viewer */}
+            {selectedLogContent !== null && selectedLogName && (
+              <div className="border-t pt-6">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-sm font-medium text-gray-800">
+                    {selectedLogName}
+                  </h4>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={async () => {
+                        await navigator.clipboard.writeText(selectedLogContent);
+                        showAlertDialog({
+                          title: "Copied",
+                          description:
+                            "Log file contents copied to clipboard.",
+                        });
+                      }}
+                    >
+                      <Copy size={14} className="mr-1" />
+                      Copy
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedLogContent(null);
+                        setSelectedLogName(null);
+                      }}
+                    >
+                      <X size={14} />
+                    </Button>
+                  </div>
+                </div>
+                <pre className="text-xs bg-gray-900 text-gray-100 p-4 rounded-lg overflow-auto max-h-80 whitespace-pre-wrap break-all font-mono">
+                  {selectedLogContent || "(empty)"}
+                </pre>
+              </div>
+            )}
           </div>
         );
 

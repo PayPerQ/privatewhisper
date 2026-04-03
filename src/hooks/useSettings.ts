@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { useLocalStorage } from "./useLocalStorage";
 export interface TranscriptionSettings {
   preferredLanguage: string;
@@ -254,6 +254,19 @@ export function useSettings() {
     [setMipOptOut, setPrivateModeEnabled, setPrivateModel],
   );
 
+  // Bootstrap: persist current transcription settings to disk on first render
+  // so the main process can read them at next startup for parakeet pre-warming.
+  const bootstrappedRef = useRef(false);
+  useEffect(() => {
+    if (!bootstrappedRef.current) {
+      bootstrappedRef.current = true;
+      window.electronAPI.saveSettings({
+        transcriptionProvider,
+        parakeetModel,
+      });
+    }
+  }, [transcriptionProvider, parakeetModel]);
+
   const updateLocalTranscriptionSettings = useCallback(
     (settings: Partial<LocalTranscriptionSettings>) => {
       if (settings.transcriptionProvider !== undefined) {
@@ -261,6 +274,18 @@ export function useSettings() {
       }
       if (settings.parakeetModel !== undefined) {
         setParakeetModel(settings.parakeetModel);
+      }
+      // Persist to disk so the main process can read these at next startup
+      // (before the renderer loads) for parakeet pre-warming.
+      const toPersist: Record<string, string> = {};
+      if (settings.transcriptionProvider !== undefined) {
+        toPersist.transcriptionProvider = settings.transcriptionProvider;
+      }
+      if (settings.parakeetModel !== undefined) {
+        toPersist.parakeetModel = settings.parakeetModel;
+      }
+      if (Object.keys(toPersist).length > 0) {
+        window.electronAPI.saveSettings(toPersist);
       }
     },
     [setTranscriptionProvider, setParakeetModel],

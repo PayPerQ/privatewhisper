@@ -1,5 +1,5 @@
 import React from "react";
-import { Settings, Key, BookOpen, SlidersHorizontal } from "lucide-react";
+import { Settings, Key, BookOpen, SlidersHorizontal, Cpu, ScrollText } from "lucide-react";
 import SidebarModal, { SidebarItem } from "./ui/SidebarModal";
 import SettingsPage, { SettingsSectionType } from "./SettingsPage";
 
@@ -15,8 +15,10 @@ export default function SettingsModal({
   const sidebarItems: SidebarItem<SettingsSectionType>[] = [
     { id: "general", label: "General", icon: Settings },
     { id: "preferences", label: "Preferences", icon: SlidersHorizontal },
+    { id: "models", label: "Model Selection", icon: Cpu },
     { id: "transcription", label: "API Key", icon: Key },
     { id: "dictionary", label: "Dictionary", icon: BookOpen },
+    { id: "logs", label: "Logs", icon: ScrollText },
   ];
 
   const [activeSection, setActiveSection] =

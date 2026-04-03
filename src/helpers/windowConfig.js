@@ -12,6 +12,7 @@ const MAIN_WINDOW_CONFIG = {
     enableRemoteModule: false,
     sandbox: false,
     webSecurity: false,
+    backgroundThrottling: false,
   },
   frame: false,
   alwaysOnTop: true,

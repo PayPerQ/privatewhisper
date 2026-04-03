@@ -51,7 +51,7 @@
     {
       "from": "resources/bin",
       "to": "bin",
-      "filter": ["macos-globe-listener*"]
+      "filter": ["macos-globe-listener*", "macos-text-monitor*"]
     },
     {
       "from": "resources/bin",

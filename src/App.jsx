@@ -444,6 +444,54 @@ export default function App() {
     };
   }, [setHotkeyMode]);
 
+  // Listen for auto-learned dictionary corrections
+  const autoLearnResizeTimer = useRef(null);
+  useEffect(() => {
+    if (!window.electronAPI?.onCorrectionsLearned) return;
+    const TOAST_DURATION = 8000;
+    const unsubscribe = window.electronAPI.onCorrectionsLearned((words) => {
+      if (!Array.isArray(words) || words.length === 0) return;
+      const label = words.join(", ");
+
+      // Expand the overlay so the toast is fully visible
+      window.electronAPI?.resizeMainWindow?.(320, 200);
+      if (autoLearnResizeTimer.current) {
+        clearTimeout(autoLearnResizeTimer.current);
+      }
+      autoLearnResizeTimer.current = setTimeout(() => {
+        autoLearnResizeTimer.current = null;
+        // Restore default size (matches the resize effect below)
+        if (!overlayError && !isCommandMenuOpen) {
+          window.electronAPI?.resizeMainWindow?.(180, 120);
+        }
+      }, TOAST_DURATION + 500);
+
+      toast({
+        title: "Dictionary Updated",
+        description: `Learned: ${label}`,
+        duration: TOAST_DURATION,
+        action: (
+          <button
+            className="text-xs underline opacity-70 hover:opacity-100"
+            onClick={() => {
+              window.electronAPI.undoLearnedCorrections?.(words);
+            }}
+          >
+            Undo
+          </button>
+        ),
+      });
+    });
+    return () => {
+      if (typeof unsubscribe === "function") {
+        unsubscribe();
+      }
+      if (autoLearnResizeTimer.current) {
+        clearTimeout(autoLearnResizeTimer.current);
+      }
+    };
+  }, [toast, overlayError, isCommandMenuOpen]);
+
   const audioSettings = useMemo(() => {
     const dictionary = dictionaryTerms.map((t) => t.term);
     void appLogger.log("AUDIO_SETTINGS_COMPUTED", {
@@ -677,6 +725,11 @@ export default function App() {
       const storedLlmCleanup = localStorage.getItem("llmCleanupEnabled");
       const latestLlmCleanupEnabled = storedLlmCleanup !== "false"; // Default true if not set
 
+      const isPrivate = localStorage.getItem("privateModeEnabled") === "true";
+      const latestReasoningModel = isPrivate
+        ? localStorage.getItem("privateModel")
+        : "gpt-oss-120b";
+
       const settingsWithLatestMip = {
         ...currentAudioSettings,
         mipOptOut: latestMipOptOut,
@@ -684,6 +737,7 @@ export default function App() {
         transcriptionProvider: latestTranscriptionProvider,
         parakeetModel: latestParakeetModel,
         useReasoningModel: latestLlmCleanupEnabled,
+        reasoningModel: latestReasoningModel,
       };
 
       // void appLogger.log("START_RECORDING", {
@@ -1007,8 +1061,10 @@ export default function App() {
   };
 
   const cancelProcessing = () => {
-    if (isProcessing && audioManagerRef.current) {
-      audioManagerRef.current.cancelProcessing();
+    if (isProcessing) {
+      if (audioManagerRef.current) {
+        audioManagerRef.current.cancelProcessing();
+      }
       setIsProcessing(false);
       setInterimTranscript("");
       return true;
@@ -1209,10 +1265,7 @@ export default function App() {
       isRecording || isConnecting || isProcessing || isReconnecting;
 
     if (isActive) {
-      // Show icon after 500ms delay
-      showIconTimeoutRef.current = setTimeout(() => {
-        setShouldShowIconDelayed(true);
-      }, 300);
+      setShouldShowIconDelayed(true);
     } else {
       // Hide immediately when no longer active
       if (showIconTimeoutRef.current) {

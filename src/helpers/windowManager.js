@@ -19,6 +19,7 @@ class WindowManager {
     this.dragManager = new DragManager();
     this.isQuitting = false;
     this.isMainWindowInteractive = false;
+    this._dictationPanelHidden = true;
 
     app.on("before-quit", () => {
       this.isQuitting = true;
@@ -123,6 +124,7 @@ class WindowManager {
 
   async initializeHotkey() {
     const callback = () => {
+      if (this.textEditMonitor) this.textEditMonitor.captureTargetPid();
       if (!this.mainWindow.isVisible()) {
         this.mainWindow.show();
       }
@@ -134,6 +136,7 @@ class WindowManager {
 
   async updateHotkey(hotkey) {
     const callback = () => {
+      if (this.textEditMonitor) this.textEditMonitor.captureTargetPid();
       if (!this.mainWindow.isVisible()) {
         this.mainWindow.show();
       }
@@ -282,6 +285,11 @@ class WindowManager {
           this.mainWindow.show();
         }
       }
+      if (this._dictationPanelHidden) {
+        this.mainWindow.setOpacity(1);
+        this.mainWindow.setIgnoreMouseEvents(true, { forward: true });
+        this._dictationPanelHidden = false;
+      }
       if (focus) {
         this.mainWindow.focus();
       }
@@ -302,11 +310,9 @@ class WindowManager {
 
   hideDictationPanel() {
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
-      if (process.platform === "darwin") {
-        this.mainWindow.hide();
-      } else {
-        this.mainWindow.minimize();
-      }
+      this.mainWindow.setOpacity(0);
+      this.mainWindow.setIgnoreMouseEvents(true, { forward: false });
+      this._dictationPanelHidden = true;
     }
   }
 
@@ -319,7 +325,7 @@ class WindowManager {
       return false;
     }
 
-    return this.mainWindow.isVisible();
+    return this.mainWindow.isVisible() && !this._dictationPanelHidden;
   }
 
   registerMainWindowEvents() {

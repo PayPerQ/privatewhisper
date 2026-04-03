@@ -144,7 +144,7 @@ type AudioManagerCallbacks = {
 
 const DEFAULT_SETTINGS: AudioSettings = {
   useReasoningModel: true,
-  reasoningModel: "openai/gpt-oss-120b",
+  reasoningModel: "",
   preferredLanguage: "en",
   dictionary: [],
   mipOptOut: true, // Default: opted out of MIP (no discount, user data stays private)
@@ -1303,6 +1303,14 @@ class AudioManager {
       this.onError?.({
         title: "Local Transcription Error",
         description: error.message,
+      });
+
+      // Signal completion (with empty text) so the UI resets isProcessing
+      this.onTranscriptionComplete?.({
+        success: false,
+        text: "",
+        source: "local-parakeet",
+        metrics: this.metrics,
       });
 
       return "";

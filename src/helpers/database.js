@@ -272,6 +272,77 @@ class DatabaseManager {
     }
   }
 
+  addDictionaryTermsBulk(terms) {
+    try {
+      if (!this.db) {
+        throw new Error("Database not initialized");
+      }
+      const insert = this.db.prepare(
+        "INSERT OR IGNORE INTO dictionary (term) VALUES (?)",
+      );
+      const select = this.db.prepare("SELECT * FROM dictionary WHERE term = ?");
+      const transaction = this.db.transaction((wordList) => {
+        const added = [];
+        let duplicateCount = 0;
+        for (const word of wordList) {
+          const trimmed = typeof word === "string" ? word.trim() : "";
+          if (!trimmed) continue;
+          const result = insert.run(trimmed);
+          if (result.changes > 0) {
+            added.push(select.get(trimmed));
+          } else {
+            duplicateCount++;
+          }
+        }
+        return { added, duplicateCount };
+      });
+      const { added, duplicateCount } = transaction(terms);
+      debugLogger.logEvent("database", "dictionary-terms-bulk-added", {
+        requested: terms.length,
+        added: added.length,
+        duplicateCount,
+      });
+      return { success: true, added, duplicateCount };
+    } catch (error) {
+      debugLogger.error("database", "dictionary-bulk-add-failed", {
+        error: error.message,
+      });
+      throw error;
+    }
+  }
+
+  removeDictionaryTermsByWord(words) {
+    try {
+      if (!this.db) {
+        throw new Error("Database not initialized");
+      }
+      const del = this.db.prepare(
+        "DELETE FROM dictionary WHERE LOWER(term) = LOWER(?)",
+      );
+      const transaction = this.db.transaction((wordList) => {
+        let removed = 0;
+        for (const word of wordList) {
+          const trimmed = typeof word === "string" ? word.trim() : "";
+          if (!trimmed) continue;
+          const result = del.run(trimmed);
+          removed += result.changes;
+        }
+        return removed;
+      });
+      const removed = transaction(words);
+      debugLogger.logEvent("database", "dictionary-terms-bulk-removed", {
+        requested: words.length,
+        removed,
+      });
+      return { success: true, removed };
+    } catch (error) {
+      debugLogger.error("database", "dictionary-bulk-remove-failed", {
+        error: error.message,
+      });
+      throw error;
+    }
+  }
+
   clearDictionary() {
     try {
       if (!this.db) {

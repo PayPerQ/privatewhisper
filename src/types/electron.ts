@@ -191,6 +191,18 @@ declare global {
         callback: (payload: { cleared: number }) => void,
       ) => () => void;
 
+      // Auto-learn controls
+      setAutoLearnEnabled?: (enabled: boolean) => void;
+      onCorrectionsLearned?: (
+        callback: (words: string[]) => void,
+      ) => () => void;
+      undoLearnedCorrections?: (
+        words: string[],
+      ) => Promise<{ success: boolean; removed?: number }>;
+      onDictionaryUpdated?: (
+        callback: (terms: DictionaryTerm[]) => void,
+      ) => () => void;
+
       // Debug logging
       logReasoning?: (stage: string, details: any) => Promise<void>;
       logDebugEvent?: (

@@ -1,0 +1,3 @@
+-- Remote-only migration: original SQL not available locally.
+-- This placeholder exists so the Supabase CLI sees the version as known
+-- without re-applying it. The remote has already recorded this migration.

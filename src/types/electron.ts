@@ -47,10 +47,18 @@ export interface AppVersionResult {
   version: string;
 }
 
-// Additional interface missing from preload.js
+// Partial settings sent to main via the save-settings IPC. All keys optional —
+// the renderer sends whatever subset it wants to persist, and main filters
+// against an allowlist in ipcHandlers.js before writing to disk.
 export interface SaveSettings {
-  apiKey: string;
-  hotkey: string;
+  apiKey?: string;
+  hotkey?: string;
+  transcriptionProvider?: "cloud" | "local";
+  parakeetModel?: string;
+  reasoningProvider?: "ppq" | "tinfoil" | "local-gemma";
+  gemmaModel?: string;
+  gemmaIdleShutdownEnabled?: boolean;
+  [key: string]: string | boolean | undefined;
 }
 
 declare global {

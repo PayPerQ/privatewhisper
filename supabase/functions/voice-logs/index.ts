@@ -19,6 +19,30 @@ const normalizeInt = (value: unknown): number | null =>
 const normalizeString = (value: unknown): string | null =>
   typeof value === "string" && value.trim() ? value.trim() : null;
 
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+const normalizeUuid = (value: unknown): string | null => {
+  if (typeof value !== "string") return null;
+  const v = value.trim().toLowerCase();
+  return UUID_RE.test(v) ? v : null;
+};
+
+// Canonicalize provider names: lowercase + map internal aliases to real
+// vendors. Mirrors normalizeProviderName in the renderer (src/App.jsx) so
+// rows from older clients also land canonical (e.g. "Groq" -> "groq",
+// "ppq-private" -> "tinfoil").
+const PROVIDER_ALIASES: Record<string, string> = {
+  "ppq-private": "tinfoil",
+  "x-ai": "xai",
+  grok: "xai",
+};
+const normalizeProvider = (value: unknown): string | null => {
+  if (typeof value !== "string" || !value.trim()) return null;
+  const v = value.trim().toLowerCase();
+  return PROVIDER_ALIASES[v] ?? v;
+};
+
 const normalizeCountryCode = (value: unknown): string | null => {
   if (typeof value !== "string") return null;
   const code = value.trim().toUpperCase();
@@ -97,14 +121,19 @@ Deno.serve(async (req) => {
     response_received_at: payload.response_received_at,
     app_version: normalizeString(payload.app_version),
     country_code: countryCode,
+    user_uuid: normalizeUuid(payload.user_uuid),
+    user_label: normalizeString(payload.user_label),
     stt_processing_ms: normalizeInt(payload.stt_processing_ms),
     audio_duration_ms: normalizeInt(payload.audio_duration_ms),
     llm_processing_ms: normalizeInt(payload.llm_processing_ms),
     output_tokens: normalizeInt(payload.output_tokens),
     roundtrip_ms: normalizeInt(payload.roundtrip_ms),
     misc_processing_ms: normalizeInt(payload.misc_processing_ms),
-    model_used: normalizeString(payload.model_used),
-    provider_used: normalizeString(payload.provider_used),
+    stt_model_used: normalizeString(payload.stt_model_used),
+    stt_provider_used: normalizeProvider(payload.stt_provider_used),
+    stt_route: normalizeString(payload.stt_route),
+    llm_model_used: normalizeString(payload.llm_model_used),
+    llm_provider_used: normalizeProvider(payload.llm_provider_used),
     error_message: normalizeString(payload.error_message),
   };
 

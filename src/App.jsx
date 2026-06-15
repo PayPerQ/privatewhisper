@@ -16,6 +16,21 @@ import {
 } from "./utils/sharedAudioContext";
 
 const MIN_HOLD_DURATION_MS = 200;
+
+// Canonicalize LLM provider names for logging: lowercase everything and map
+// internal aliases to their real vendor (e.g. PPQ's private compute is Tinfoil).
+// Keeps the Supabase column free of "Groq"/"groq" duplicates.
+const LLM_PROVIDER_ALIASES = {
+  "ppq-private": "tinfoil",
+  "x-ai": "xai",
+  grok: "xai",
+};
+const normalizeProviderName = (value) => {
+  if (typeof value !== "string" || !value.trim()) return null;
+  const v = value.trim().toLowerCase();
+  return LLM_PROVIDER_ALIASES[v] ?? v;
+};
+
 const pipelineLogger = createDebugLogger("pipeline");
 const audioDeviceLogger = createDebugLogger("audio-device");
 const appLogger = createDebugLogger("app");
@@ -831,12 +846,6 @@ export default function App() {
                       (llmProcessingMs ?? 0),
                   );
             const reasoningUsed = Boolean(metrics?.flags?.reasoningUsed);
-            const modelUsed = reasoningUsed
-              ? metrics?.flags?.reasoningModel
-              : metrics?.flags?.transcriptionModel;
-            const providerUsed = reasoningUsed
-              ? metrics?.flags?.reasoningProvider || "groq"
-              : "ppq";
             const outputTokens = metrics?.flags?.reasoningOutputTokens ?? null;
 
             const logPayload = {
@@ -850,9 +859,15 @@ export default function App() {
               output_tokens: outputTokens,
               roundtrip_ms: roundtripMs,
               misc_processing_ms: miscProcessingMs,
-              model_used: modelUsed ?? null,
-              provider_used: providerUsed ?? null,
               stt_model_used: metrics?.flags?.transcriptionModel ?? null,
+              stt_provider_used: metrics?.flags?.transcriptionVendor ?? null,
+              stt_route: metrics?.flags?.transcriptionRoute ?? null,
+              llm_model_used: reasoningUsed
+                ? (metrics?.flags?.reasoningModel ?? null)
+                : null,
+              llm_provider_used: reasoningUsed
+                ? normalizeProviderName(metrics?.flags?.reasoningProvider)
+                : null,
               error_message: metrics?.errorMessage ?? null,
             };
 

@@ -18,6 +18,8 @@ const GlobeKeyManager = require("./src/helpers/globeKeyManager");
 const PrivateProxyManager = require("./src/helpers/privateProxyManager");
 const ParakeetManager = require("./src/helpers/parakeetManager");
 const SherpaOnnxInstaller = require("./src/helpers/sherpaOnnxInstaller");
+const GemmaManager = require("./src/helpers/gemmaManager");
+const LlamaServerInstaller = require("./src/helpers/llamaServerInstaller");
 const TextEditMonitor = require("./src/helpers/textEditMonitor");
 const { matchesMacKeyCode } = require("./src/helpers/hotkeyKeycodes");
 const { exec, execSync } = require("child_process");
@@ -34,6 +36,8 @@ let globeKeyManager;
 let privateProxyManager;
 let parakeetManager;
 let sherpaOnnxInstaller;
+let gemmaManager;
+let llamaServerInstaller;
 let textEditMonitor;
 let edgeFunctionLogger;
 let ipcHandlers;
@@ -231,6 +235,8 @@ async function startApp() {
   privateProxyManager = new PrivateProxyManager();
   parakeetManager = new ParakeetManager();
   sherpaOnnxInstaller = new SherpaOnnxInstaller();
+  gemmaManager = new GemmaManager();
+  llamaServerInstaller = new LlamaServerInstaller();
   textEditMonitor = new TextEditMonitor();
   // On macOS, default hotkey is GLOBE - disable emoji picker function immediately
   if (process.platform === "darwin") {
@@ -275,6 +281,8 @@ async function startApp() {
     privateProxyManager,
     parakeetManager,
     sherpaOnnxInstaller,
+    gemmaManager,
+    llamaServerInstaller,
     textEditMonitor,
   });
 
@@ -314,6 +322,23 @@ async function startApp() {
   }).catch(() => {
     // Non-fatal — initialization errors are logged internally
   });
+
+  // Initialize Local Gemma (warm-up llama-server if local reasoning is configured)
+  const reasoningProvider = persistedSettings.reasoningProvider || "ppq";
+  const gemmaModel =
+    persistedSettings.gemmaModel || "gemma-4-e2b-it-q4_k_m";
+  const gemmaIdleShutdownEnabled =
+    persistedSettings.gemmaIdleShutdownEnabled !== false; // default true
+  const GEMMA_IDLE_SHUTDOWN_MS = 10 * 60 * 1000;
+  gemmaManager
+    .initializeAtStartup({
+      reasoningProvider,
+      gemmaModel,
+      gemmaIdleShutdownMs: gemmaIdleShutdownEnabled ? GEMMA_IDLE_SHUTDOWN_MS : 0,
+    })
+    .catch(() => {
+      // Non-fatal — initialization errors are logged internally
+    });
 
   // In development, add a small delay to let Vite start properly
   if (process.env.NODE_ENV === "development") {
@@ -593,6 +618,7 @@ function setupApp() {
     if (globeKeyManager) globeKeyManager.stop();
     if (privateProxyManager) privateProxyManager.stop();
     if (parakeetManager) parakeetManager.stopServer().catch(() => {});
+    if (gemmaManager) gemmaManager.stopServer().catch(() => {});
     if (updateManager) updateManager.cleanup();
     if (ipcHandlers) ipcHandlers._cleanupTextEditMonitor();
     if (textEditMonitor) textEditMonitor.stopMonitoring();

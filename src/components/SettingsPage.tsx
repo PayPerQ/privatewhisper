@@ -14,7 +14,9 @@ import {
 } from "lucide-react";
 import ApiKeyInput from "./ui/ApiKeyInput";
 import { ConfirmDialog, AlertDialog } from "./ui/dialog";
-import { useSettings } from "../hooks/useSettings";
+import { useSettings, type ReasoningProvider } from "../hooks/useSettings";
+import { ProviderRadio } from "./settings/ProviderRadio";
+import gemmaModelsCatalog from "../models/gemmaModels.json";
 import { useDialogs } from "../hooks/useDialogs";
 import { usePermissions } from "../hooks/usePermissions";
 import { useHotkeyRegistration } from "../hooks/useHotkeyRegistration";
@@ -74,7 +76,9 @@ export default function SettingsPage({
     showIconOnlyWhenActive,
     llmCleanupEnabled,
     mipOptOut,
-    privateModeEnabled,
+    reasoningProvider,
+    gemmaModel,
+    gemmaIdleShutdownEnabled,
     setPreferredLanguage,
     setPpqApiKey,
     setDictationKey,
@@ -85,8 +89,9 @@ export default function SettingsPage({
     setShowIconOnlyWhenActive,
     setLlmCleanupEnabled,
     setMipOptOut,
-    setPrivateModeEnabled,
     setPrivateModel,
+    setGemmaIdleShutdownEnabled,
+    updateReasoningSettings,
     updateTranscriptionSettings,
     updateApiKeys,
     transcriptionProvider,
@@ -106,6 +111,25 @@ export default function SettingsPage({
   const [parakeetServerRunning, setParakeetServerRunning] = useState(false);
   const [sherpaInstalling, setSherpaInstalling] = useState(false);
   const [sherpaInstallProgress, setSherpaInstallProgress] = useState(0);
+
+  // Local Gemma (llama.cpp) state
+  const gemmaInfo = (gemmaModelsCatalog as any).gemmaModels[gemmaModel] || null;
+  const [llamaServerInstalled, setLlamaServerInstalled] = useState(false);
+  const [llamaServerSupported, setLlamaServerSupported] = useState(true);
+  const [llamaServerInstalling, setLlamaServerInstalling] = useState(false);
+  const [llamaServerInstallProgress, setLlamaServerInstallProgress] = useState(0);
+  const [gemmaModelStatus, setGemmaModelStatus] = useState<{
+    downloaded: boolean;
+    size_mb?: number;
+  }>({ downloaded: false });
+  const [gemmaDownloading, setGemmaDownloading] = useState(false);
+  const [gemmaDownloadProgress, setGemmaDownloadProgress] = useState(0);
+  const [gemmaStatus, setGemmaStatus] = useState<{
+    ready: boolean;
+    starting: boolean;
+    running: boolean;
+    error: string | null;
+  }>({ ready: false, starting: false, running: false, error: null });
 
   // Check Parakeet installation and model status on mount
   useEffect(() => {
@@ -133,6 +157,45 @@ export default function SettingsPage({
     );
     return () => cleanup?.();
   }, [parakeetModel]);
+
+  // Check Local Gemma installation, model status, and server status on mount
+  useEffect(() => {
+    const checkGemma = async () => {
+      try {
+        const installation = await (window as any).electronAPI?.checkLlamaServerStatus?.();
+        setLlamaServerInstalled(Boolean(installation?.installed));
+        setLlamaServerSupported(installation?.supported !== false);
+
+        const status = await (window as any).electronAPI?.checkGemmaModelStatus?.(gemmaModel);
+        if (status) setGemmaModelStatus(status);
+
+        const serverStatus = await (window as any).electronAPI?.gemmaServerStatus?.();
+        if (serverStatus) {
+          setGemmaStatus({
+            ready: Boolean(serverStatus.ready),
+            starting: Boolean(serverStatus.starting),
+            running: Boolean(serverStatus.running),
+            error: serverStatus.error ?? null,
+          });
+        }
+      } catch {
+        // Gemma not available
+      }
+    };
+    checkGemma();
+
+    const cleanup = (window as any).electronAPI?.onGemmaServerStatusChanged?.(
+      (status: any) => {
+        setGemmaStatus({
+          ready: Boolean(status?.ready),
+          starting: Boolean(status?.starting),
+          running: Boolean(status?.running),
+          error: status?.error ?? null,
+        });
+      },
+    );
+    return () => cleanup?.();
+  }, [gemmaModel]);
 
   // Update state
   const [currentVersion, setCurrentVersion] = useState<string>("");
@@ -417,28 +480,141 @@ export default function SettingsPage({
     return () => cleanup?.();
   }, []);
 
-  const handlePrivateModeToggle = useCallback(
-    async (enabled: boolean) => {
-      setPrivateModeEnabled(enabled);
-      if (enabled) {
+  const handleReasoningProviderChange = useCallback(
+    async (next: ReasoningProvider) => {
+      const prev = reasoningProvider;
+      if (prev === next) return;
+      updateReasoningSettings({ reasoningProvider: next });
+
+      // Stop whichever provider we're leaving
+      if (prev === "tinfoil" && next !== "tinfoil") {
+        await (window as any).electronAPI?.stopPrivateProxy?.();
+        setProxyStatus({ running: false, starting: false, error: null });
+      }
+      if (prev === "local-gemma" && next !== "local-gemma") {
+        await (window as any).electronAPI?.gemmaServerStop?.();
+      }
+
+      // Start whichever provider we're switching to
+      if (next === "tinfoil") {
         setPrivateModel("private/llama3-3-70b");
-        // Stop any existing proxy first to avoid port conflicts
-        await window.electronAPI?.stopPrivateProxy?.();
-        setProxyStatus((prev) => ({ ...prev, starting: true, error: null }));
-        const result = await window.electronAPI?.startPrivateProxy?.();
+        setProxyStatus((s) => ({ ...s, starting: true, error: null }));
+        const result = await (window as any).electronAPI?.startPrivateProxy?.();
         if (result && !result.success) {
-          setProxyStatus((prev) => ({
-            ...prev,
+          setProxyStatus((s) => ({
+            ...s,
             starting: false,
             error: result.error,
           }));
         }
-      } else {
-        await window.electronAPI?.stopPrivateProxy?.();
-        setProxyStatus({ running: false, starting: false, error: null });
+      } else if (next === "local-gemma") {
+        if (gemmaModelStatus.downloaded) {
+          setGemmaStatus((s) => ({ ...s, starting: true, error: null }));
+          const result = await (window as any).electronAPI?.gemmaServerStart?.(
+            gemmaModel,
+          );
+          if (result && result.success === false) {
+            setGemmaStatus((s) => ({
+              ...s,
+              starting: false,
+              error: result.error || result.reason || "Failed to start",
+            }));
+          }
+        }
       }
     },
-    [setPrivateModeEnabled, setPrivateModel],
+    [
+      reasoningProvider,
+      updateReasoningSettings,
+      setPrivateModel,
+      gemmaModelStatus.downloaded,
+      gemmaModel,
+    ],
+  );
+
+  const handleInstallLlamaServer = useCallback(async () => {
+    setLlamaServerInstalling(true);
+    setLlamaServerInstallProgress(0);
+    const cleanup = (window as any).electronAPI?.onLlamaServerInstallProgress?.(
+      (progress: any) => {
+        if (typeof progress?.percentage === "number") {
+          setLlamaServerInstallProgress(progress.percentage);
+        }
+        if (progress?.type === "complete") {
+          setLlamaServerInstalling(false);
+          setLlamaServerInstalled(true);
+        }
+      },
+    );
+    try {
+      const result = await (window as any).electronAPI?.installLlamaServer?.();
+      if (result?.success) {
+        setLlamaServerInstalled(true);
+      }
+    } catch {
+      // swallow — fall through to finally
+    } finally {
+      setLlamaServerInstalling(false);
+      cleanup?.();
+    }
+  }, []);
+
+  const handleDownloadGemma = useCallback(async () => {
+    setGemmaDownloading(true);
+    setGemmaDownloadProgress(0);
+    setGemmaStatus((s) => ({ ...s, error: null }));
+    const cleanup = (window as any).electronAPI?.onGemmaDownloadProgress?.(
+      (progress: any) => {
+        if (typeof progress?.percentage === "number") {
+          setGemmaDownloadProgress(progress.percentage);
+        }
+        if (progress?.type === "complete") {
+          setGemmaDownloading(false);
+          setGemmaModelStatus({ downloaded: true });
+        }
+        if (progress?.type === "error") {
+          setGemmaDownloading(false);
+          setGemmaStatus((s) => ({
+            ...s,
+            error: progress.error || "Download failed",
+          }));
+        }
+      },
+    );
+    try {
+      const result = await (window as any).electronAPI?.downloadGemmaModel?.(
+        gemmaModel,
+      );
+      if (result && result.success === false) {
+        setGemmaStatus((s) => ({
+          ...s,
+          error: result.error || "Download failed",
+        }));
+      }
+    } catch (err: any) {
+      setGemmaStatus((s) => ({
+        ...s,
+        error: err?.message || "Download failed",
+      }));
+    } finally {
+      setGemmaDownloading(false);
+      cleanup?.();
+    }
+  }, [gemmaModel]);
+
+  const handleDeleteGemma = useCallback(async () => {
+    await (window as any).electronAPI?.deleteGemmaModel?.(gemmaModel);
+    setGemmaModelStatus({ downloaded: false });
+  }, [gemmaModel]);
+
+  const handleGemmaIdleShutdownToggle = useCallback(
+    (enabled: boolean) => {
+      setGemmaIdleShutdownEnabled(enabled);
+      (window as any).electronAPI?.saveSettings?.({
+        gemmaIdleShutdownEnabled: enabled,
+      });
+    },
+    [setGemmaIdleShutdownEnabled],
   );
 
   useEffect(() => {
@@ -559,7 +735,7 @@ export default function SettingsPage({
         showAlertDialog({
           title: "Save Failed",
           description:
-            result?.error ||
+            (result as { error?: string } | undefined)?.error ||
             "We couldn't persist your API key. Please try again.",
         });
         return;
@@ -1643,84 +1819,167 @@ export default function SettingsPage({
                   </p>
 
                   <div className="space-y-3">
-                    <label
-                      className={`flex items-start gap-3 p-4 rounded-xl border cursor-pointer transition-colors ${
-                        privateModeEnabled
-                          ? "border-orange-300 bg-orange-50"
-                          : "border-border bg-accent hover:bg-neutral-100"
-                      }`}
+                    <ProviderRadio
+                      id="ppq"
+                      name="cleanupProvider"
+                      label="Groq"
+                      description="Fastest cleanup performance. Cheapest. Your anonymous transcription text is sent to Groq for processing."
+                      selected={reasoningProvider === "ppq"}
+                      onSelect={() => handleReasoningProviderChange("ppq")}
+                    />
+
+                    <ProviderRadio
+                      id="local-gemma"
+                      name="cleanupProvider"
+                      label="Local Gemma"
+                      description={`Runs fully on your device via llama.cpp — no network, no API costs, works offline. Requires a one-time ~3.5 GB model download and ~4.5 GB of RAM while running.`}
+                      selected={reasoningProvider === "local-gemma"}
+                      onSelect={() => handleReasoningProviderChange("local-gemma")}
+                      disabled={!llamaServerSupported}
+                      disabledReason={
+                        !llamaServerSupported
+                          ? "Local Gemma is not supported on this platform in v1."
+                          : undefined
+                      }
+                      statusDot={
+                        gemmaStatus.running
+                          ? { color: "green", title: "Local Gemma running" }
+                          : gemmaStatus.starting
+                            ? { color: "yellow", title: "Local Gemma starting...", pulse: true }
+                            : gemmaStatus.error
+                              ? { color: "red", title: `Error: ${gemmaStatus.error}` }
+                              : { color: "gray", title: "Local Gemma stopped" }
+                      }
                     >
-                      <input
-                        type="radio"
-                        name="cleanupProvider"
-                        checked={privateModeEnabled}
-                        onChange={() => handlePrivateModeToggle(true)}
-                        className="mt-1 accent-orange-500"
-                      />
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <p className="text-sm font-medium text-foreground">Tinfoil</p>
-                          {privateModeEnabled && (
-                            <span
-                              className={`inline-block h-2 w-2 rounded-full ${
-                                proxyStatus.running
-                                  ? "bg-green-500"
-                                  : proxyStatus.starting
-                                    ? "bg-yellow-500 animate-pulse"
-                                    : proxyStatus.error
-                                      ? "bg-red-500"
-                                      : "bg-gray-400"
-                              }`}
-                              title={
-                                proxyStatus.running
-                                  ? "Proxy running"
-                                  : proxyStatus.starting
-                                    ? "Proxy starting..."
-                                    : proxyStatus.error
-                                      ? `Error: ${proxyStatus.error}`
-                                      : "Proxy stopped"
-                              }
+                      <div className="space-y-3">
+                        {!llamaServerInstalled && !llamaServerInstalling && (
+                          <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+                            <p className="text-sm font-medium text-amber-900 mb-1">
+                              Set up local inference engine
+                            </p>
+                            <p className="text-xs text-amber-900 mb-3">
+                              Local Gemma needs a one-time ~40 MB download of the
+                              llama.cpp server binary.
+                            </p>
+                            <Button size="sm" onClick={handleInstallLlamaServer}>
+                              Set Up Local Gemma
+                            </Button>
+                          </div>
+                        )}
+
+                        {llamaServerInstalling && (
+                          <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+                            <p className="text-sm font-medium text-amber-900 mb-2">
+                              Installing llama.cpp server… {llamaServerInstallProgress}%
+                            </p>
+                            <div className="h-2 w-full rounded-full bg-amber-200 overflow-hidden">
+                              <div
+                                className="h-full bg-amber-500 transition-all"
+                                style={{ width: `${llamaServerInstallProgress}%` }}
+                              />
+                            </div>
+                          </div>
+                        )}
+
+                        {llamaServerInstalled && (
+                          <div className="flex items-start justify-between gap-3 rounded-lg border border-border bg-white p-3">
+                            <div className="flex-1">
+                              <p className="text-sm font-medium text-foreground">
+                                {gemmaInfo?.displayName || "Gemma 4 E2B"}
+                              </p>
+                              <p className="text-xs text-muted-foreground mt-0.5">
+                                {gemmaInfo?.sizeLabel || "~3.5 GB"} download ·
+                                uses {gemmaInfo?.runtimeRamLabel || "~4.5 GB"} RAM
+                                while enabled · Q4_K_M quantization
+                              </p>
+                              {gemmaDownloading && (
+                                <div className="mt-2">
+                                  <p className="text-xs text-muted-foreground mb-1">
+                                    Downloading… {gemmaDownloadProgress}%
+                                  </p>
+                                  <div className="h-2 w-full rounded-full bg-neutral-200 overflow-hidden">
+                                    <div
+                                      className="h-full bg-orange-500 transition-all"
+                                      style={{
+                                        width: `${gemmaDownloadProgress}%`,
+                                      }}
+                                    />
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                            {gemmaModelStatus.downloaded ? (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={handleDeleteGemma}
+                                disabled={gemmaDownloading}
+                              >
+                                Delete
+                              </Button>
+                            ) : !gemmaDownloading ? (
+                              <Button
+                                size="sm"
+                                onClick={handleDownloadGemma}
+                                disabled={!llamaServerInstalled}
+                              >
+                                Download
+                              </Button>
+                            ) : null}
+                          </div>
+                        )}
+
+                        {llamaServerInstalled && gemmaModelStatus.downloaded && (
+                          <div className="flex items-center justify-between rounded-lg bg-neutral-50 p-3">
+                            <div>
+                              <p className="text-sm font-medium text-foreground">
+                                Stop when idle (saves RAM)
+                              </p>
+                              <p className="text-xs text-muted-foreground mt-0.5">
+                                Unloads the model after 10 minutes without cleanup
+                                activity. Next cleanup takes ~30 seconds to re-warm.
+                              </p>
+                            </div>
+                            <Toggle
+                              checked={gemmaIdleShutdownEnabled}
+                              onChange={handleGemmaIdleShutdownToggle}
                             />
-                          )}
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          Your cleanup requests are encrypted
-                          on your device before being sent — processing happens inside a
-                          hardware-secured enclave so neither PPQ nor any intermediary can
-                          read your data. Slightly slower processing and higher cost.
-                        </p>
-                      </div>
-                    </label>
+                          </div>
+                        )}
 
-                    <label
-                      className={`flex items-start gap-3 p-4 rounded-xl border cursor-pointer transition-colors ${
-                        !privateModeEnabled
-                          ? "border-orange-300 bg-orange-50"
-                          : "border-border bg-accent hover:bg-neutral-100"
-                      }`}
+                        {gemmaStatus.error && (
+                          <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-800">
+                            <p className="font-medium mb-1">Local Gemma Error</p>
+                            <p>{gemmaStatus.error}</p>
+                          </div>
+                        )}
+                      </div>
+                    </ProviderRadio>
+
+                    <ProviderRadio
+                      id="tinfoil"
+                      name="cleanupProvider"
+                      label="Tinfoil"
+                      description="Your cleanup requests are encrypted on your device before being sent — processing happens inside a hardware-secured enclave so neither PPQ nor any intermediary can read your data. Slightly slower processing and higher cost."
+                      selected={reasoningProvider === "tinfoil"}
+                      onSelect={() => handleReasoningProviderChange("tinfoil")}
+                      statusDot={
+                        proxyStatus.running
+                          ? { color: "green", title: "Proxy running" }
+                          : proxyStatus.starting
+                            ? { color: "yellow", title: "Proxy starting...", pulse: true }
+                            : proxyStatus.error
+                              ? { color: "red", title: `Error: ${proxyStatus.error}` }
+                              : { color: "gray", title: "Proxy stopped" }
+                      }
                     >
-                      <input
-                        type="radio"
-                        name="cleanupProvider"
-                        checked={!privateModeEnabled}
-                        onChange={() => handlePrivateModeToggle(false)}
-                        className="mt-1 accent-orange-500"
-                      />
-                      <div>
-                        <p className="text-sm font-medium text-foreground">Groq</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          Fastest cleanup performance. Cheapest. Your anonymous transcription text is sent to
-                          Groq for processing.
-                        </p>
-                      </div>
-                    </label>
-
-                    {privateModeEnabled && proxyStatus.error && (
-                      <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-800">
-                        <p className="font-medium mb-1">Tinfoil Error</p>
-                        <p>{proxyStatus.error}</p>
-                      </div>
-                    )}
+                      {proxyStatus.error && (
+                        <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-800">
+                          <p className="font-medium mb-1">Tinfoil Error</p>
+                          <p>{proxyStatus.error}</p>
+                        </div>
+                      )}
+                    </ProviderRadio>
                   </div>
                 </div>
               </div>

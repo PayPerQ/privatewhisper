@@ -404,6 +404,7 @@ class AudioManager {
       metrics?.setFlag("reasoningUsed", true);
       metrics?.setFlag("reasoningSuccess", true);
       metrics?.setFlag("reasoningProvider", result.provider);
+      if (result.model) metrics?.setFlag("reasoningModel", result.model);
       metrics?.setFlag("reasoningOutputTokens", outputTokens);
       metrics?.setFlag("reasoningResponseReceivedAtMs", Date.now());
 
@@ -527,6 +528,32 @@ class AudioManager {
     return cleaned;
   }
 
+  /**
+   * Record STT provenance consistently across every transcription path
+   * (batch cloud, streaming cloud, and local Parakeet). Sets three signals:
+   *   transcriptionRoute  — user routing setting ("cloud" | "local")
+   *   transcriptionVendor — real backend vendor ("deepgram" | "parakeet")
+   *   transcriptionModel  — concrete model id
+   * Previously transcriptionModel was only set on the batch HTTP path and
+   * transcriptionProvider only on streaming start, so most rows logged NULL
+   * STT provenance.
+   */
+  setTranscriptionProvenance(route: "cloud" | "local") {
+    const metrics = this.metrics;
+    if (!metrics) return;
+    metrics.setFlag("transcriptionRoute", route);
+    if (route === "local") {
+      metrics.setFlag("transcriptionVendor", "parakeet");
+      metrics.setFlag(
+        "transcriptionModel",
+        `parakeet:${this.settings.parakeetModel}`,
+      );
+    } else {
+      metrics.setFlag("transcriptionVendor", "deepgram");
+      metrics.setFlag("transcriptionModel", AUDIO_CONFIG.TRANSCRIPTION_MODEL);
+    }
+  }
+
   async processWithPPQAPI(audioBlob: Blob) {
     const metrics = this.metrics;
 
@@ -568,7 +595,7 @@ class AudioManager {
         });
       }
 
-      metrics?.setFlag("transcriptionModel", AUDIO_CONFIG.TRANSCRIPTION_MODEL);
+      this.setTranscriptionProvenance("cloud");
       metrics?.setFlag("transcriptionEndpoint", transcriptionUrl.toString());
       metrics?.setFlag("dictionaryTermsUsed", dictionary?.length ?? 0);
 
@@ -684,7 +711,7 @@ class AudioManager {
     const metrics = this.metrics;
 
     try {
-      metrics?.setFlag("transcriptionModel", `parakeet:${this.settings.parakeetModel}`);
+      this.setTranscriptionProvenance("local");
       metrics?.setFlag("audioSizes", {
         originalBytes: audioBlob.size,
       });
@@ -754,6 +781,7 @@ class AudioManager {
     this.metrics.setFlag("reasoningModel", this.settings.reasoningModel);
     this.metrics.setFlag("useReasoningModel", this.settings.useReasoningModel);
     this.metrics.setFlag("transcriptionProvider", this.settings.transcriptionProvider);
+    this.setTranscriptionProvenance(this.settings.transcriptionProvider);
     this.metrics.setFlag("mode", "streaming");
     this.metrics.mark("streamingStart");
 

@@ -1,12 +1,20 @@
 const path = require("path");
 const fs = require("fs");
+const crypto = require("crypto");
 const { app } = require("electron");
+const {
+  uniqueNamesGenerator,
+  adjectives,
+  colors,
+  animals,
+} = require("unique-names-generator");
 const debugLogger = require("./debugLogger");
 
 class EnvironmentManager {
   constructor() {
     this.loadEnvironmentVariables();
     this._settingsPath = null;
+    this._userIdentity = null;
   }
 
   /**
@@ -49,6 +57,52 @@ class EnvironmentManager {
       });
       return { success: false, error: error.message };
     }
+  }
+
+  /**
+   * Returns a stable, anonymous identity for this installation:
+   *   { userUuid, userLabel }
+   * - userUuid  : a random UUID — the guaranteed-unique key for joins/grouping.
+   * - userLabel : a memorable "adjective-color-animal" petname (e.g.
+   *               "barking-red-cat") for human-friendly dashboard reading.
+   *
+   * Generated once on first use and persisted to settings.json under userData,
+   * so it stays stable across restarts and app updates. It is NOT derived from
+   * the PPQ API key or any account data — a reinstall (or wiped userData)
+   * produces a new identity, and the same person on two machines counts twice.
+   */
+  getUserIdentity() {
+    if (this._userIdentity) {
+      return this._userIdentity;
+    }
+
+    const persisted = this.readPersistedSettings();
+    let { userUuid, userLabel } = persisted;
+
+    const needsUuid = typeof userUuid !== "string" || !userUuid.trim();
+    const needsLabel = typeof userLabel !== "string" || !userLabel.trim();
+
+    if (needsUuid) {
+      userUuid = crypto.randomUUID();
+    }
+    if (needsLabel) {
+      // Append a short token so collisions between identical petnames are
+      // astronomically unlikely while keeping it readable.
+      const petname = uniqueNamesGenerator({
+        dictionaries: [adjectives, colors, animals],
+        separator: "-",
+        length: 3,
+      });
+      const token = userUuid.slice(0, 4);
+      userLabel = `${petname}-${token}`;
+    }
+
+    if (needsUuid || needsLabel) {
+      this.savePersistedSettings({ userUuid, userLabel });
+    }
+
+    this._userIdentity = { userUuid, userLabel };
+    return this._userIdentity;
   }
 
   loadEnvironmentVariables() {

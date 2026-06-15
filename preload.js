@@ -216,4 +216,31 @@ contextBridge.exposeInMainWorld("electronAPI", {
   checkSherpaOnnxStatus: () => ipcRenderer.invoke("check-sherpa-onnx-status"),
   onSherpaOnnxInstallProgress: (callback) =>
     exposeListener("sherpa-onnx-install-progress", callback),
+
+  // Local Gemma (llama.cpp) controls
+  gemmaServerStart: (modelName) =>
+    ipcRenderer.invoke("gemma-server-start", modelName),
+  gemmaServerStop: () => ipcRenderer.invoke("gemma-server-stop"),
+  gemmaServerStatus: () => ipcRenderer.invoke("gemma-server-status"),
+  gemmaNotifyActivity: () => ipcRenderer.invoke("gemma-notify-activity"),
+  onGemmaServerStatusChanged: (callback) =>
+    exposeListener("gemma-server-status-changed", callback),
+  downloadGemmaModel: (modelName) =>
+    ipcRenderer.invoke("download-gemma-model", modelName),
+  cancelGemmaDownload: () => ipcRenderer.invoke("cancel-gemma-download"),
+  onGemmaDownloadProgress: (callback) =>
+    exposeListener("gemma-download-progress", callback),
+  checkGemmaModelStatus: (modelName) =>
+    ipcRenderer.invoke("check-gemma-model-status", modelName),
+  listGemmaModels: () => ipcRenderer.invoke("list-gemma-models"),
+  deleteGemmaModel: (modelName) =>
+    ipcRenderer.invoke("delete-gemma-model", modelName),
+
+  // llama-server binary runtime installer
+  installLlamaServer: () => ipcRenderer.invoke("install-llama-server"),
+  cancelLlamaServerInstall: () =>
+    ipcRenderer.invoke("cancel-llama-server-install"),
+  checkLlamaServerStatus: () => ipcRenderer.invoke("check-llama-server-status"),
+  onLlamaServerInstallProgress: (callback) =>
+    exposeListener("llama-server-install-progress", callback),
 });

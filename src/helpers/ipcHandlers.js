@@ -17,6 +17,8 @@ class IPCHandlers {
     this.privateProxyManager = managers.privateProxyManager;
     this.parakeetManager = managers.parakeetManager;
     this.sherpaOnnxInstaller = managers.sherpaOnnxInstaller;
+    this.gemmaManager = managers.gemmaManager;
+    this.llamaServerInstaller = managers.llamaServerInstaller;
     this.textEditMonitor = managers.textEditMonitor;
 
     // Auto-learn state
@@ -30,6 +32,9 @@ class IPCHandlers {
     this.setupPrivateProxyHandlers();
     if (this.parakeetManager) {
       this.setupParakeetHandlers();
+    }
+    if (this.gemmaManager) {
+      this.setupGemmaHandlers();
     }
   }
 
@@ -195,7 +200,13 @@ class IPCHandlers {
 
         // Persist main-process-relevant settings to disk so they're
         // available at next startup (before the renderer loads).
-        const persistKeys = ["transcriptionProvider", "parakeetModel"];
+        const persistKeys = [
+          "transcriptionProvider",
+          "parakeetModel",
+          "reasoningProvider",
+          "gemmaModel",
+          "gemmaIdleShutdownEnabled",
+        ];
         const toPersist = {};
         for (const key of persistKeys) {
           if (settings[key] !== undefined) {
@@ -204,6 +215,13 @@ class IPCHandlers {
         }
         if (Object.keys(toPersist).length > 0) {
           this.environmentManager.savePersistedSettings(toPersist);
+        }
+
+        // Apply idle-shutdown setting to the running Gemma server if present
+        if (settings.gemmaIdleShutdownEnabled !== undefined && this.gemmaManager) {
+          const IDLE_SHUTDOWN_MS = 10 * 60 * 1000;
+          const ms = settings.gemmaIdleShutdownEnabled ? IDLE_SHUTDOWN_MS : 0;
+          this.gemmaManager.setIdleShutdown(ms);
         }
 
         return { success: true };
@@ -754,6 +772,132 @@ class IPCHandlers {
       return {
         installed: this.sherpaOnnxInstaller.isInstalled(),
         path: this.sherpaOnnxInstaller.getBinaryPath(),
+      };
+    });
+  }
+
+  setupGemmaHandlers() {
+    const serverProcess = this.gemmaManager?.serverManager?.process;
+    if (serverProcess) {
+      serverProcess.on("status-changed", (status) => {
+        this.broadcastToAllWindows("gemma-server-status-changed", status);
+      });
+    }
+
+    ipcMain.handle("gemma-server-start", async (_event, modelName) => {
+      if (!this.gemmaManager) {
+        return { success: false, error: "Gemma manager not available" };
+      }
+      try {
+        return await this.gemmaManager.startServer(modelName);
+      } catch (error) {
+        return { success: false, error: error.message };
+      }
+    });
+
+    ipcMain.handle("gemma-server-stop", async () => {
+      if (!this.gemmaManager) {
+        return { success: false, error: "Gemma manager not available" };
+      }
+      return this.gemmaManager.stopServer();
+    });
+
+    ipcMain.handle("gemma-server-status", async () => {
+      if (!this.gemmaManager) {
+        return { available: false, ready: false, running: false, starting: false };
+      }
+      return this.gemmaManager.getServerStatus();
+    });
+
+    ipcMain.handle("gemma-notify-activity", async () => {
+      if (this.gemmaManager) this.gemmaManager.notifyActivity();
+      return { success: true };
+    });
+
+    ipcMain.handle("download-gemma-model", async (event, modelName) => {
+      if (!this.gemmaManager) {
+        return { success: false, error: "Gemma manager not available" };
+      }
+      try {
+        return await this.gemmaManager.downloadGemmaModel(modelName, (progress) => {
+          event.sender.send("gemma-download-progress", progress);
+        });
+      } catch (error) {
+        debugLogger.error("ipc", "download-gemma-model-failed", {
+          modelName,
+          error: error.message,
+        });
+        // Forward the failure to the renderer so the UI can surface it
+        event.sender.send("gemma-download-progress", {
+          type: "error",
+          model: modelName,
+          error: error.message,
+        });
+        return { success: false, error: error.message };
+      }
+    });
+
+    ipcMain.handle("cancel-gemma-download", async () => {
+      if (!this.gemmaManager) {
+        return { success: false, error: "Gemma manager not available" };
+      }
+      return this.gemmaManager.cancelDownload();
+    });
+
+    ipcMain.handle("check-gemma-model-status", async (_event, modelName) => {
+      if (!this.gemmaManager) {
+        return { model: modelName, downloaded: false, success: false };
+      }
+      return this.gemmaManager.checkModelStatus(modelName);
+    });
+
+    ipcMain.handle("list-gemma-models", async () => {
+      if (!this.gemmaManager) {
+        return { models: [], cache_dir: null, success: false };
+      }
+      return this.gemmaManager.listGemmaModels();
+    });
+
+    ipcMain.handle("delete-gemma-model", async (_event, modelName) => {
+      if (!this.gemmaManager) {
+        return { success: false, error: "Gemma manager not available" };
+      }
+      return this.gemmaManager.deleteGemmaModel(modelName);
+    });
+
+    // llama-server binary runtime installer
+    ipcMain.handle("install-llama-server", async (event) => {
+      if (!this.llamaServerInstaller) {
+        return { success: false, error: "llama-server installer not available" };
+      }
+      try {
+        const result = await this.llamaServerInstaller.install((progress) => {
+          event.sender.send("llama-server-install-progress", progress);
+        });
+        // Clear the server's cached binary path so it picks up the newly installed binary
+        const serverProcess = this.gemmaManager?.serverManager?.process;
+        if (serverProcess) serverProcess.clearBinaryCache();
+        return result;
+      } catch (error) {
+        return { success: false, error: error.message };
+      }
+    });
+
+    ipcMain.handle("cancel-llama-server-install", async () => {
+      if (!this.llamaServerInstaller) {
+        return { success: false, error: "llama-server installer not available" };
+      }
+      return this.llamaServerInstaller.cancelInstall();
+    });
+
+    ipcMain.handle("check-llama-server-status", async () => {
+      if (!this.llamaServerInstaller) {
+        return { installed: false, supported: false };
+      }
+      return {
+        installed: this.llamaServerInstaller.isInstalled(),
+        supported: this.llamaServerInstaller.isSupported(),
+        path: this.llamaServerInstaller.getBinaryPath(),
       };
     });
   }

@@ -42,6 +42,21 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Pre-download native binaries (sherpa-onnx for Parakeet) as a dedicated,
+      # direct `node` step. Otherwise the build's prebuild hook runs this buried
+      # inside `npm run build:win` → cmd → npm → cmd, and that nested chain hangs
+      # on Windows during .tar.bz2 extraction. Running it directly here (and
+      # caching resources/bin) means the build's prebuild finds the binaries
+      # already present and skips the extraction. Mirrors OpenWhispr's setup.
+      - name: Cache native binaries
+        uses: actions/cache@v4
+        with:
+          path: resources/bin
+          key: ${{ matrix.os }}-bin-${{ hashFiles('scripts/download-sherpa-onnx.js', 'scripts/lib/download-utils.js') }}
+
+      - name: Pre-download sherpa-onnx binaries
+        run: node scripts/download-sherpa-onnx.js --current
+
       # Create production .env file with app configuration
       # Note: Only PUBLIC config values are bundled (Supabase URL/publishable key, WS URL)
       # User API keys (PPQ_API_KEY) are NOT bundled - users enter them at runtime

@@ -17,6 +17,9 @@ permissions:
 jobs:
   build-and-release:
     runs-on: ${{ matrix.os }}
+    # Fail fast if a job hangs (e.g. electron-builder retrying a failed publish
+    # on a bad GH_TOKEN) instead of sitting until the 6-hour default timeout.
+    timeout-minutes: 30
 
     strategy:
       # Don't let one platform's failure cancel (and un-publish) the others.

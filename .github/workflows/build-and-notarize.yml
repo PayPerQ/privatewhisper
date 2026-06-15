@@ -9,6 +9,9 @@ on:
 
 jobs:
   build:
+    # Fail fast if a job hangs (e.g. electron-builder retrying a failed publish)
+    # instead of sitting until the 6-hour default timeout.
+    timeout-minutes: 30
     strategy:
       # Don't let one platform's failure cancel the others.
       fail-fast: false

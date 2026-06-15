@@ -51,10 +51,33 @@ function getDownloadUrl(archiveName) {
 function extractTarBz2(archivePath, destDir) {
   fs.mkdirSync(destDir, { recursive: true });
   const cwd = path.dirname(archivePath);
-  execFileSync("tar", ["-xjf", path.basename(archivePath), "-C", path.relative(cwd, destDir)], {
-    stdio: "inherit",
-    cwd,
-  });
+
+  // On Windows, force the built-in bsdtar at System32\tar.exe. bsdtar decodes
+  // bzip2 natively (libarchive), whereas the MSYS/Git GNU `tar` that often
+  // shadows it in PATH shells out to a separate bzip2 process and DEADLOCKS on
+  // Windows pipe buffering — hanging the build forever right after the download
+  // finishes (the .tar.bz2 never extracts). macOS/Linux `tar` are unaffected.
+  let tarBin = "tar";
+  if (process.platform === "win32") {
+    const sysTar = path.join(
+      process.env.SystemRoot || "C:\\Windows",
+      "System32",
+      "tar.exe",
+    );
+    if (fs.existsSync(sysTar)) tarBin = sysTar;
+  }
+
+  execFileSync(
+    tarBin,
+    ["-xjf", path.basename(archivePath), "-C", path.relative(cwd, destDir)],
+    {
+      // Close stdin so the child can never block waiting on input, and hide the
+      // window so cmd.exe can't surface an interactive prompt in CI.
+      stdio: ["ignore", "inherit", "inherit"],
+      windowsHide: true,
+      cwd,
+    },
+  );
 }
 
 function findLibrariesInDir(dir, pattern, maxDepth = 5, currentDepth = 0) {

@@ -67,6 +67,13 @@ function downloadFile(url, dest, retryCount = 0) {
         response.pipe(file);
         file.on("finish", () => {
           file.close();
+          // Destroy the kept-alive socket on success too; otherwise the open
+          // handle can keep the Node process alive after all work is done and
+          // hang the build (notably on Windows under cmd.exe).
+          if (activeRequest) {
+            activeRequest.destroy();
+            activeRequest = null;
+          }
           console.log(" Done");
           resolve();
         });

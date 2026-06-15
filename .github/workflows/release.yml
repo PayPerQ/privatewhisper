@@ -19,14 +19,19 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     strategy:
+      # Don't let one platform's failure cancel (and un-publish) the others.
+      fail-fast: false
       matrix:
-        os: [macos-latest, ubuntu-latest, windows-latest]
+        # windows-2022 (VS 2022 / v17) instead of windows-latest: the newer
+        # windows-latest image ships Visual Studio 18, which the bundled
+        # node-gyp@10.1.0 can't recognize, breaking better-sqlite3's native build.
+        os: [macos-latest, ubuntu-latest, windows-2022]
         include:
           - os: macos-latest
             build_cmd: npm run build:mac
           - os: ubuntu-latest
             build_cmd: npm run build:linux
-          - os: windows-latest
+          - os: windows-2022
             build_cmd: npm run build:win
 
     steps:

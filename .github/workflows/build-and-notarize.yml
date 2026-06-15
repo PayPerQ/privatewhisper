@@ -16,14 +16,16 @@ jobs:
       # Don't let one platform's failure cancel the others.
       fail-fast: false
       matrix:
-        # windows-2022 (VS 2022 / v17) instead of windows-latest: the newer
-        # windows-latest image ships Visual Studio 18, which the bundled
-        # node-gyp@10.1.0 can't recognize, breaking better-sqlite3's native build.
-        os: [ubuntu-latest, windows-2022, macos-latest]
+        # windows-latest builds successfully (proven by the April release: tar
+        # extraction took 2s there). The windows-2022 image instead deadlocks on
+        # the sherpa-onnx tar extraction. windows-latest's only blocker is that
+        # it now ships Visual Studio 18, which Node 20's bundled node-gyp can't
+        # recognize — fixed by installing node-gyp 13 in the step below.
+        os: [ubuntu-latest, windows-latest, macos-latest]
         include:
           - os: ubuntu-latest
             build_cmd: npm run build:linux
-          - os: windows-2022
+          - os: windows-latest
             build_cmd: npm run build:win
           - os: macos-latest
             build_cmd: npm run build:mac
@@ -38,6 +40,17 @@ jobs:
         with:
           node-version: "20"
           cache: "npm"
+
+      # windows-latest ships Visual Studio 18, which Node 20's bundled node-gyp
+      # (v10) can't parse ("unknown version 18"), so better-sqlite3's native
+      # build fails. node-gyp 13 is the first version that maps VS major 18 ->
+      # year 2026. Point npm at it for the build.
+      - name: Use node-gyp 13 (recognizes VS 18) [Windows]
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          npm install --global node-gyp@latest
+          echo "npm_config_node_gyp=$(npm root -g)/node-gyp/bin/node-gyp.js" >> "$GITHUB_ENV"
 
       - name: Install dependencies
         run: npm ci

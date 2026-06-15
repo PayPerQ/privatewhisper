@@ -1,5 +1,30 @@
 import { useCallback, useEffect, useRef } from "react";
 import { useLocalStorage } from "./useLocalStorage";
+
+export type ReasoningProvider = "ppq" | "tinfoil" | "local-gemma";
+
+const DEFAULT_GEMMA_MODEL = "gemma-4-e2b-it-q4_k_m";
+
+// Runs once at module load, BEFORE any `useLocalStorage` read, so the first
+// render already sees migrated values. Keeps `privateModeEnabled` and
+// `privateModel` in storage as rollback insurance — we just stop reading them.
+function migrateReasoningProvider(): void {
+  if (typeof window === "undefined") return;
+  try {
+    if (localStorage.getItem("reasoningProvider") !== null) return;
+    const legacyFlag = localStorage.getItem("privateModeEnabled");
+    const provider: ReasoningProvider = legacyFlag === "true" ? "tinfoil" : "ppq";
+    localStorage.setItem("reasoningProvider", provider);
+    const legacyModel = localStorage.getItem("privateModel");
+    if (legacyModel && localStorage.getItem("tinfoilModel") === null) {
+      localStorage.setItem("tinfoilModel", legacyModel);
+    }
+  } catch {
+    // localStorage may be unavailable or full — skip silently
+  }
+}
+migrateReasoningProvider();
+
 export interface TranscriptionSettings {
   preferredLanguage: string;
 }
@@ -23,8 +48,15 @@ export interface AudioSettings {
 
 export interface PrivacySettings {
   mipOptOut: boolean; // Opt out of Deepgram Model Improvement Partnership (default: true = opted out)
-  privateModeEnabled: boolean; // Route reasoning through encrypted private proxy
-  privateModel: string; // Which private model to use for reasoning
+  privateModeEnabled: boolean; // Route reasoning through encrypted private proxy (derived from reasoningProvider)
+  privateModel: string; // Alias for tinfoilModel (kept for deprecation window)
+}
+
+export interface ReasoningSettings {
+  reasoningProvider: ReasoningProvider;
+  tinfoilModel: string;
+  gemmaModel: string;
+  gemmaIdleShutdownEnabled: boolean;
 }
 
 export type TranscriptionProvider = "cloud" | "local";
@@ -148,24 +180,49 @@ export function useSettings() {
     },
   );
 
-  // Private mode - route reasoning through encrypted proxy
-  const [privateModeEnabled, setPrivateModeEnabled] = useLocalStorage(
-    "privateModeEnabled",
-    false,
-    {
+  // Reasoning provider (three-way: ppq / tinfoil / local-gemma)
+  const [reasoningProvider, setReasoningProvider] =
+    useLocalStorage<ReasoningProvider>("reasoningProvider", "ppq", {
       serialize: String,
-      deserialize: (value) => value === "true",
-    },
-  );
+      deserialize: (value) =>
+        value === "tinfoil" || value === "local-gemma" ? value : "ppq",
+    });
 
-  const [privateModel, setPrivateModel] = useLocalStorage(
-    "privateModel",
+  // Tinfoil private-proxy model (renamed from legacy privateModel)
+  const [tinfoilModel, setTinfoilModel] = useLocalStorage(
+    "tinfoilModel",
     "private/gpt-oss-120b",
     {
       serialize: String,
       deserialize: String,
     },
   );
+
+  const [gemmaModel, setGemmaModel] = useLocalStorage(
+    "gemmaModel",
+    DEFAULT_GEMMA_MODEL,
+    {
+      serialize: String,
+      deserialize: String,
+    },
+  );
+
+  const [gemmaIdleShutdownEnabled, setGemmaIdleShutdownEnabled] = useLocalStorage(
+    "gemmaIdleShutdownEnabled",
+    true,
+    {
+      serialize: String,
+      deserialize: (value) => value !== "false",
+    },
+  );
+
+  // Derived getters for back-compat with the old boolean API
+  const privateModeEnabled = reasoningProvider === "tinfoil";
+  const privateModel = tinfoilModel;
+  const setPrivateModeEnabled = (enabled: boolean) => {
+    setReasoningProvider(enabled ? "tinfoil" : "ppq");
+  };
+  const setPrivateModel = setTinfoilModel;
 
   // Local transcription settings
   const [transcriptionProvider, setTranscriptionProvider] =
@@ -245,13 +302,43 @@ export function useSettings() {
         setMipOptOut(settings.mipOptOut);
       }
       if (settings.privateModeEnabled !== undefined) {
-        setPrivateModeEnabled(settings.privateModeEnabled);
+        setReasoningProvider(settings.privateModeEnabled ? "tinfoil" : "ppq");
       }
       if (settings.privateModel !== undefined) {
-        setPrivateModel(settings.privateModel);
+        setTinfoilModel(settings.privateModel);
       }
     },
-    [setMipOptOut, setPrivateModeEnabled, setPrivateModel],
+    [setMipOptOut, setReasoningProvider, setTinfoilModel],
+  );
+
+  const updateReasoningSettings = useCallback(
+    (settings: Partial<ReasoningSettings>) => {
+      const toPersist: Record<string, string | boolean> = {};
+      if (settings.reasoningProvider !== undefined) {
+        setReasoningProvider(settings.reasoningProvider);
+        toPersist.reasoningProvider = settings.reasoningProvider;
+      }
+      if (settings.tinfoilModel !== undefined) {
+        setTinfoilModel(settings.tinfoilModel);
+      }
+      if (settings.gemmaModel !== undefined) {
+        setGemmaModel(settings.gemmaModel);
+        toPersist.gemmaModel = settings.gemmaModel;
+      }
+      if (settings.gemmaIdleShutdownEnabled !== undefined) {
+        setGemmaIdleShutdownEnabled(settings.gemmaIdleShutdownEnabled);
+        toPersist.gemmaIdleShutdownEnabled = settings.gemmaIdleShutdownEnabled;
+      }
+      if (Object.keys(toPersist).length > 0) {
+        window.electronAPI.saveSettings(toPersist);
+      }
+    },
+    [
+      setReasoningProvider,
+      setTinfoilModel,
+      setGemmaModel,
+      setGemmaIdleShutdownEnabled,
+    ],
   );
 
   // Bootstrap: persist current transcription settings to disk on first render
@@ -304,6 +391,10 @@ export function useSettings() {
     mipOptOut,
     privateModeEnabled,
     privateModel,
+    reasoningProvider,
+    tinfoilModel,
+    gemmaModel,
+    gemmaIdleShutdownEnabled,
     setPreferredLanguage,
     setPpqApiKey,
     setDictationKey,
@@ -316,12 +407,17 @@ export function useSettings() {
     setMipOptOut,
     setPrivateModeEnabled,
     setPrivateModel,
+    setReasoningProvider,
+    setTinfoilModel,
+    setGemmaModel,
+    setGemmaIdleShutdownEnabled,
     updateTranscriptionSettings,
     updateApiKeys,
     updateHotkeySettings,
     updateAudioSettings,
     updateAppearanceSettings,
     updatePrivacySettings,
+    updateReasoningSettings,
     transcriptionProvider,
     parakeetModel,
     setTranscriptionProvider,

@@ -153,6 +153,23 @@ export const PRIVATE_MODELS = [
 export const PRIVATE_PROXY_CHAT = `http://${PRIVATE_PROXY_CONFIG.HOST}:${PRIVATE_PROXY_CONFIG.PORT}/v1/chat/completions`;
 export const PRIVATE_PROXY_HEALTH = `http://${PRIVATE_PROXY_CONFIG.HOST}:${PRIVATE_PROXY_CONFIG.PORT}/health`;
 
+// Local Gemma (llama-server) configuration
+export const GEMMA_LOCAL_CONFIG = {
+  HOST: "127.0.0.1",
+  PORT_RANGE_START: 6050,
+  PORT_RANGE_END: 6069,
+  DEFAULT_PORT: 6050,
+  STARTUP_TIMEOUT_MS: 90_000,
+  HEALTH_CHECK_INTERVAL_MS: 30_000,
+  MAX_RESTART_ATTEMPTS: 3,
+  IDLE_SHUTDOWN_MS: 10 * 60 * 1000, // 10 minutes
+  MIN_FREE_RAM_BYTES: 3 * 1024 * 1024 * 1024, // 3 GB hard floor for E2B Q4_K_M
+  WARN_FREE_RAM_BYTES: 4 * 1024 * 1024 * 1024, // 4 GB warn threshold
+} as const;
+
+export const getGemmaLocalChatEndpoint = (port: number): string =>
+  `http://${GEMMA_LOCAL_CONFIG.HOST}:${port}/v1/chat/completions`;
+
 // Audio Device Recovery Configuration
 export const DEVICE_RECOVERY_CONFIG = {
   MAX_RECOVERY_ATTEMPTS: 3,

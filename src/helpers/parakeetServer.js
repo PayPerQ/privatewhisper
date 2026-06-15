@@ -13,7 +13,48 @@ const SAMPLE_RATE = 16000;
 const BYTES_PER_SAMPLE = 4; // float32
 const MAX_SEGMENT_SECONDS = 15;
 const MAX_SEGMENT_BYTES = MAX_SEGMENT_SECONDS * SAMPLE_RATE * BYTES_PER_SAMPLE;
+// Consecutive segments overlap so a word straddling a cut point is never lost.
+// The duplicated words in the overlap region are stitched back out when joining.
+const OVERLAP_SECONDS = 2;
+const OVERLAP_BYTES = OVERLAP_SECONDS * SAMPLE_RATE * BYTES_PER_SAMPLE;
+const SEGMENT_STEP_BYTES = MAX_SEGMENT_BYTES - OVERLAP_BYTES;
+// Upper bound on how many words the overlap region can contain (fast speech ~4 w/s).
+const MAX_OVERLAP_WORDS = OVERLAP_SECONDS * 5;
 const SILENCE_RMS_THRESHOLD = 0.0005;
+
+// Normalize a word for overlap comparison: lowercase, strip surrounding punctuation.
+function normalizeWord(word) {
+  return word.toLowerCase().replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "");
+}
+
+// Append `nextText` to `prevText`, removing words duplicated by the audio overlap.
+// Finds the longest suffix of prevText that matches a prefix of nextText (word-level,
+// punctuation-insensitive) and drops that prefix from nextText before joining.
+function mergeOverlappingText(prevText, nextText) {
+  const next = nextText.trim();
+  if (!prevText) return next;
+  if (!next) return prevText;
+
+  const prevWords = prevText.split(/\s+/).filter(Boolean);
+  const nextWords = next.split(/\s+/).filter(Boolean);
+  const maxK = Math.min(prevWords.length, nextWords.length, MAX_OVERLAP_WORDS);
+
+  let overlap = 0;
+  for (let k = maxK; k > 0; k--) {
+    const prevTail = prevWords
+      .slice(prevWords.length - k)
+      .map(normalizeWord)
+      .join(" ");
+    const nextHead = nextWords.slice(0, k).map(normalizeWord).join(" ");
+    if (prevTail && prevTail === nextHead) {
+      overlap = k;
+      break;
+    }
+  }
+
+  const remainder = nextWords.slice(overlap).join(" ");
+  return remainder ? `${prevText} ${remainder}` : prevText;
+}
 
 class ParakeetServerManager {
   constructor() {
@@ -101,28 +142,40 @@ class ParakeetServerManager {
 
     debugLogger.debug("Parakeet segmenting long audio", {
       durationSeconds,
-      segmentCount: Math.ceil(samples.length / MAX_SEGMENT_BYTES),
+      segmentCount: Math.ceil(
+        (samples.length - OVERLAP_BYTES) / SEGMENT_STEP_BYTES
+      ),
+      overlapSeconds: OVERLAP_SECONDS,
     });
 
-    const texts = [];
+    let mergedText = "";
     let totalElapsed = 0;
+    let segmentIndex = 0;
 
-    for (let offset = 0; offset < samples.length; offset += MAX_SEGMENT_BYTES) {
+    for (
+      let offset = 0;
+      offset < samples.length;
+      offset += SEGMENT_STEP_BYTES
+    ) {
       const end = Math.min(offset + MAX_SEGMENT_BYTES, samples.length);
       const segment = samples.subarray(offset, end);
       const result = await this.wsServer.transcribe(segment, SAMPLE_RATE);
       totalElapsed += result.elapsed || 0;
       if (result.text) {
-        texts.push(result.text);
+        mergedText = mergeOverlappingText(mergedText, result.text);
       } else {
         debugLogger.warn("Parakeet segment returned empty text", {
-          segmentIndex: offset / MAX_SEGMENT_BYTES,
+          segmentIndex,
           segmentDuration: segment.length / BYTES_PER_SAMPLE / SAMPLE_RATE,
         });
       }
+      segmentIndex += 1;
+      // The window already reached the end of the audio; stepping further would
+      // only re-transcribe audio that is fully covered by this segment.
+      if (end >= samples.length) break;
     }
 
-    return { text: texts.join(" "), elapsed: totalElapsed, language };
+    return { text: mergedText, elapsed: totalElapsed, language };
   }
 
   async startServer(modelName) {

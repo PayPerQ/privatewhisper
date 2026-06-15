@@ -74,9 +74,15 @@ class EdgeFunctionLogger {
       return { skipped: true, reason: "missing_endpoint" };
     }
 
+    const identity = this.environmentManager?.getUserIdentity
+      ? this.environmentManager.getUserIdentity()
+      : null;
+
     const enrichedPayload = {
       ...payload,
       app_version: this.appVersion || undefined,
+      user_uuid: identity?.userUuid || undefined,
+      user_label: identity?.userLabel || undefined,
     };
 
     const controller = new AbortController();

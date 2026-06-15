@@ -1,0 +1,18 @@
+{
+  "gemmaModels": {
+    "gemma-4-e2b-it-q4_k_m": {
+      "displayName": "Gemma 4 E2B",
+      "description": "Google's compact Gemma 4 at Q4_K_M. Runs fully on-device via llama.cpp.",
+      "sizeBytes": 3462677760,
+      "sizeLabel": "~3.5 GB",
+      "runtimeRamBytes": 4500000000,
+      "runtimeRamLabel": "~4.5 GB",
+      "quantization": "Q4_K_M",
+      "contextLength": 8192,
+      "license": "Apache-2.0",
+      "hfRepo": "bartowski/google_gemma-4-E2B-it-GGUF",
+      "ggufFileName": "google_gemma-4-E2B-it-Q4_K_M.gguf",
+      "downloadUrl": "https://huggingface.co/bartowski/google_gemma-4-E2B-it-GGUF/resolve/main/google_gemma-4-E2B-it-Q4_K_M.gguf"
+    }
+  }
+}

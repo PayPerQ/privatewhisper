@@ -860,7 +860,6 @@ export default function App() {
               roundtrip_ms: roundtripMs,
               misc_processing_ms: miscProcessingMs,
               stt_model_used: metrics?.flags?.transcriptionModel ?? null,
-              stt_provider_used: metrics?.flags?.transcriptionVendor ?? null,
               stt_route: metrics?.flags?.transcriptionRoute ?? null,
               llm_model_used: reasoningUsed
                 ? (metrics?.flags?.reasoningModel ?? null)

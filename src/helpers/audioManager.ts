@@ -530,10 +530,10 @@ class AudioManager {
 
   /**
    * Record STT provenance consistently across every transcription path
-   * (batch cloud, streaming cloud, and local Parakeet). Sets three signals:
-   *   transcriptionRoute  — user routing setting ("cloud" | "local")
-   *   transcriptionVendor — real backend vendor ("deepgram" | "parakeet")
-   *   transcriptionModel  — concrete model id
+   * (batch cloud, streaming cloud, and local Parakeet). Sets two signals:
+   *   transcriptionRoute — user routing setting ("cloud" | "local")
+   *   transcriptionModel — concrete model id (the vendor is inferable from it:
+   *                        "nova-3" => Deepgram, "parakeet:*" => Parakeet)
    * Previously transcriptionModel was only set on the batch HTTP path and
    * transcriptionProvider only on streaming start, so most rows logged NULL
    * STT provenance.
@@ -542,16 +542,12 @@ class AudioManager {
     const metrics = this.metrics;
     if (!metrics) return;
     metrics.setFlag("transcriptionRoute", route);
-    if (route === "local") {
-      metrics.setFlag("transcriptionVendor", "parakeet");
-      metrics.setFlag(
-        "transcriptionModel",
-        `parakeet:${this.settings.parakeetModel}`,
-      );
-    } else {
-      metrics.setFlag("transcriptionVendor", "deepgram");
-      metrics.setFlag("transcriptionModel", AUDIO_CONFIG.TRANSCRIPTION_MODEL);
-    }
+    metrics.setFlag(
+      "transcriptionModel",
+      route === "local"
+        ? `parakeet:${this.settings.parakeetModel}`
+        : AUDIO_CONFIG.TRANSCRIPTION_MODEL,
+    );
   }
 
   async processWithPPQAPI(audioBlob: Blob) {

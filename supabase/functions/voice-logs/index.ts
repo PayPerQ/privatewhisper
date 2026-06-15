@@ -130,7 +130,6 @@ Deno.serve(async (req) => {
     roundtrip_ms: normalizeInt(payload.roundtrip_ms),
     misc_processing_ms: normalizeInt(payload.misc_processing_ms),
     stt_model_used: normalizeString(payload.stt_model_used),
-    stt_provider_used: normalizeProvider(payload.stt_provider_used),
     stt_route: normalizeString(payload.stt_route),
     llm_model_used: normalizeString(payload.llm_model_used),
     llm_provider_used: normalizeProvider(payload.llm_provider_used),

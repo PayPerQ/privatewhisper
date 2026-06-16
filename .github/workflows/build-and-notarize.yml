@@ -1,8 +1,10 @@
 name: Build and Notarize
 
 on:
-  push:
-    branches: [main, develop]
+  # Intentionally no `push` trigger: a release is cut by tagging right after
+  # merge (release.yml), which builds + publishes — building on the merge too
+  # would double-build every release. PRs still validate below; run manually via
+  # workflow_dispatch if needed.
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -19,14 +21,17 @@ jobs:
         # windows-2022 (VS 2022 / v17) instead of windows-latest: the newer
         # windows-latest image ships Visual Studio 18, which the bundled
         # node-gyp@10.1.0 can't recognize, breaking better-sqlite3's native build.
-        os: [ubuntu-latest, windows-2022, macos-latest]
+        #
+        # macOS is intentionally omitted from PR validation — macOS minutes bill
+        # at 10x and our build issues are Windows-specific. macOS is still fully
+        # built + notarized on release (release.yml). The macOS-only steps below
+        # simply never run here.
+        os: [ubuntu-latest, windows-2022]
         include:
           - os: ubuntu-latest
             build_cmd: npm run build:linux
           - os: windows-2022
             build_cmd: npm run build:win
-          - os: macos-latest
-            build_cmd: npm run build:mac
 
     runs-on: ${{ matrix.os }}
 

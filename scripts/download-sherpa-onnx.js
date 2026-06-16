@@ -51,32 +51,39 @@ function getDownloadUrl(archiveName) {
 function extractTarBz2(archivePath, destDir) {
   fs.mkdirSync(destDir, { recursive: true });
   const cwd = path.dirname(archivePath);
+  const base = path.basename(archivePath);
 
-  // On Windows, force the built-in bsdtar at System32\tar.exe. bsdtar decodes
-  // bzip2 natively (libarchive), whereas the MSYS/Git GNU `tar` that often
-  // shadows it in PATH shells out to a separate bzip2 process and DEADLOCKS on
-  // Windows pipe buffering — hanging the build forever right after the download
-  // finishes (the .tar.bz2 never extracts). macOS/Linux `tar` are unaffected.
-  let tarBin = "tar";
   if (process.platform === "win32") {
-    const sysTar = path.join(
-      process.env.SystemRoot || "C:\\Windows",
-      "System32",
-      "tar.exe",
+    // `tar -xjf` deadlocks on some GitHub windows runner images right after the
+    // download completes — the .tar.bz2 never extracts and the build hangs for
+    // hours. Use 7-Zip instead (preinstalled on all GitHub windows runners): a
+    // different, well-behaved extractor. .tar.bz2 needs two passes (.bz2 -> .tar
+    // -> files). stdio is fully detached (no inherited console handles) so a
+    // lingering process from the earlier native compile can't block the pipe.
+    const sevenZip = path.join(
+      process.env.ProgramFiles || "C:\\Program Files",
+      "7-Zip",
+      "7z.exe",
     );
-    if (fs.existsSync(sysTar)) tarBin = sysTar;
+    const bin = fs.existsSync(sevenZip) ? sevenZip : "7z";
+    const opts = { stdio: ["ignore", "ignore", "inherit"], windowsHide: true, cwd };
+    const tarName = base.replace(/\.bz2$/i, "");
+    // 1) decompress .tar.bz2 -> .tar (into cwd)
+    execFileSync(bin, ["x", base, "-y"], opts);
+    // 2) extract the .tar -> destDir
+    execFileSync(
+      bin,
+      ["x", tarName, "-ttar", `-o${path.relative(cwd, destDir)}`, "-y"],
+      opts,
+    );
+    return;
   }
 
+  // macOS/Linux: tar handles .tar.bz2 natively and reliably.
   execFileSync(
-    tarBin,
-    ["-xjf", path.basename(archivePath), "-C", path.relative(cwd, destDir)],
-    {
-      // Close stdin so the child can never block waiting on input, and hide the
-      // window so cmd.exe can't surface an interactive prompt in CI.
-      stdio: ["ignore", "inherit", "inherit"],
-      windowsHide: true,
-      cwd,
-    },
+    "tar",
+    ["-xjf", base, "-C", path.relative(cwd, destDir)],
+    { stdio: ["ignore", "inherit", "inherit"], windowsHide: true, cwd },
   );
 }
 

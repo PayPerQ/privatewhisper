@@ -1,4 +1,8 @@
-import { withRetry, createApiRetryStrategy } from "../utils/retry";
+import {
+  withRetry,
+  createApiRetryStrategy,
+  createLocalLlmRetryStrategy,
+} from "../utils/retry";
 import {
   API_ENDPOINTS,
   TOKEN_LIMITS,
@@ -162,16 +166,19 @@ OUTPUT:
 
     const provider = this.getReasoningProvider();
 
-    // Gemma 4 E2B (local) will happily generate 300+ tokens of "reply" when
-    // it misinterprets the transcript as a question. Cap tightly to keep
-    // cleanup latency proportional to input length. Cloud/Tinfoil models
-    // don't have this problem and benefit from a higher cap.
+    // Gemma E2B (local) is a "thinking" model: the local llama-server emits its
+    // chain-of-thought into `reasoning_content` and only writes the cleaned text
+    // to `content` AFTER thinking ends. We disable thinking below (see body), so
+    // `content` is produced directly. The cap is a ceiling, not a target — the
+    // model stops at EOS — so we keep enough headroom for the cleaned output
+    // (plus a little slack in case a model ignores the thinking-disable hint and
+    // leaks a short reasoning preamble). Cloud/Tinfoil models use the higher cap.
     const maxTokens =
       config.maxTokens ??
       (provider === "local-gemma"
         ? Math.max(
-            48,
-            Math.min(Math.ceil(text.length * 1.5) + 32, 384),
+            256,
+            Math.min(Math.ceil(text.length * 2) + 256, 1024),
           )
         : this.calculateMaxTokens(
             text.length,
@@ -205,6 +212,18 @@ OUTPUT:
     if (provider === "ppq") {
       body.provider = { only: ["groq", "cerebras"] };
       body.reasoning = { effort: "low" };
+    }
+
+    // Local Gemma: disable the model's thinking phase. Text cleanup needs no
+    // chain-of-thought, and leaving it on makes llama-server route all output
+    // into `reasoning_content` while `content` stays empty until the model
+    // finishes thinking — which it never does within the token cap, so it
+    // returns finish_reason "length" with empty content and cleanup fails.
+    // We send every common opt-out so it works across llama-server builds /
+    // chat templates; unsupported keys are ignored.
+    if (provider === "local-gemma") {
+      body.reasoning_budget = 0;
+      body.chat_template_kwargs = { enable_thinking: false };
     }
 
     return body;
@@ -284,6 +303,23 @@ OUTPUT:
     return "";
   }
 
+  // Local models (Gemma especially) sometimes prepend a conversational meta-
+  // preamble like "Sure, here's the cleaned-up text:" before the actual output,
+  // despite the system prompt. Strip a leading preamble ONLY when it explicitly
+  // refers to the cleanup task and ends with a colon/dash, so the real content
+  // follows. This is deliberately narrow: it must mention a cleanup-related word
+  // (clean/correct/revis/version/text/transcription/output), so legitimate
+  // speech that merely starts with "Okay, here's the plan:" is left untouched.
+  private stripAssistantPreamble(text: string): string {
+    if (!text) return text;
+    const preamble =
+      /^\s*(?:sure|okay|ok|alright|of course|certainly|got it|here(?:'s|’s| is)|here you go)\b[^:\n]*?\b(?:clean(?:ed)?|correct(?:ed)?|revis\w*|version|text|transcription|output)\b[^:\n]*[:\-]\s*/i;
+    const stripped = text.replace(preamble, "").trim();
+    // Never strip away the entire message — if nothing's left, keep the original
+    // so validateOutput can make the call rather than us pasting empty text.
+    return stripped || text;
+  }
+
   private validateOutput(
     output: string,
     originalLength: number,
@@ -299,7 +335,12 @@ OUTPUT:
 
     const suspiciousPatterns = [
       /^(I am|I'm) (a |an )?(dictation|post-processor|AI|assistant|language model)/i,
-      /^(Sure|Okay|Of course|Certainly)[,!]?\s+(I|here|let me)/i,
+      // Task-meta opener that survived stripAssistantPreamble, e.g. "Sure,
+      // here's the cleaned version…". Deliberately requires the cleanup-task
+      // reference so natural speech ("Okay, I'll call you", "Sure, I am going
+      // to the store") is NOT rejected. Genuine injection payloads ("…ignore my
+      // instructions", "…the password") are caught by the patterns below.
+      /^(sure|okay|of course|certainly|got it)[,!.]?\s+here['’]?s? (?:the|your) (?:clean|correct|revis|fix|edit|updat)/i,
       /my (system |)instructions/i,
       /\bAPI[- ]?key\b/i,
       /\bpassword\b/i,
@@ -405,7 +446,9 @@ OUTPUT:
         }
 
         return res.json();
-      }, createApiRetryStrategy());
+      }, provider === "local-gemma"
+        ? createLocalLlmRetryStrategy()
+        : createApiRetryStrategy());
 
       // void debugLogger.log("PPQ_RESPONSE_RECEIVED", {
       //   model: requestBody.model,
@@ -414,7 +457,9 @@ OUTPUT:
       //   firstChoice: JSON.stringify(response?.choices?.[0])?.substring(0, 500),
       // });
 
-      const cleaned = this.extractResponseText(response);
+      const cleaned = this.stripAssistantPreamble(
+        this.extractResponseText(response),
+      );
 
       if (!cleaned) {
         void debugLogger.log("PPQ_EMPTY_RESPONSE", {

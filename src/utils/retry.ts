@@ -55,6 +55,26 @@ export function createApiRetryStrategy() {
   };
 }
 
+// Retry strategy for the local Gemma (llama-server) reasoning call. The server
+// is spawned on demand and can briefly refuse connections while it warms up,
+// surfacing as a "Failed to fetch" TypeError (no `.response`). We retry those
+// and 5xx more patiently than the cloud strategy — snappier early backoff plus
+// a couple extra attempts — so a cold-start blip recovers instead of falling
+// back to plain cleanup, while still capping the total wait (~7s) since the
+// cleanup blocks the paste.
+export function createLocalLlmRetryStrategy() {
+  return {
+    shouldRetry: (error: any) => {
+      if (!error.response) return true; // network error (e.g. server warming up)
+      const status = error.response?.status || error.status;
+      return status >= 500 && status < 600;
+    },
+    maxRetries: 5,
+    initialDelay: 400,
+    maxDelay: 2000,
+  };
+}
+
 // Specific retry strategy for file operations
 export function createFileRetryStrategy() {
   return {

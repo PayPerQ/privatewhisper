@@ -1,4 +1,4 @@
-# PPQ Whisper Debugging Guide
+# Private Whisper Debugging Guide
 
 Use debug logging when you need deeper insight into the microphone, transcription, or reasoning pipeline.
 
@@ -11,7 +11,7 @@ Use debug logging when you need deeper insight into the microphone, transcriptio
 /Applications/PPQ\ Whisper.app/Contents/MacOS/PPQ\ Whisper --debug
 
 # Windows
-"C:\Program Files\PPQ Whisper\PPQ Whisper.exe" --debug
+"C:\Program Files\Private Whisper\Private Whisper.exe" --debug
 ```
 
 ### Option 2 – Environment variable
@@ -23,7 +23,7 @@ open /Applications/PPQ\ Whisper.app
 
 # Windows (PowerShell)
 $env:PPQVOICE_DEBUG="true"
-Start-Process "C:\Program Files\PPQ Whisper\PPQ Whisper.exe"
+Start-Process "C:\Program Files\Private Whisper\Private Whisper.exe"
 ```
 
 Debug mode is off by default. Remove the flag/variable to disable it.

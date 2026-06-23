@@ -378,7 +378,7 @@ class IPCHandlers {
         return {
           success: true,
           relaunch: true,
-          message: "Cleanup completed. Relaunching PPQ Whisper...",
+          message: "Cleanup completed. Relaunching Private Whisper...",
         };
       } catch (error) {
         throw error;
@@ -486,7 +486,7 @@ class IPCHandlers {
         const lines = [];
 
         // App info header
-        lines.push("=== PPQ Whisper Diagnostic Logs ===");
+        lines.push("=== Private Whisper Diagnostic Logs ===");
         lines.push(`Version: ${app.getVersion()}`);
         lines.push(`Platform: ${process.platform} ${process.arch}`);
         lines.push(`Electron: ${process.versions.electron}`);

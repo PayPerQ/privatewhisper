@@ -36,7 +36,7 @@ const ChatwootWidget = () => {
           const $chatwoot = (window as any).$chatwoot;
           if ($chatwoot) {
             $chatwoot.setCustomAttributes({
-              source_app: "PPQ Voice",
+              source_app: "Private Whisper",
               app_type: "desktop",
               platform: window.electronAPI?.getPlatform?.() || "unknown",
             });

@@ -1,6 +1,6 @@
 # Hotkey System Documentation
 
-This document describes how hotkey selection and registration works in PPQ Whisper across different platforms.
+This document describes how hotkey selection and registration works in Private Whisper across different platforms.
 
 ## Core Architecture
 

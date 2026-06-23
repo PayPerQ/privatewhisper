@@ -1,10 +1,10 @@
-# PPQ Whisper – Assistant Technical Notes
+# Private Whisper – Assistant Technical Notes
 
 Use this doc whenever you need quick architectural context while working on the repo.
 
-## 1. What PPQ Whisper Does
+## 1. What Private Whisper Does
 
-PPQ Whisper is an Electron 36 desktop app (React 19 renderer) that:
+Private Whisper is an Electron 36 desktop app (React 19 renderer) that:
 
 1. Listens for a global hotkey (default `\``).
 2. Records audio via the browser's `MediaRecorder`.

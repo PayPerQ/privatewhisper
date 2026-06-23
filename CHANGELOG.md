@@ -13,6 +13,7 @@ All notable changes to this project will be documented in this file. The format 
 
 ### Changed
 
+- Renamed application to **Private Whisper** (display name / productName; bundle id `ai.ppq.voice` and local data directory unchanged)
 - Renamed application to PPQ Whisper
 - Updated README with hotkey section, platform notes, and architecture diagram
 - Complete CHANGELOG with version history from 0.1.2 onwards

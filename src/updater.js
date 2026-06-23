@@ -346,7 +346,7 @@ class UpdateManager {
               });
               this.notifyRenderers("update-install-timeout", {
                 message:
-                  "PPQ Whisper didn't restart automatically. Please quit the app manually to finish installing the update.",
+                  "Private Whisper didn't restart automatically. Please quit the app manually to finish installing the update.",
               });
             }, 10000);
 

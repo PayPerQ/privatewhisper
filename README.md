@@ -1,8 +1,8 @@
-# PPQ Whisper
+# Private Whisper
 
-PPQ Whisper is a lightweight Electron desktop app that turns any text field into a dictation box. Press a single hotkey, speak, and the app streams your audio to PPQ Cloud for transcription and clean-up, then pastes the result wherever your cursor was.
+Private Whisper is a lightweight Electron desktop app that turns any text field into a dictation box. Press a single hotkey, speak, and the app streams your audio to PPQ Cloud for transcription and clean-up, then pastes the result wherever your cursor was.
 
-## Why Teams Use PPQ Whisper
+## Why Teams Use Private Whisper
 
 - **Cloud-first dictation** – Streams audio to PPQ Cloud for fast, consistent transcriptions.
 - **Automatic paste + history** – Captured text is pasted into the active app and stored locally in SQLite.
@@ -87,11 +87,11 @@ npm run build:win           # Windows NSIS + portable
 npm run build:linux         # Linux AppImage + deb
 ```
 
-Artifacts land in `dist/`. On macOS the unsigned app lives at `dist/mac-arm64/PPQ Whisper.app`; Windows gets `dist/win-unpacked/PPQ Whisper.exe`.
+Artifacts land in `dist/`. On macOS the unsigned app lives at `dist/mac-arm64/Private Whisper.app`; Windows gets `dist/win-unpacked/Private Whisper.exe`.
 
 ## Permissions
 
-PPQ Whisper needs two macOS permissions (Windows/Linux equivalents are requested automatically):
+Private Whisper needs two macOS permissions (Windows/Linux equivalents are requested automatically):
 
 1. **Microphone** – required for recording audio.
 2. **Accessibility** – needed so the app can paste transcriptions for you.

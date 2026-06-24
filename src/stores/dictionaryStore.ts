@@ -41,7 +41,6 @@ class DictionaryStore {
       const terms = (await window.electronAPI?.getDictionary?.()) ?? [];
       void debugLogger.log("HYDRATED", {
         termCount: terms.length,
-        termsPreview: terms.slice(0, 3).map((t) => t.term),
       });
       this.setState({
         items: terms,

@@ -616,7 +616,6 @@ class StreamingTranscriptionService {
         void debugLogger.log("STREAMING_CONFIG_SENT", {
           language: config.language ?? "multi",
           keytermsCount: config.keyterms?.length ?? 0,
-          keytermsPreview: config.keyterms?.slice(0, 5),
           mipOptOut: config.mip_opt_out,
         });
         this.ws?.send(JSON.stringify(config));
@@ -700,7 +699,7 @@ class StreamingTranscriptionService {
 
   async close(): Promise<string> {
     void debugLogger.log("WS_CLOSING", {
-      accumulated: this.accumulatedText.trim().slice(0, 50),
+      accumulatedLength: this.accumulatedText.trim().length,
     });
 
     // Mark that we're no longer actively streaming (prevent reconnection attempts)
@@ -731,7 +730,6 @@ class StreamingTranscriptionService {
 
     const finalText = this.accumulatedText.trim();
     void debugLogger.log("WS_FINAL_TEXT", {
-      text: finalText.slice(0, 100),
       length: finalText.length,
     });
 

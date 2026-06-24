@@ -41,7 +41,6 @@ class ClipboardManager {
       // Copy text to clipboard first - this always works
       clipboard.writeText(text);
       this.safeLog("text-copied", {
-        preview: text.substring(0, 50),
         length: text.length,
       });
 

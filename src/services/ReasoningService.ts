@@ -333,30 +333,6 @@ OUTPUT:
       };
     }
 
-    const suspiciousPatterns = [
-      /^(I am|I'm) (a |an )?(dictation|post-processor|AI|assistant|language model)/i,
-      // Task-meta opener that survived stripAssistantPreamble, e.g. "Sure,
-      // here's the cleaned version…". Deliberately requires the cleanup-task
-      // reference so natural speech ("Okay, I'll call you", "Sure, I am going
-      // to the store") is NOT rejected. Genuine injection payloads ("…ignore my
-      // instructions", "…the password") are caught by the patterns below.
-      /^(sure|okay|of course|certainly|got it)[,!.]?\s+here['’]?s? (?:the|your) (?:clean|correct|revis|fix|edit|updat)/i,
-      /my (system |)instructions/i,
-      /\bAPI[- ]?key\b/i,
-      /\bpassword\b/i,
-      /\bsecret\b/i,
-      /<\/?transcription>/i,
-    ];
-
-    for (const pattern of suspiciousPatterns) {
-      if (pattern.test(output)) {
-        return {
-          valid: false,
-          reason: `suspicious_pattern: ${pattern.source}`,
-        };
-      }
-    }
-
     return { valid: true };
   }
 
@@ -464,7 +440,9 @@ OUTPUT:
       if (!cleaned) {
         void debugLogger.log("PPQ_EMPTY_RESPONSE", {
           model: requestBody.model,
-          rawResponse: JSON.stringify(response).substring(0, 1000),
+          choiceCount: (response as any)?.choices?.length ?? 0,
+          finishReason: (response as any)?.choices?.[0]?.finish_reason ?? null,
+          hasContent: !!(response as any)?.choices?.[0]?.message?.content,
         });
         throw new Error("PPQ API returned an empty response");
       }

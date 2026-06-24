@@ -614,7 +614,6 @@ class AudioManager {
         apiKeyPrefix: apiKey ? `${apiKey.substring(0, 8)}...` : "none",
         formDataEntries: formDataEntries,
         keytermsCount: dictionary?.length ?? 0,
-        keytermsPreview: dictionary?.slice(0, 5) ?? [],
         keytermsIncludedInUrl: (dictionary?.length ?? 0) > 0,
       });
 
@@ -676,7 +675,6 @@ class AudioManager {
       void debugLogger.log("PPQ_TRANSCRIPTION_SUCCESS", {
         hasText: !!result.text,
         textLength: result.text?.length || 0,
-        textPreview: result.text ? result.text.substring(0, 100) : "no text",
       });
 
       if (result.text) {
@@ -1160,8 +1158,6 @@ class AudioManager {
 
       void debugLogger.log("STREAMING_STOPPED", {
         textLength: finalText.length,
-        textPreview:
-          finalText.substring(0, 100) + (finalText.length > 100 ? "..." : ""),
       });
 
       if (!finalText) {

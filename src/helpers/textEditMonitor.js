@@ -115,7 +115,7 @@ class TextEditMonitor extends EventEmitter {
       }
     }
 
-    log("spawning-monitor", { textPreview: originalText.substring(0, 80) });
+    log("spawning-monitor", { textLength: originalText.length });
 
     this.process = spawn(command, args, {
       stdio: ["pipe", "pipe", "pipe"],
@@ -198,7 +198,7 @@ class TextEditMonitor extends EventEmitter {
       return;
     }
 
-    log("text-changed", { newFieldValue: newFieldValue.substring(0, 80) });
+    log("text-changed", { newFieldValueLength: newFieldValue.length });
     this.emit("text-edited", {
       originalText: this.currentOriginalText,
       newFieldValue,
@@ -256,7 +256,7 @@ class TextEditMonitor extends EventEmitter {
 
     log("macos-native-starting", {
       targetPid,
-      textPreview: originalText.substring(0, 80),
+      textLength: originalText.length,
     });
 
     await this._enableAccessibility(targetPid);
@@ -339,7 +339,7 @@ class TextEditMonitor extends EventEmitter {
 
     log("macos-polling-starting", {
       targetPid,
-      textPreview: originalText.substring(0, 80),
+      textLength: originalText.length,
     });
 
     this._enableAccessibility(targetPid).then(() => {
@@ -386,7 +386,7 @@ class TextEditMonitor extends EventEmitter {
 
     this._lastValue = initialValue;
     log("macos-initial-value", {
-      valuePreview: initialValue.substring(0, 80),
+      valueLength: initialValue.length,
       attempt,
     });
 
@@ -403,7 +403,7 @@ class TextEditMonitor extends EventEmitter {
       if (currentValue !== this._lastValue) {
         this._lastValue = currentValue;
         log("macos-text-changed", {
-          newValuePreview: currentValue.substring(0, 80),
+          newValueLength: currentValue.length,
         });
         this.emit("text-edited", {
           originalText: this.currentOriginalText,

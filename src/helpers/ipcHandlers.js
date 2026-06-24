@@ -74,8 +74,8 @@ class IPCHandlers {
       const { originalText, newFieldValue } = data;
 
       debugLogger.logEvent("auto-learn", "text-edited", {
-        originalPreview: originalText.substring(0, 80),
-        newValuePreview: newFieldValue.substring(0, 80),
+        originalLength: originalText.length,
+        newValueLength: newFieldValue.length,
       });
 
       this._autoLearnLatestData = { originalText, newFieldValue };

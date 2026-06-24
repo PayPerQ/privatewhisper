@@ -512,7 +512,6 @@ export default function App() {
     void appLogger.log("AUDIO_SETTINGS_COMPUTED", {
       preferredLanguage,
       dictionaryCount: dictionary.length,
-      dictionaryPreview: dictionary.slice(0, 5),
       mipOptOut,
     });
     return {

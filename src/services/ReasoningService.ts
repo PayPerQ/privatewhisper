@@ -5,6 +5,7 @@ import {
 } from "../utils/retry";
 import {
   API_ENDPOINTS,
+  CREATOR_TOOL_IDS,
   TOKEN_LIMITS,
   PRIVATE_PROXY_CHAT,
   GEMMA_LOCAL_CONFIG,
@@ -212,6 +213,10 @@ OUTPUT:
     if (provider === "ppq") {
       body.provider = { only: ["groq", "cerebras"] };
       body.reasoning = { effort: "low" };
+      // Identifies this call to horse-power so it can fire the PPQ Whisper
+      // creator payout. Private-mode requests skip this since they don't
+      // hit the standard chat-completions controller.
+      body.tool_id = CREATOR_TOOL_IDS.CLEANUP;
     }
 
     // Local Gemma: disable the model's thinking phase. Text cleanup needs no

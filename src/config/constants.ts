@@ -93,21 +93,17 @@ export const API_ENDPOINTS = {
   PPQ_STREAMING_TRANSCRIPTION_WS: `${DEFAULT_PPQ_WS_BASE}/ws/transcribe`,
 } as const;
 
-// tool_id values sent to horse-power so PPQ Whisper usage earns a creator
-// payout. Each must map to an active `AIToolCreator` record (with a
-// lightning_address + payout_sats) seeded in horse-power, or the payout
-// silently no-ops.
-//   STT     — Deepgram speech-to-text, sent in the WebSocket auth message;
-//             horse-power pays out in transcription.ws.controller.ts.
-//   CLEANUP — the optional Groq/Cerebras LLM "cleanup" pass, sent on the
-//             /chat/completions body; horse-power pays out in chat.controller.ts.
+// Single creator tool_id for ALL PPQ Voice queries so they roll up under one
+// creator (Gabe Stein / PPQ Voice) — one row in the Active Creators directory.
+// Maps to the seeded `stt:ppq-voice` AIToolCreator. It is sent in two places:
+//   - Deepgram STT: the WebSocket auth message; horse-power pays out in
+//     transcription.ws.controller.ts.
+//   - Groq/Cerebras LLM "cleanup": the /chat/completions body; horse-power
+//     pays out in chat.controller.ts.
+// Both payouts hit the same record (distinguished by query_type STT vs CHAT).
 // Private-mode (Tinfoil) cleanup intentionally omits the tool_id since it
 // bypasses horse-power entirely.
-export const CREATOR_TOOL_IDS = {
-  // Matches the seeded `stt:ppq-voice` AIToolCreator (PPQ Voice STT, Deepgram).
-  STT: "stt:ppq-voice",
-  CLEANUP: "llm:ppq-whisper-cleanup",
-} as const;
+export const PPQ_VOICE_CREATOR_TOOL_ID = "stt:ppq-voice";
 
 // Model Configuration
 export const MODEL_CONSTRAINTS = {

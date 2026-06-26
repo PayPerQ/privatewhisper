@@ -4,7 +4,7 @@ import StreamingTranscriptionService, {
 } from "../services/StreamingTranscriptionService";
 import {
   API_ENDPOINTS,
-  CREATOR_TOOL_IDS,
+  PPQ_VOICE_CREATOR_TOOL_ID,
   DEVICE_RECOVERY_CONFIG,
 } from "../config/constants";
 import createDebugLogger from "../utils/debugLoggerRenderer";
@@ -852,9 +852,12 @@ class AudioManager {
     StreamingTranscriptionService.setMipOptOut(this.settings.mipOptOut);
 
     try {
-      // Pass the STT creator tool_id so horse-power fires the Deepgram
+      // Pass the PPQ Voice creator tool_id so horse-power fires the Deepgram
       // creator payout for this transcription session.
-      await StreamingTranscriptionService.connect(apiKey, CREATOR_TOOL_IDS.STT);
+      await StreamingTranscriptionService.connect(
+        apiKey,
+        PPQ_VOICE_CREATOR_TOOL_ID,
+      );
       this.streamingMode = true;
       this.metrics.mark("streamingConnected");
     } catch (error: any) {

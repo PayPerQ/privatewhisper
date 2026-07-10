@@ -121,6 +121,10 @@ class GemmaManager {
     return this.serverManager.stopServer();
   }
 
+  killServerNow() {
+    this.serverManager.killServerNow();
+  }
+
   getServerStatus() {
     return this.serverManager.getServerStatus();
   }

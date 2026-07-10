@@ -59,7 +59,12 @@ const DEFAULT_PPQ_TRANSCRIPTION_BASE = computeBaseUrl(
     env.PPQVOICE_PPQ_TRANSCRIPTION_BASE_URL as string | undefined,
     env.PPQVOICE_PPQ_BASE_URL as string | undefined,
   ],
-  "https://ppq.ai/api/v1",
+  // NOTE: transcription lives at api.ppq.ai/v1/audio/transcriptions (the /v1 is
+  // required here, unlike chat which is served at api.ppq.ai/chat/completions).
+  // The old default (https://ppq.ai/api/v1) pointed at the website host, whose
+  // Next.js app returns a 404 page for this route → "transcription_failed: API
+  // Error: 404 <!DOCTYPE html>...".
+  "https://api.ppq.ai/v1",
 );
 
 const DEFAULT_PPQ_CHAT_BASE = computeBaseUrl(

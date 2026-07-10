@@ -9,6 +9,7 @@ const {
   resolveBinaryPath,
   gracefulStopProcess,
 } = require("../utils/serverUtils");
+const { killProcess } = require("../utils/process");
 const debugLogger = require("./gemmaLogger");
 
 /**
@@ -473,6 +474,23 @@ class GemmaServerProcess extends EventEmitter {
     this.modelName = null;
     this.modelPath = null;
     this.restartAttempts = 0;
+    this._setReady(false);
+  }
+
+  /**
+   * Synchronously hard-kill the server. For app quit: stop()'s SIGTERM plus
+   * timed SIGKILL fallback never fires once the app exits, which leaked the
+   * process (and the port) whenever llama-server didn't act on the SIGTERM
+   * in time. The server is stateless, so there is nothing to be graceful about.
+   */
+  killNow() {
+    this._clearLiveness();
+    this._clearIdleTimer();
+    if (this.process) {
+      killProcess(this.process, "SIGKILL");
+      this.process = null;
+    }
+    this.port = null;
     this._setReady(false);
   }
 }

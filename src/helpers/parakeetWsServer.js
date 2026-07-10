@@ -9,11 +9,14 @@ const {
   findAvailablePort,
   resolveBinaryPath,
   gracefulStopProcess,
+  killOrphanedProcesses,
 } = require("../utils/serverUtils");
+const { killProcess } = require("../utils/process");
 const { getSafeTempDir } = require("./safeTempDir");
 
 const PORT_RANGE_START = 6006;
 const PORT_RANGE_END = 6029;
+const MAX_PORT_CONFLICT_RETRIES = 3;
 const STARTUP_TIMEOUT_MS = 60000;
 const HEALTH_CHECK_INTERVAL_MS = 5000;
 const TRANSCRIPTION_TIMEOUT_MS = 300000;
@@ -83,10 +86,54 @@ class ParakeetWsServer extends EventEmitter {
     if (!wsBinary) throw new Error("sherpa-onnx WS server binary not found");
     if (!fs.existsSync(modelDir)) throw new Error(`Model directory not found: ${modelDir}`);
 
-    this.port = await findAvailablePort(PORT_RANGE_START, PORT_RANGE_END);
+    // A crashed or force-quit app instance can leave an orphaned server
+    // holding a port in our range (and the model in RAM). Reap it first.
+    const reaped = await killOrphanedProcesses(wsBinary);
+    if (reaped > 0) {
+      debugLogger.warn("Killed orphaned parakeet-ws process(es) from a previous run", {
+        count: reaped,
+      });
+    }
+
     this.modelName = modelName;
     this.modelDir = modelDir;
 
+    let portSearchStart = PORT_RANGE_START;
+    for (let attempt = 0; ; attempt++) {
+      this.port = await findAvailablePort(portSearchStart, PORT_RANGE_END);
+      try {
+        await this._spawnServer(wsBinary, modelDir);
+        break;
+      } catch (error) {
+        const portInUse = /address already in use/i.test(error.message);
+        if (portInUse && attempt < MAX_PORT_CONFLICT_RETRIES && this.port < PORT_RANGE_END) {
+          debugLogger.warn("parakeet-ws port already in use, retrying on next port", {
+            port: this.port,
+            attempt: attempt + 1,
+          });
+          portSearchStart = this.port + 1;
+          continue;
+        }
+        if (portInUse) {
+          throw new Error(
+            `Local transcription server could not start: port ${this.port} is already in use by another application.`,
+          );
+        }
+        throw error;
+      }
+    }
+
+    this._startHealthCheck();
+
+    debugLogger.info("parakeet-ws server started successfully", {
+      port: this.port,
+      model: modelName,
+    });
+
+    await this._warmUp();
+  }
+
+  async _spawnServer(wsBinary, modelDir) {
     const args = [
       `--tokens=${path.join(modelDir, "tokens.txt")}`,
       `--encoder=${path.join(modelDir, "encoder.int8.onnx")}`,
@@ -96,7 +143,11 @@ class ParakeetWsServer extends EventEmitter {
       `--num-threads=${Math.max(1, Math.min(4, Math.floor(os.cpus().length * 0.75)))}`,
     ];
 
-    debugLogger.debug("Starting parakeet WS server", { port: this.port, modelName, args });
+    debugLogger.debug("Starting parakeet WS server", {
+      port: this.port,
+      modelName: this.modelName,
+      args,
+    });
 
     const spawnEnv = { ...process.env };
     const binaryDir = path.dirname(wsBinary);
@@ -148,14 +199,6 @@ class ParakeetWsServer extends EventEmitter {
     });
 
     await this._waitForReady(readyFromStderr, () => ({ stderr: stderrBuffer, exitCode }));
-    this._startHealthCheck();
-
-    debugLogger.info("parakeet-ws server started successfully", {
-      port: this.port,
-      model: modelName,
-    });
-
-    await this._warmUp();
   }
 
   async _warmUp() {
@@ -362,6 +405,22 @@ class ParakeetWsServer extends EventEmitter {
     this.port = null;
     this.modelName = null;
     this.modelDir = null;
+  }
+
+  /**
+   * Synchronously hard-kill the server. For app quit: stop()'s SIGTERM plus
+   * timed SIGKILL fallback never fires once the app exits, which leaked the
+   * process (and the port) whenever sherpa didn't act on the SIGTERM in time.
+   * The server is stateless, so there is nothing to be graceful about.
+   */
+  killNow() {
+    this.stopHealthCheck();
+    if (this.process) {
+      killProcess(this.process, "SIGKILL");
+      this.process = null;
+    }
+    this._setReady(false);
+    this.port = null;
   }
 
   getStatus() {

@@ -201,6 +201,10 @@ class ParakeetServerManager {
     await this.wsServer.stop();
   }
 
+  killServerNow() {
+    this.wsServer.killNow();
+  }
+
   getServerStatus() {
     return this.wsServer.getStatus();
   }

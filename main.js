@@ -617,8 +617,11 @@ function setupApp() {
     globalShortcut.unregisterAll();
     if (globeKeyManager) globeKeyManager.stop();
     if (privateProxyManager) privateProxyManager.stop();
-    if (parakeetManager) parakeetManager.stopServer().catch(() => {});
-    if (gemmaManager) gemmaManager.stopServer().catch(() => {});
+    // Hard-kill the local servers synchronously. The graceful stop path
+    // (SIGTERM, then SIGKILL after 5s) relies on a timer that never fires
+    // once the app exits, which leaked orphaned server processes.
+    if (parakeetManager) parakeetManager.killServerNow();
+    if (gemmaManager) gemmaManager.killServerNow();
     if (updateManager) updateManager.cleanup();
     if (ipcHandlers) ipcHandlers._cleanupTextEditMonitor();
     if (textEditMonitor) textEditMonitor.stopMonitoring();

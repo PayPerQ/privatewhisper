@@ -41,7 +41,7 @@ Main process (Electron)
 
 1. `AudioManager.startRecording()` – uses `navigator.mediaDevices.getUserMedia`.
 2. On stop → converts blob to WAV → `optimizeAudio` (16 kHz mono) → `processWithPPQAPI`.
-3. Sends `multipart/form-data` to `API_ENDPOINTS.PPQ_TRANSCRIPTION` (default `https://api.ppq.ai/audio/transcriptions` or overridden via `PPQVOICE_PPQ_BASE_URL`).
+3. Sends `multipart/form-data` to `API_ENDPOINTS.PPQ_TRANSCRIPTION` (default `https://api.ppq.ai/v1/audio/transcriptions` — note the required `/v1`, unlike chat — or overridden via `PPQVOICE_PPQ_TRANSCRIPTION_BASE_URL` / `PPQVOICE_PPQ_BASE_URL`).
 4. On success, runs `processTranscription`, optionally piping through `ReasoningService`.
 5. Calls `window.electronAPI.pasteText` and `saveTranscription`.
 

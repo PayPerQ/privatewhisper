@@ -61,6 +61,10 @@ class GemmaServerManager {
     return { success: true };
   }
 
+  killServerNow() {
+    this.process.killNow();
+  }
+
   getServerStatus() {
     return this.process.getStatus();
   }

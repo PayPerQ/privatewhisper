@@ -105,9 +105,11 @@ export const API_ENDPOINTS = {
 //     transcription.ws.controller.ts.
 //   - Groq/Cerebras LLM "cleanup": the /chat/completions body; horse-power
 //     pays out in chat.controller.ts.
-// Both payouts hit the same record (distinguished by query_type STT vs CHAT).
-// Private-mode (Tinfoil) cleanup intentionally omits the tool_id since it
-// bypasses horse-power entirely.
+//   - Private-mode (Tinfoil) LLM "cleanup": the X-Tool-Id request header (the
+//     body is encrypted end-to-end, so a body field would be invisible);
+//     the local ppq-private-mode proxy forwards it and horse-power pays out
+//     in tinfoil.controller.ts.
+// All payouts hit the same record (distinguished by query_type STT vs CHAT).
 export const PPQ_VOICE_CREATOR_TOOL_ID = "stt:ppq-voice";
 
 // Model Configuration

@@ -86,7 +86,8 @@ class PrivateProxyManager {
   }
 
   /**
-   * Start the private mode proxy as a child process using tsx.
+   * Start the private mode proxy as a child process (Node running the
+   * package's compiled dist entry).
    */
   async start(apiKey) {
     if (this.running) {
@@ -115,19 +116,19 @@ class PrivateProxyManager {
       debugLogger.logEvent("private-proxy", "starting", { port: PROXY_PORT });
       proxyLog("Starting proxy...");
 
-      // Resolve paths — find tsx CLI via package.json location
+      // Resolve the proxy entry point. ppq-private-mode ≥0.2 ships compiled
+      // ESM (dist/bin/server.js), so Node runs it directly — no tsx.
       // In production, modules are inside app.asar which external Node can't read.
       // asarUnpack extracts them to app.asar.unpacked, so rewrite the path.
       const toUnpacked = (p) => p.replace("app.asar", "app.asar.unpacked");
-      const tsxPkgPath = require.resolve("tsx/package.json");
-      const tsxCli = toUnpacked(path.join(path.dirname(tsxPkgPath), "dist", "cli.mjs"));
-      const serverScript = toUnpacked(require.resolve("ppq-private-mode/bin/server.ts"));
+      const serverScript = toUnpacked(
+        require.resolve("ppq-private-mode/dist/bin/server.js"),
+      );
 
       // Find a Node.js 20+ binary (process.execPath is Electron, not Node)
       const nodeBin = this._findNodeBin();
 
       proxyLog(`Node binary: ${nodeBin}`);
-      proxyLog(`tsx CLI: ${tsxCli}`);
       proxyLog(`Server script: ${serverScript}`);
 
       // Wait for port to be available before spawning
@@ -145,11 +146,11 @@ class PrivateProxyManager {
 
         // In production, modules are unpacked from asar to app.asar.unpacked.
         // Set NODE_PATH so the child process can resolve transitive dependencies.
-        const unpackedNodeModules = tsxCli.includes("app.asar.unpacked")
-          ? path.join(path.dirname(tsxCli).split("node_modules")[0], "node_modules")
+        const unpackedNodeModules = serverScript.includes("app.asar.unpacked")
+          ? path.join(serverScript.split("node_modules")[0], "node_modules")
           : undefined;
 
-        this.childProcess = spawn(nodeBin, [tsxCli, serverScript], {
+        this.childProcess = spawn(nodeBin, [serverScript], {
           env: {
             ...process.env,
             PPQ_API_KEY: apiKey,

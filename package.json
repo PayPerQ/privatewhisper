@@ -92,7 +92,6 @@
     "shadcn-ui": "^0.9.5",
     "tailwind-merge": "^3.3.1",
     "tar": "^7.4.3",
-    "tsx": "^4.21.0",
     "tw-animate-css": "^1.3.4",
     "unbzip2-stream": "^1.4.3",
     "unique-names-generator": "^4.7.1",

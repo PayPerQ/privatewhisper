@@ -214,8 +214,10 @@ OUTPUT:
       body.provider = { only: ["groq", "cerebras"] };
       body.reasoning = { effort: "low" };
       // Identifies this call to horse-power so it can fire the PPQ Voice
-      // creator payout (same creator as the STT side). Private-mode requests
-      // skip this since they don't hit the standard chat-completions controller.
+      // creator payout (same creator as the STT side). Private-mode (Tinfoil)
+      // requests carry the same id as an X-Tool-Id header instead — their body
+      // is encrypted before it reaches horse-power, so a body field would be
+      // invisible to the payout logic there.
       body.tool_id = PPQ_VOICE_CREATOR_TOOL_ID;
     }
 
@@ -402,13 +404,22 @@ OUTPUT:
       //   privateModeEnabled: isPrivate,
       // });
 
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      };
+      // Private-mode cleanup can't carry tool_id in the body (it's encrypted
+      // end-to-end), so the creator payout id travels as a cleartext metadata
+      // header; the local proxy forwards it to horse-power alongside
+      // X-Private-Model.
+      if (provider === "tinfoil") {
+        headers["X-Tool-Id"] = PPQ_VOICE_CREATOR_TOOL_ID;
+      }
+
       const response = await withRetry(async () => {
         const res = await fetch(endpoint, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${apiKey}`,
-          },
+          headers,
           body: JSON.stringify(requestBody),
           signal: this.abortController?.signal,
         });

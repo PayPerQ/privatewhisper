@@ -11,6 +11,7 @@ import {
   Copy,
   FileText,
   CheckCircle,
+  ExternalLink,
 } from "lucide-react";
 import ApiKeyInput from "./ui/ApiKeyInput";
 import { ConfirmDialog, AlertDialog } from "./ui/dialog";
@@ -1004,6 +1005,39 @@ export default function SettingsPage({
                     )}
                   </div>
                 )}
+              </div>
+            </div>
+
+            {/* About Section */}
+            <div className="border-t pt-8">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  About
+                </h3>
+                <p className="text-sm text-gray-600 mb-4">
+                  Private Whisper is open source under the MIT license.
+                </p>
+              </div>
+              <div className="flex items-center justify-between p-4 bg-neutral-50 rounded-lg">
+                <div>
+                  <p className="text-sm font-medium text-neutral-800">
+                    Source Code
+                  </p>
+                  <p className="text-xs text-neutral-600">
+                    github.com/PayPerQ/privatewhisper
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  onClick={() =>
+                    window.electronAPI?.openExternal?.(
+                      "https://github.com/PayPerQ/privatewhisper",
+                    )
+                  }
+                >
+                  <ExternalLink size={16} className="mr-2" />
+                  View on GitHub
+                </Button>
               </div>
             </div>
 

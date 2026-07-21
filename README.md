@@ -15,8 +15,8 @@ PPQ Whisper is a lightweight Electron desktop app that turns any text field into
 ## Quick Start
 
 ```bash
-git clone https://github.com/PayPerQ/ppq-voice-private.git
-cd ppq-whisper
+git clone https://github.com/PayPerQ/privatewhisper.git
+cd privatewhisper
 npm install
 cp env.example .env   # add your PPQ API key
 npm run dev           # launches Vite + Electron with hot reload
@@ -133,4 +133,10 @@ Main process (Electron)
 ## Support & Feedback
 
 - Email: [support@ppq.ai](mailto:support@ppq.ai)
-- Issues: [github.com/PayPerQ/ppq-voice-private/issues](https://github.com/PayPerQ/ppq-voice-private/issues)
+- Issues: [github.com/PayPerQ/privatewhisper/issues](https://github.com/PayPerQ/privatewhisper/issues)
+
+## License & Acknowledgements
+
+This project is open source under the [MIT License](LICENSE).
+
+It began as a fork of [OpenWhispr](https://github.com/OpenWhispr/openwhispr) (MIT, © 2024 OpenWhispr Team) — many thanks to the OpenWhispr team for the foundation this app is built on.

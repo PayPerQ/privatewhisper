@@ -432,7 +432,7 @@ export default function SettingsPage({
         title: "Still Running",
         description:
           info?.message ||
-          "PPQ Whisper didn't restart automatically. Please quit the app manually to finish installing the update.",
+          "Private Whisper didn't restart automatically. Please quit the app manually to finish installing the update.",
       });
     });
   }, [showAlertDialog]);
@@ -761,7 +761,7 @@ export default function SettingsPage({
   }, [ppqApiKey, updateApiKeys, showAlertDialog]);
 
   const resetAccessibilityPermissions = () => {
-    const message = `🔄 RESET ACCESSIBILITY PERMISSIONS\n\nIf you've rebuilt or reinstalled PPQ Whisper and automatic inscription isn't functioning, you may have obsolete permissions from the previous version.\n\n📋 STEP-BY-STEP RESTORATION:\n\n1️⃣ Open System Settings (or System Preferences)\n   • macOS Ventura+: Apple Menu → System Settings\n   • Older macOS: Apple Menu → System Preferences\n\n2️⃣ Navigate to Privacy & Security → Accessibility\n\n3️⃣ Look for obsolete PPQ Whisper entries:\n   • Any entries named "PPQ Whisper"\n   • Any entries named "Electron"\n   • Any entries with unclear or generic names\n   • Entries pointing to old application locations\n\n4️⃣ Remove ALL obsolete entries:\n   • Select each old entry\n   • Click the minus (-) button\n   • Enter your password if prompted\n\n5️⃣ Add the current PPQ Whisper:\n   • Click the plus (+) button\n   • Navigate to and select the CURRENT PPQ Whisper app\n   • Ensure the checkbox is ENABLED\n\n6️⃣ Restart PPQ Whisper completely\n\n💡 This is very common during development when rebuilding applications!\n\nClick OK when you're ready to open System Settings.`;
+    const message = `🔄 RESET ACCESSIBILITY PERMISSIONS\n\nIf you've rebuilt or reinstalled Private Whisper and automatic inscription isn't functioning, you may have obsolete permissions from the previous version.\n\n📋 STEP-BY-STEP RESTORATION:\n\n1️⃣ Open System Settings (or System Preferences)\n   • macOS Ventura+: Apple Menu → System Settings\n   • Older macOS: Apple Menu → System Preferences\n\n2️⃣ Navigate to Privacy & Security → Accessibility\n\n3️⃣ Look for obsolete Private Whisper entries:\n   • Any entries named "Private Whisper"\n   • Any entries named "Electron"\n   • Any entries with unclear or generic names\n   • Entries pointing to old application locations\n\n4️⃣ Remove ALL obsolete entries:\n   • Select each old entry\n   • Click the minus (-) button\n   • Enter your password if prompted\n\n5️⃣ Add the current Private Whisper:\n   • Click the plus (+) button\n   • Navigate to and select the CURRENT Private Whisper app\n   • Ensure the checkbox is ENABLED\n\n6️⃣ Restart Private Whisper completely\n\n💡 This is very common during development when rebuilding applications!\n\nClick OK when you're ready to open System Settings.`;
 
     showConfirmDialog({
       title: "Reset Accessibility Permissions",
@@ -793,7 +793,7 @@ export default function SettingsPage({
                   App Updates
                 </h3>
                 <p className="text-sm text-gray-600 mb-4">
-                  Keep PPQ Whisper up to date with the latest features and
+                  Keep Private Whisper up to date with the latest features and
                   improvements.
                 </p>
               </div>
@@ -955,7 +955,7 @@ export default function SettingsPage({
                             showAlertDialog({
                               title: "Installing Update",
                               description:
-                                "PPQ Whisper will restart automatically to finish installing the newest version.",
+                                "Private Whisper will restart automatically to finish installing the newest version.",
                             });
                           } catch (error: any) {
                             setInstallInitiated(false);
@@ -1089,10 +1089,10 @@ export default function SettingsPage({
             <div className="border-t pt-8">
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                  About PPQ Whisper
+                  About Private Whisper
                 </h3>
                 <p className="text-sm text-gray-600 mb-6">
-                  PPQ Whisper converts your speech to text using AI. Press your
+                  Private Whisper converts your speech to text using AI. Press your
                   hotkey, speak, and we'll type what you said wherever your
                   cursor is.
                 </p>
@@ -1135,7 +1135,7 @@ export default function SettingsPage({
                       showConfirmDialog({
                         title: "⚠️ DANGER: Cleanup App Data",
                         description:
-                          "This will permanently delete ALL PPQ Whisper data including:\n\n• Database and transcriptions\n• Local storage settings\n• Cached logs and preferences\n• Environment files\n\nThe app will relaunch after cleanup.\n\nYou will need to manually remove app permissions in System Settings.\n\nThis action cannot be undone. Are you sure?",
+                          "This will permanently delete ALL Private Whisper data including:\n\n• Database and transcriptions\n• Local storage settings\n• Cached logs and preferences\n• Environment files\n\nThe app will relaunch after cleanup.\n\nYou will need to manually remove app permissions in System Settings.\n\nThis action cannot be undone. Are you sure?",
                         onConfirm: () => {
                           window.electronAPI
                             ?.cleanupApp()
@@ -1144,7 +1144,7 @@ export default function SettingsPage({
                                 title: "Cleanup Completed",
                                 description:
                                   result?.message ||
-                                  "✅ Cleanup completed! Relaunching PPQ Whisper...",
+                                  "✅ Cleanup completed! Relaunching Private Whisper...",
                               });
                             })
                             .catch((error) => {
@@ -1154,7 +1154,7 @@ export default function SettingsPage({
                               showAlertDialog({
                                 title: "Cleanup Failed",
                                 description: isOldVersion
-                                  ? "This feature requires a newer version of PPQ Whisper. Please update to the latest version and try again."
+                                  ? "This feature requires a newer version of Private Whisper. Please update to the latest version and try again."
                                   : `❌ Cleanup failed: ${error.message}`,
                               });
                             });
@@ -1170,7 +1170,7 @@ export default function SettingsPage({
                   </Button>
                   <p className="text-xs text-gray-500">
                     Full reset: wipes transcriptions, settings, logs, and saved
-                    keys. You’ll need to set up PPQ Whisper again.
+                    keys. You’ll need to set up Private Whisper again.
                   </p>
                 </div>
               </div>
@@ -1294,7 +1294,7 @@ export default function SettingsPage({
                           "Hold to talk" with non-Globe keys requires Input
                           Monitoring permission to detect key release. Go to
                           System Settings → Privacy & Security → Input
-                          Monitoring and enable PPQ Whisper.
+                          Monitoring and enable Private Whisper.
                         </p>
                         <p className="text-xs mt-2">
                           <strong>Tip:</strong> Use the Globe key (🌐) for
@@ -1398,7 +1398,7 @@ export default function SettingsPage({
                   Microphone
                 </h3>
                 <p className="text-sm text-gray-600 mb-4">
-                  Choose which microphone PPQ Whisper uses for recording.
+                  Choose which microphone Private Whisper uses for recording.
                 </p>
               </div>
               <div className="space-y-4">
@@ -1513,10 +1513,10 @@ export default function SettingsPage({
       case "models":
         return (
           <div className="space-y-8">
-            {/* How PPQ Whisper Works */}
+            {/* How Private Whisper Works */}
             <div>
               <div className="rounded-lg border border-orange-200 bg-orange-50 p-4 text-sm text-orange-800">
-                <p className="font-medium mb-2">PPQ Whisper uses a two-step voice processing pipeline:</p>
+                <p className="font-medium mb-2">Private Whisper uses a two-step voice processing pipeline:</p>
                 <ol className="list-decimal list-inside space-y-1.5 ml-1">
                   <li>
                     <span className="font-medium">Speech-to-Text (STT)</span> — A

@@ -89,7 +89,7 @@ npm run build:win           # Windows NSIS + portable
 npm run build:linux         # Linux AppImage + deb
 ```
 
-Artifacts land in `dist/`. On macOS the unsigned app lives at `dist/mac-arm64/PPQ Whisper.app`; Windows gets `dist/win-unpacked/PPQ Whisper.exe`.
+Artifacts land in `dist/`. On macOS the unsigned app lives at `dist/mac-arm64/Private Whisper.app`; Windows gets `dist/win-unpacked/Private Whisper.exe`.
 
 ## Permissions
 
@@ -135,7 +135,7 @@ Main process (Electron)
 ## Support & Feedback
 
 - Website & Downloads: [privatewhisper.ai](https://privatewhisper.ai)
-- Email: [support@ppq.ai](mailto:support@ppq.ai)
+- Email: [matt@ppq.ai](mailto:matt@ppq.ai)
 - Issues: [github.com/PayPerQ/privatewhisper/issues](https://github.com/PayPerQ/privatewhisper/issues)
 
 ## License & Acknowledgements

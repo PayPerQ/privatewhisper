@@ -5,6 +5,49 @@ if (process.platform === "darwin" && app && app.getName() !== "Private Whisper")
   app.setName("Private Whisper");
 }
 
+// One-time userData migration for the 0.1.55 rebrand. On macOS the setName
+// call above determines app.getPath("userData"), so renaming the app moved
+// userData from "PPQ Whisper" to a fresh "Private Whisper" directory, leaving
+// API keys, the custom dictionary, and transcription history behind. Copy the
+// legacy profile into place before any manager touches userData. Windows and
+// Linux never called setName, so their userData path is unchanged and the
+// legacy directory won't exist there.
+if (process.platform === "darwin") {
+  const fs = require("fs");
+  const path = require("path");
+  try {
+    const newDir = app.getPath("userData");
+    const legacyDir = path.join(app.getPath("appData"), "PPQ Whisper");
+    const marker = path.join(newDir, ".migrated-from-ppq-whisper");
+    if (fs.existsSync(legacyDir) && !fs.existsSync(marker)) {
+      if (fs.existsSync(newDir)) {
+        // A fresh profile may exist if 0.1.55 already ran; set it aside so the
+        // legacy data wins wholesale (mixing two Local Storage leveldbs would
+        // corrupt both).
+        fs.renameSync(newDir, `${newDir} (pre-migration ${Date.now()})`);
+      }
+      const SKIP_DIRS = new Set([
+        "Cache",
+        "Code Cache",
+        "GPUCache",
+        "DawnGraphiteCache",
+        "DawnWebGPUCache",
+        "Crashpad",
+        "logs",
+      ]);
+      fs.cpSync(legacyDir, newDir, {
+        recursive: true,
+        filter: (src) => src === legacyDir || !SKIP_DIRS.has(path.basename(src)),
+      });
+      fs.writeFileSync(marker, new Date().toISOString());
+    }
+  } catch (err) {
+    // Never block startup on migration problems; the marker stays unwritten so
+    // the next launch retries.
+    console.error("Legacy userData migration failed:", err);
+  }
+}
+
 // Import helper modules (but don't instantiate yet)
 const EnvironmentManager = require("./src/helpers/environment");
 const WindowManager = require("./src/helpers/windowManager");

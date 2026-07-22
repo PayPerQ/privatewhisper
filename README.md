@@ -2,7 +2,7 @@
 
 PPQ Whisper is a lightweight Electron desktop app that turns any text field into a dictation box. Press a single hotkey, speak, and the app streams your audio to PPQ Cloud for transcription and clean-up, then pastes the result wherever your cursor was.
 
-**Website & Downloads:** [ppq-voice-website.vercel.app](https://ppq-voice-website.vercel.app)
+**Website & Downloads:** [privatewhisper.ai](https://privatewhisper.ai)
 
 ## Why Teams Use PPQ Whisper
 
@@ -134,7 +134,7 @@ Main process (Electron)
 
 ## Support & Feedback
 
-- Website & Downloads: [ppq-voice-website.vercel.app](https://ppq-voice-website.vercel.app)
+- Website & Downloads: [privatewhisper.ai](https://privatewhisper.ai)
 - Email: [support@ppq.ai](mailto:support@ppq.ai)
 - Issues: [github.com/PayPerQ/privatewhisper/issues](https://github.com/PayPerQ/privatewhisper/issues)
 

@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 @theme {
-  /* PPQ Whisper Brand Colors - Orange Theme */
+  /* Private Whisper Brand Colors - Orange Theme */
   --color-primary: #fd4623;
   --color-primary-hover: #e63e1f;
   --color-primary-active: #cf361a;
@@ -162,7 +162,7 @@
   }
 }
 
-/* PPQ Whisper Brand Typography */
+/* Private Whisper Brand Typography */
 .brand-heading {
   font-family:
     "Noto Sans",

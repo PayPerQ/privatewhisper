@@ -125,7 +125,7 @@ export default function ControlPanel() {
         title: "Still Running",
         description:
           info?.message ||
-          "PPQ Whisper didn't restart automatically. Please quit the app manually to finish installing the update.",
+          "Private Whisper didn't restart automatically. Please quit the app manually to finish installing the update.",
       });
     };
 

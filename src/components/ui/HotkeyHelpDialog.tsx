@@ -137,7 +137,7 @@ export function HotkeyHelpDialog({
                 <div className="space-y-3">
                   <p className="text-xs text-muted-foreground">
                     These hotkeys are reserved by {platformName} and cannot be
-                    used by PPQ Whisper:
+                    used by Private Whisper:
                   </p>
                   <div className="max-h-60 overflow-y-auto">
                     <div className="flex flex-wrap gap-1.5">

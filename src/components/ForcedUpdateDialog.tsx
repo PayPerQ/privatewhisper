@@ -68,7 +68,7 @@ export function ForcedUpdateDialog({
           {/* Content */}
           <div className="px-6 py-4 space-y-4">
             <DialogPrimitive.Description className="text-sm text-muted-foreground brand-body leading-relaxed">
-              We're constantly improving PPQ Whisper with new features, better
+              We're constantly improving Private Whisper with new features, better
               performance, and important fixes. To ensure you have the best
               experience, please update to the latest version.
             </DialogPrimitive.Description>

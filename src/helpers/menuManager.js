@@ -2,7 +2,7 @@ const { Menu } = require("electron");
 
 // Shared menu templates to avoid duplication
 const getAppMenu = () => ({
-  label: "PPQ Whisper",
+  label: "Private Whisper",
   submenu: [
     { role: "about" },
     { type: "separator" },
@@ -12,7 +12,7 @@ const getAppMenu = () => ({
     { role: "hideOthers" },
     { role: "unhide" },
     { type: "separator" },
-    { role: "quit", label: "Quit PPQ Whisper" },
+    { role: "quit", label: "Quit Private Whisper" },
   ],
 });
 

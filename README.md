@@ -4,16 +4,6 @@ Private Whisper is a lightweight Electron desktop app that turns any text field 
 
 **Website & Downloads:** [privatewhisper.ai](https://privatewhisper.ai)
 
-## Why Teams Use Private Whisper
-
-- **Cloud-first dictation** – Streams audio to PPQ Cloud for fast, consistent transcriptions.
-- **Automatic paste + history** – Captured text is pasted into the active app and stored locally in SQLite.
-- **AI clean-up pipeline** – PPQ cleans punctuation, lists, and formatting automatically.
-- **Cross-platform** – macOS, Windows, and Linux packages powered by Electron + Vite.
-- **Flexible hotkeys** – Globe key on macOS, customizable hotkeys on all platforms.
-- **Ops-friendly** – Toggle `PPQVOICE_DEBUG=true` to write rich logs to the user data directory.
-- **Zero local-model overhead** – No llama.cpp builds, Python dependencies, or multi-GB downloads.
-
 ## Quick Start
 
 ```bash

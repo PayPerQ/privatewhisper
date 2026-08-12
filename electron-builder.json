@@ -6,6 +6,7 @@
   },
   "npmRebuild": true,
   "buildDependenciesFromSource": true,
+  "afterPack": "scripts/verify-packaged-natives.js",
   "files": [
     "main.js",
     "preload.js",
@@ -39,7 +40,14 @@
     {
       "from": "resources/bin",
       "to": "bin",
-      "filter": ["sherpa-onnx-*", "libsherpa*", "libonnx*", "libkaldi*"]
+      "filter": [
+        "sherpa-onnx-*",
+        "libsherpa*",
+        "libonnx*",
+        "libkaldi*",
+        "onnxruntime*.dll",
+        "cargs.dll"
+      ]
     }
   ],
   "mac": {

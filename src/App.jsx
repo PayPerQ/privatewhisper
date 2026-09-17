@@ -14,6 +14,7 @@ import {
   acquireSharedAudioContext,
   warmSharedAudioContext,
 } from "./utils/sharedAudioContext";
+import { isBuiltInMicrophone } from "./utils/audioDeviceUtils";
 
 const MIN_HOLD_DURATION_MS = 200;
 
@@ -34,8 +35,6 @@ const normalizeProviderName = (value) => {
 const pipelineLogger = createDebugLogger("pipeline");
 const audioDeviceLogger = createDebugLogger("audio-device");
 const appLogger = createDebugLogger("app");
-const BUILT_IN_MIC_LABEL =
-  /built[- ]?in|internal|macbook|imac|mac mini|mac studio|mac pro/i;
 const BUILT_IN_MIC_STORAGE_KEY = "builtInMicDeviceId";
 const INVALID_DEVICE_IDS = new Set(["default", "communications"]);
 const builtInMicCache = {
@@ -136,7 +135,7 @@ const warmBuiltInMicCache = async () => {
     }
 
     const builtInDevice = audioInputs.find((device) =>
-      BUILT_IN_MIC_LABEL.test(device.label),
+      isBuiltInMicrophone(device.label),
     );
 
     if (builtInDevice?.deviceId) {
@@ -184,7 +183,7 @@ const logStreamDeviceInfo = (stream, context) => {
     const settings = track?.getSettings?.() || {};
     const label = track?.label || "";
     const deviceId = settings.deviceId || "";
-    const matchedBuiltInLabel = label ? BUILT_IN_MIC_LABEL.test(label) : false;
+    const matchedBuiltInLabel = label ? isBuiltInMicrophone(label) : false;
     const matchedBuiltInCache =
       deviceId && builtInMicCache.deviceId
         ? deviceId === builtInMicCache.deviceId
@@ -253,12 +252,16 @@ async function getBuiltInMicrophoneStream() {
   });
 
   const builtInDevice = audioInputs.find((device) =>
-    BUILT_IN_MIC_LABEL.test(device.label),
+    isBuiltInMicrophone(device.label),
   );
 
   if (!builtInDevice?.deviceId) {
-    void audioDeviceLogger.log("MIC_BUILTIN_NOT_FOUND");
-    throw new Error("Built-in microphone not found");
+    // No label looks built-in (e.g. desktop PCs, unusual Windows driver names).
+    // Record from the system default instead of failing the dictation.
+    void audioDeviceLogger.log("MIC_BUILTIN_NOT_FOUND", {
+      fallback: "system_default",
+    });
+    return getUserMediaWithFallback(DICTATION_AUDIO_CONSTRAINTS);
   }
 
   // Step 3: Cache and acquire the detected built-in mic
